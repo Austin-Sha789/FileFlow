@@ -1,0 +1,30 @@
+# Maven build output
+target/
+
+# Java
+*.class
+*.jar
+*.war
+*.ear
+
+# IDE / editor
+.vscode/
+.idea/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# SQLite / local database files
+*.db
+*.sqlite
+*.sqlite3
+
+# JavaFX / packaging output
+out/
+dist/
+build/
