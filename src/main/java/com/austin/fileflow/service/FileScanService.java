@@ -10,6 +10,8 @@ import java.util.Set;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.FileVisitResult;
+import java.nio.file.SimpleFileVisitor;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -25,17 +27,46 @@ public class FileScanService {
         List<FileItem> items = new ArrayList<>();
         List<ScanIssue> issues = new ArrayList<>();
 
-        try (Stream<Path> paths = Files.walk(rootPath)) {
+        Files.walkFileTree(rootPath, new SimpleFileVisitor<Path>() {
             
-            paths.forEach(path -> {
+            @Override 
+            public FileVisitResult preVisitDirectory(
+                    Path dir,
+                    BasicFileAttributes attrs
+            ) {
+
                 try {
-                    FileItem item = createFileItem(path);
-                    items.add(item);
+                    items.add(createFileItem(dir));
                 } catch (IOException e) {
-                    issues.add(new ScanIssue(path, e.getMessage()));
+                    issues.add(new ScanIssue(dir, e.getMessage()));
                 }
-            });
-        }
+
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override 
+            public FileVisitResult visitFile(
+                    Path file,
+                    BasicFileAttributes attrs) {
+                try {
+                    items.add(createFileItem(file));
+                } catch (IOException e) {
+                    issues.add(new ScanIssue(file, e.getMessage()));
+                }
+            
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override 
+            public FileVisitResult visitFileFailed(
+                    Path file,
+                    IOException exc) {
+
+                issues.add(new ScanIssue(file, exc.getMessage()));
+
+                return FileVisitResult.CONTINUE;
+            }
+        });
 
         return new ScanResult(items, issues);
     } 

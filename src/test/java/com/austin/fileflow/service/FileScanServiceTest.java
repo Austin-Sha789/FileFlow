@@ -86,4 +86,21 @@ public class FileScanServiceTest {
 
         assertTrue(photosItem.isDirectory());
     }
+
+    @Test 
+    void scanRecordsIssueWhenPathCannotBeVisited() throws IOException {
+        Path missingPath = tempDir.resolve("missing-folder");
+
+        FileScanService service = new FileScanService();
+
+        ScanResult result = service.scan(missingPath);
+
+        assertTrue(result.getItems().isEmpty());
+        assertEquals(1, result.getIssues().size());
+
+        assertEquals(
+                missingPath,
+                result.getIssues().get(0).getPath()
+        );
+    }
 }
