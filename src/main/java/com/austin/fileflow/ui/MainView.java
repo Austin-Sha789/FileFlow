@@ -19,10 +19,13 @@ public class MainView {
 
     private final VBox pageContent;
 
+    private final Button scanButton;
+
     public MainView() {
         root = new BorderPane();
-        pageTitle = new Label("Dashboard");
+        pageTitle = new Label("Home");
         pageContent = new VBox();
+        scanButton = new Button("Scan Folder");
 
         root.setLeft(createSidebar());
         root.setCenter(createContent());
@@ -39,6 +42,9 @@ public class MainView {
 
         Label logo = new Label("FileFlow");
         logo.getStyleClass().add("logo");
+
+        Label home = new Label("Home");
+        home.getStyleClass().add("nav-item");
 
         Label dashboard = new Label("Dashboard");
         dashboard.getStyleClass().add("nav-item");
@@ -61,10 +67,26 @@ public class MainView {
         Label settings = new Label("Settings");
         settings.getStyleClass().add("nav-item");
 
+        home.setOnMouseClicked(event ->
+                selectNavItem(
+                        home,
+                        "Home",
+                        home,
+                        dashboard,
+                        files,
+                        favourites,
+                        duplicates,
+                        tags,
+                        history,
+                        settings
+                )
+        );
+
         dashboard.setOnMouseClicked(event ->
                 selectNavItem(
                         dashboard,
                         "Dashboard",
+                        home,
                         dashboard,
                         files,
                         favourites,
@@ -79,6 +101,7 @@ public class MainView {
                 selectNavItem(
                         files,
                         "Files",
+                        home,
                         dashboard,
                         files,
                         favourites,
@@ -93,6 +116,7 @@ public class MainView {
                 selectNavItem(
                         favourites,
                         "Favourites",
+                        home,
                         dashboard,
                         files,
                         favourites,
@@ -107,6 +131,7 @@ public class MainView {
                 selectNavItem(
                         duplicates,
                         "Duplicates",
+                        home,
                         dashboard,
                         files,
                         favourites,
@@ -121,6 +146,7 @@ public class MainView {
                 selectNavItem(
                         tags,
                         "Tags",
+                        home,
                         dashboard,
                         files,
                         favourites,
@@ -135,6 +161,7 @@ public class MainView {
                 selectNavItem(
                         history,
                         "History",
+                        home,
                         dashboard,
                         files,
                         favourites,
@@ -149,6 +176,7 @@ public class MainView {
                 selectNavItem(
                         settings,
                         "Settings",
+                        home,
                         dashboard,
                         files,
                         favourites,
@@ -159,8 +187,22 @@ public class MainView {
                 )
         );
 
+        selectNavItem(
+            home,
+            "Home",
+            home,
+            dashboard,
+            files,
+            favourites,
+            duplicates,
+            tags,
+            history,
+            settings
+    );
+
         sidebar.getChildren().addAll(
                 logo,
+                home,
                 dashboard,
                 files,
                 favourites,
@@ -179,7 +221,6 @@ public class MainView {
 
         pageTitle.getStyleClass().add("page-title");
 
-        Button scanButton = new Button("Scan Folder");
         scanButton.getStyleClass().add("primary-button");
 
         Region spacer = new Region();
@@ -191,10 +232,6 @@ public class MainView {
                 scanButton
         );
         topBar.getStyleClass().add("top-bar");
-
-        pageContent.getChildren().add(
-                createDashboardContent()
-        );
 
         content.getChildren().addAll(
                 topBar,
@@ -234,21 +271,63 @@ public class MainView {
 
         pageContent.getChildren().clear();
 
-        if (title.equals("Dashboard")) {
-            pageContent.getChildren().add(createDashboardContent());
-        } else if (title.equals("Files")) {
-            pageContent.getChildren().add(createFilesContent());
-        } else if (title.equals("Favourites")) {
-            pageContent.getChildren().add(createFavouritesContent());
-        } else if (title.equals("Duplicates")) {
-            pageContent.getChildren().add(createDuplicatesContent());
-        } else if (title.equals("Tags")) {
-            pageContent.getChildren().add(createTagsContent());
-        } else if (title.equals("History")) {
-            pageContent.getChildren().add(createHistoryContent());
-        } else if (title.equals("Settings")) {
-            pageContent.getChildren().add(createSettingsContent());
+        scanButton.setVisible(!title.equals("Home"));
+        scanButton.setManaged(!title.equals("Home"));
+
+        switch (title) {
+            case "Home" ->
+                    pageContent.getChildren().add(createHomeContent());
+
+            case "Dashboard" ->
+                    pageContent.getChildren().add(createDashboardContent());
+
+            case "Files" ->
+                    pageContent.getChildren().add(createFilesContent());
+
+            case "Favourites" ->
+                    pageContent.getChildren().add(createFavouritesContent());
+
+            case "Duplicates" ->
+                    pageContent.getChildren().add(createDuplicatesContent());
+
+            case "Tags" ->
+                    pageContent.getChildren().add(createTagsContent());
+
+            case "History" ->
+                    pageContent.getChildren().add(createHistoryContent());
+
+            case "Settings" ->
+                    pageContent.getChildren().add(createSettingsContent());
         }
+    }
+
+    private VBox createHomeContent() {
+        VBox homeContent = new VBox();
+        homeContent.getStyleClass().add("home-content");
+
+        VBox hero = new VBox();
+        hero.getStyleClass().add("home-hero");
+
+        Label heading = new Label("Your files, organised.");
+        heading.getStyleClass().add("home-heading");
+
+        Label subtitle = new Label(
+                "Scan a folder to explore, organise and understand your local files."
+        );
+        subtitle.getStyleClass().add("home-subtitle");
+
+        Button scanButton = new Button("Scan a folder");
+        scanButton.getStyleClass().add("home-scan-button");
+
+        hero.getChildren().addAll(
+                heading,
+                subtitle,
+                scanButton
+        );
+
+        homeContent.getChildren().add(hero);
+
+        return homeContent;
     }
 
     private VBox createDashboardContent() {

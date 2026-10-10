@@ -74,3 +74,32 @@
     -fx-font-size: 24px;
     -fx-font-weight: blod;
 }
+
+.home-content {
+    -fx-spacing: 24;
+}
+
+.home-hero {
+    -fx-spacing: 12;
+    -fx-padding: 32;
+    -fx-background-color: #ffffff;
+    -fx-background-radius: 16;
+    -fx-border-color: #ecece7;
+    -fx-border-radius: 16;
+}
+
+.home-heading {
+    -fx-font-size: 28px;
+    -fx-font-weight: bold;
+}
+
+.home-subtitle {
+    -fx-font-size: 14px;
+    -fx-text-fill: #6f6f6a;
+}
+
+.home-scan-button {
+    -fx-padding: 10 18;
+    -fx-background-radius: 8;
+    -fx-cursor: hand;
+}
