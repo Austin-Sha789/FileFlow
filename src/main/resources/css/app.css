@@ -4,21 +4,73 @@
 }
 
 .sidebar {
-    -fx-background-color: #f4f4f2;
     -fx-padding: 24;
+    -fx-background-color: #ffffff;
+    -fx-spacing: 8;
+    -fx-border-color: transparent #e8e8e3 transparent transparent;
 }
 
 .page-title {
     -fx-font-size: 28px;
-    -fx-font-weight: 600;
+    -fx-font-weight: bold;
 }
 
 .nav-item {
-    -fx-font-size: 15px;
+    -fx-padding: 10 12;
+    -fx-font-size: 14px;
     -fx-text-fill: #555555;
+    -fx-font-size: 14px;
+}
+
+.nav-item:hover {
+    -fx-background-color: #f2f2ee;
+}
+
+.nav-item-selected {
+    -fx-background-color: #ecece7;
+    -fx-font-weight: bold;
 }
 
 .logo {
-    -fx-font-size: 22px;
+    -fx-font-size: 20px;
     -fx-font-weight: bold;
+    -fx-padding: 0 0 20 4;
+}
+
+.content {
+    -fx-padding: 32;
+    -fx-spacing: 24;
+    -fx-background-color: #f7f7f5;
+}
+
+.primary-button {
+    -fx-padding: 10 18;
+    -fx-background-radius: 8;
+    -fx-cursor: hand;
+}
+
+.top-bar {
+    -fx-alignment: center-left;
+}
+
+.summary-grid {
+    -fx-hgap: 16;
+}
+
+.summary-card {
+    -fx-padding: 20;
+    -fx-spacing: 8;
+    -fx-background-color: white;
+    -fx-background-radius: 12;
+    -fx-border-color: #ecece7;
+    -fx-border-radius: 12;
+}
+
+.summary-card-title {
+    -fx-font-size: 13px;
+}
+
+.summary-card-value {
+    -fx-font-size: 24px;
+    -fx-font-weight: blod;
 }
