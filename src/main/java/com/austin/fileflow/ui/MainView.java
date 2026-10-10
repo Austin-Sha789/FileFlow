@@ -348,33 +348,7 @@ public class MainView {
                 recentTitle,
                 recentScanCard
         );
-
-        Label quickAccessTitle = new Label("Quick Access");
-        quickAccessTitle.getStyleClass().add("section-title");
-
-        HBox quickAccessRow = new HBox();
-        quickAccessRow.getStyleClass().add("quick-access-row");
-
-        Button filesButton = new Button("Files");
-        filesButton.getStyleClass().add("quick-access-button");
-
-        Button duplicatesButton = new Button("Duplicates");
-        duplicatesButton.getStyleClass().add("quick-access-button");
-
-        Button favouritesButton = new Button("Favourites");
-        favouritesButton.getStyleClass().add("quick-access-button");
-
-        quickAccessRow.getChildren().addAll(
-                filesButton,
-                duplicatesButton,
-                favouritesButton
-        );
-
-        homeContent.getChildren().addAll(
-                quickAccessTitle,
-                quickAccessRow
-        );
-
+        
         return homeContent;
     }
 
