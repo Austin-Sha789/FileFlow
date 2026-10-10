@@ -53,8 +53,8 @@
     -fx-alignment: center-left;
 }
 
-.summary-grid {
-    -fx-hgap: 16;
+.summary-row {
+    -fx-spacing: 16;
 }
 
 .summary-card {
@@ -102,4 +102,28 @@
     -fx-padding: 10 18;
     -fx-background-radius: 8;
     -fx-cursor: hand;
+}
+
+.section-title {
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+}
+
+.recent-scan-card {
+    -fx-spacing: 6;
+    -fx-padding: 20;
+    -fx-background-color: #ffffff;
+    -fx-background-radius: 12;
+    -fx-border-color: #ecece7;
+    -fx-border-radius: 12;
+}
+
+.recent-scan-name {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+}
+
+.recent-scan-details {
+    -fx-font-size: 13px;
+    -fx-text-fill: #6f6f6a;
 }

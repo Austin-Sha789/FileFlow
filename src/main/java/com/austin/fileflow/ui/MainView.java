@@ -6,8 +6,6 @@ import javafx.scene.layout.VBox;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
-import javafx.scene.layout.GridPane;
-import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.control.Label;
 import javafx.scene.control.Button;
 
@@ -327,24 +325,84 @@ public class MainView {
 
         homeContent.getChildren().add(hero);
 
+        Label recentTitle = new Label("Recent Scan");
+        recentTitle.getStyleClass().add("section-title");
+
+        VBox recentScanCard = new VBox();
+        recentScanCard.getStyleClass().add("recent-scan-card");
+
+        Label folderName = new Label("No recent scan");
+        folderName.getStyleClass().add("recent-scan-name");
+
+        Label folderDetails = new Label(
+                "Scan a folder to see recent activity here."
+        );
+        folderDetails.getStyleClass().add("recent-scan-details");
+
+        recentScanCard.getChildren().addAll(
+                folderName,
+                folderDetails
+        );
+
+        homeContent.getChildren().addAll(
+                recentTitle,
+                recentScanCard
+        );
+
+        Label quickAccessTitle = new Label("Quick Access");
+        quickAccessTitle.getStyleClass().add("section-title");
+
+        HBox quickAccessRow = new HBox();
+        quickAccessRow.getStyleClass().add("quick-access-row");
+
+        Button filesButton = new Button("Files");
+        filesButton.getStyleClass().add("quick-access-button");
+
+        Button duplicatesButton = new Button("Duplicates");
+        duplicatesButton.getStyleClass().add("quick-access-button");
+
+        Button favouritesButton = new Button("Favourites");
+        favouritesButton.getStyleClass().add("quick-access-button");
+
+        quickAccessRow.getChildren().addAll(
+                filesButton,
+                duplicatesButton,
+                favouritesButton
+        );
+
+        homeContent.getChildren().addAll(
+                quickAccessTitle,
+                quickAccessRow
+        );
+
         return homeContent;
     }
 
     private VBox createDashboardContent() {
         VBox dashboardContent = new VBox();
 
-        GridPane summaryGrid = new GridPane();
-        summaryGrid.getStyleClass().add("summary-grid");
+        HBox summaryRow = new HBox();
+        summaryRow.getStyleClass().add("summary-grid");
 
         VBox filesCard = createSummaryCard("Files", "0");
         VBox storageCard = createSummaryCard("Storage", "0 GB");
         VBox duplicatesCard = createSummaryCard("Duplicates", "0");
 
-        summaryGrid.add(filesCard, 0, 0);
-        summaryGrid.add(storageCard, 1, 0);
-        summaryGrid.add(duplicatesCard, 2, 0);
+        HBox.setHgrow(filesCard, Priority.ALWAYS);
+        HBox.setHgrow(storageCard, Priority.ALWAYS);
+        HBox.setHgrow(duplicatesCard, Priority.ALWAYS);
 
-        dashboardContent.getChildren().add(summaryGrid);
+        filesCard.setMaxWidth(Double.MAX_VALUE);
+        storageCard.setMaxWidth(Double.MAX_VALUE);
+        duplicatesCard.setMaxWidth(Double.MAX_VALUE);
+
+        summaryRow.getChildren().addAll(
+                filesCard,
+                storageCard,
+                duplicatesCard
+        );
+
+        dashboardContent.getChildren().add(summaryRow);
 
         return dashboardContent;
     }
