@@ -8,6 +8,7 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.control.Label;
 import javafx.scene.control.Button;
+import javafx.scene.control.ScrollPane;
 
 import javafx.stage.DirectoryChooser;
 
@@ -449,7 +450,6 @@ public class MainView {
 
     private VBox createFilesContent() {
         VBox filesContent = new VBox();
-        filesContent.setSpacing(8);
 
         if (latestScanResult == null) {
             Label emptyLabel = new Label("No folder has been scanned yet.");
@@ -457,13 +457,42 @@ public class MainView {
             return filesContent;
         }
 
-        for (FileItem item : latestScanResult.getItems()) {
-            Label fileLabel = new Label(
-                    item.getName() + "    " + formatSize(item.getSizeBytes())
+        if (!latestScanResult.getIssues().isEmpty()) {
+            Label issueLabel = new Label(
+                        latestScanResult.getIssues().size()
+                                + " item(s) could not be scanned"
             );
-            
-            filesContent.getChildren().add(fileLabel);
+
+            issueLabel.getStyleClass().add("scan-issue");
+
+            filesContent.getChildren().add(issueLabel);
         }
+
+        VBox fileList = new VBox();
+        fileList.setSpacing(8);
+
+        for (FileItem item : latestScanResult.getItems()) {
+            String text;
+
+            if (item.isDirectory()) {
+                text = "[Folder]" + item.getName();
+            } else {
+                text = item.getName()
+                        + "    "
+                        + formatSize(item.getSizeBytes());                    
+            }
+
+            Label fileLabel = new Label(text);
+            
+            fileList.getChildren().add(fileLabel);
+        }
+
+        ScrollPane scrollPane = new ScrollPane(fileList);
+        scrollPane.setFitToWidth(true);
+
+        VBox.setVgrow(scrollPane, Priority.ALWAYS);
+
+        filesContent.getChildren().add(scrollPane);
 
         return filesContent;
     }
