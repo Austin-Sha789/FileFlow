@@ -9,6 +9,18 @@ import javafx.scene.layout.Region;
 import javafx.scene.control.Label;
 import javafx.scene.control.Button;
 
+import javafx.stage.DirectoryChooser;
+
+import java.io.File;
+import java.io.IOException;
+
+import java.nio.file.Path;
+
+import com.austin.fileflow.model.FileItem;
+import com.austin.fileflow.model.ScanResult;
+
+import com.austin.fileflow.service.FileScanService;
+
 public class MainView {
     
     private final BorderPane root;
@@ -19,11 +31,17 @@ public class MainView {
 
     private final Button scanButton;
 
+    private final FileScanService fileScanService;
+
+    private ScanResult latestScanResult;
+
     public MainView() {
         root = new BorderPane();
         pageTitle = new Label("Home");
         pageContent = new VBox();
         scanButton = new Button("Scan Folder");
+
+        fileScanService = new FileScanService();
 
         root.setLeft(createSidebar());
         root.setCenter(createContent());
@@ -219,6 +237,33 @@ public class MainView {
 
         pageTitle.getStyleClass().add("page-title");
 
+        scanButton.setOnAction(event -> {
+            DirectoryChooser directoryChooser = new DirectoryChooser();
+            directoryChooser.setTitle("Select Folder");
+
+            File selectedFolder = directoryChooser.showDialog(
+                root.getScene().getWindow()
+            );
+
+            if (selectedFolder == null) {
+                return;
+            }
+
+            Path selectedPath = selectedFolder.toPath();
+
+            try {
+                ScanResult result = fileScanService.scan(selectedPath);
+                latestScanResult = result;
+
+                pageTitle.setText("Files");
+
+                pageContent.getChildren().clear();
+                pageContent.getChildren().add(createFilesContent());
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        });
+
         scanButton.getStyleClass().add("primary-button");
 
         Region spacer = new Region();
@@ -348,19 +393,40 @@ public class MainView {
                 recentTitle,
                 recentScanCard
         );
-        
+
         return homeContent;
     }
 
     private VBox createDashboardContent() {
         VBox dashboardContent = new VBox();
 
+        if (latestScanResult == null) {
+            Label emptyLabel = new Label(
+                    "Scan a folder to view file statistics."
+            );
+
+            dashboardContent.getChildren().add(emptyLabel);
+            return dashboardContent;
+        }
+
+        long fileCount = latestScanResult.getItems()
+                .stream()
+                .filter(item -> !item.isDirectory())
+                .count();
+
+        long totalBytes = latestScanResult.getItems()
+                .stream()
+                .filter(item -> !item.isDirectory())
+                .mapToLong(item -> item.getSizeBytes())
+                .sum();
+
+
         HBox summaryRow = new HBox();
         summaryRow.getStyleClass().add("summary-grid");
 
-        VBox filesCard = createSummaryCard("Files", "0");
-        VBox storageCard = createSummaryCard("Storage", "0 GB");
-        VBox duplicatesCard = createSummaryCard("Duplicates", "0");
+        VBox filesCard = createSummaryCard("Files", String.valueOf(fileCount));
+        VBox storageCard = createSummaryCard("Storage", formatSize(totalBytes));
+        VBox duplicatesCard = createSummaryCard("Duplicates", "Not analysed");
 
         HBox.setHgrow(filesCard, Priority.ALWAYS);
         HBox.setHgrow(storageCard, Priority.ALWAYS);
@@ -383,9 +449,21 @@ public class MainView {
 
     private VBox createFilesContent() {
         VBox filesContent = new VBox();
+        filesContent.setSpacing(8);
 
-        Label placeholder = new Label("Files content");
-        filesContent.getChildren().add(placeholder);
+        if (latestScanResult == null) {
+            Label emptyLabel = new Label("No folder has been scanned yet.");
+            filesContent.getChildren().add(emptyLabel);
+            return filesContent;
+        }
+
+        for (FileItem item : latestScanResult.getItems()) {
+            Label fileLabel = new Label(
+                    item.getName() + "    " + formatSize(item.getSizeBytes())
+            );
+            
+            filesContent.getChildren().add(fileLabel);
+        }
 
         return filesContent;
     }
@@ -418,5 +496,25 @@ public class MainView {
         VBox content = new VBox();
         content.getChildren().add(new Label("Settings content"));
         return content;
+    }
+
+    private String formatSize(long bytes) {
+        double kilobytes = bytes / 1024.0;
+        double megabytes = kilobytes / 1024.0;
+        double gigabytes = megabytes / 1024.0;
+
+        if (gigabytes >= 1) {
+            return String.format("%.1f GB", gigabytes);
+        }
+
+        if (megabytes >= 1) {
+            return String.format("%.1f MB", megabytes);
+        }
+
+        if (kilobytes >= 1) {
+            return String.format("%.1f KB", kilobytes);
+        }
+
+        return bytes + " B";
     }
 }
