@@ -134,3 +134,11 @@
     -fx-background-radius: 8;
     -fx-text-fill: #8a5a00;
 }
+
+.search-filed {
+    -fx-padding: 10 12;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-border-color: #deded8;
+    -fx-background-color: #ffffff;
+}

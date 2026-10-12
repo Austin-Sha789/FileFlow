@@ -9,8 +9,11 @@ import javafx.scene.layout.Region;
 import javafx.scene.control.Label;
 import javafx.scene.control.Button;
 import javafx.scene.control.ScrollPane;
-
+import javafx.scene.control.TextField;
+import javafx.scene.control.ComboBox;
 import javafx.stage.DirectoryChooser;
+
+import java.util.Comparator;
 
 import java.io.File;
 import java.io.IOException;
@@ -21,6 +24,7 @@ import com.austin.fileflow.model.FileItem;
 import com.austin.fileflow.model.ScanResult;
 
 import com.austin.fileflow.service.FileScanService;
+import com.austin.fileflow.model.FileType;
 
 public class MainView {
     
@@ -457,6 +461,47 @@ public class MainView {
             return filesContent;
         }
 
+        TextField searchField = new TextField();
+        searchField.setPromptText("Search files...");
+        searchField.getStyleClass().add("search-field");
+
+        ComboBox<String> typeFilter = new ComboBox<>();
+        typeFilter.getItems().addAll(
+                        "All",
+                        "Images",
+                        "Videos",
+                        "Documents",
+                        "Audio",
+                        "Archives",
+                        "Code"
+                );
+
+        typeFilter.setValue("All");
+
+        ComboBox<String> sortBy = new ComboBox<>();
+
+        sortBy.getItems().addAll(
+            "Name A-Z",
+            "Name Z-A",
+            "Size Small-Large",
+            "Size Large-Small",
+            "Newest",
+            "Oldest"
+        );
+
+        sortBy.setValue("Name A-Z");
+
+        HBox controlsRow = new HBox();
+        controlsRow.setSpacing(12);
+
+        controlsRow.getChildren().addAll(
+                searchField,
+                typeFilter,
+                sortBy
+        );
+
+        filesContent.getChildren().add(controlsRow);
+
         if (!latestScanResult.getIssues().isEmpty()) {
             Label issueLabel = new Label(
                         latestScanResult.getIssues().size()
@@ -471,21 +516,35 @@ public class MainView {
         VBox fileList = new VBox();
         fileList.setSpacing(8);
 
-        for (FileItem item : latestScanResult.getItems()) {
-            String text;
+        populateFileList(fileList, "", typeFilter.getValue(), sortBy.getValue());
 
-            if (item.isDirectory()) {
-                text = "[Folder]" + item.getName();
-            } else {
-                text = item.getName()
-                        + "    "
-                        + formatSize(item.getSizeBytes());                    
-            }
+        searchField.textProperty().addListener(
+                (observable, oldValue, newValue) -> {
+                    populateFileList(fileList, newValue, typeFilter.getValue(), sortBy.getValue());
+                }
+        );
 
-            Label fileLabel = new Label(text);
-            
-            fileList.getChildren().add(fileLabel);
-        }
+        typeFilter.valueProperty().addListener(
+                (observable, oldValue, newValue) -> {
+                    populateFileList(
+                            fileList,
+                            searchField.getText(),
+                            newValue,
+                            sortBy.getValue()
+                    );
+                }
+        );
+
+        sortBy.valueProperty().addListener(
+            (observable, oldValue, newValue) -> {
+                populateFileList(
+                        fileList,
+                        searchField.getText(),
+                        typeFilter.getValue(),
+                        newValue
+                );
+            }  
+        );
 
         ScrollPane scrollPane = new ScrollPane(fileList);
         scrollPane.setFitToWidth(true);
@@ -545,5 +604,73 @@ public class MainView {
         }
 
         return bytes + " B";
+    }
+
+    private void populateFileList(
+            VBox fileList, 
+            String searchText, 
+            String selectedType,
+            String selectedSort
+        ) {
+        fileList.getChildren().clear();
+
+        String keyword = searchText.toLowerCase();
+
+        Comparator<FileItem> comparator = switch (selectedSort) {
+            case "Name Z-A" ->
+                        Comparator.comparing(FileItem::getName).reversed();
+
+            case "Size Small-Large" ->
+                        Comparator.comparing(FileItem::getSizeBytes);
+
+            case "Size Large-Small" ->
+                        Comparator.comparing(FileItem::getSizeBytes).reversed();
+
+            case "Newest" ->
+                        Comparator.comparing(FileItem::getLastModified).reversed();
+
+            case "Oldest" ->
+                        Comparator.comparing(FileItem::getLastModified);
+
+            default ->
+                        Comparator.comparing(FileItem::getName);
+        };
+
+        latestScanResult.getItems()
+                .stream()
+                .filter(item ->
+                        item.getName()
+                            .toLowerCase()
+                            .contains(keyword)
+                )
+                .filter(item -> matchesType(item, selectedType))
+                .sorted(comparator)
+                .forEach(item -> {
+                    String text;
+
+                    if (item.isDirectory()) {
+                        text = "[Folder]" + item.getName();
+                    } else {
+                        text = item.getName()
+                                + "    "
+                                + formatSize(item.getSizeBytes());
+
+                    }
+
+                    Label fileLabel = new Label(text);
+                    fileList.getChildren().add(fileLabel);
+                });
+    }
+
+    private boolean matchesType(FileItem item, String selectedType) {
+        return switch (selectedType) {
+            case "Images" -> item.getType() == FileType.IMAGE;
+            case "Videos" -> item.getType() == FileType.VIDEO;
+            case "Documents" -> item.getType() == FileType.DOCUMENT;
+            case "Audio" -> item.getType() == FileType.AUDIO;
+            case "Archives" -> item.getType() == FileType.ARCHIVE;
+            case "Code" -> item.getType() == FileType.CODE;
+            default -> true;
+        };
     }
 }
