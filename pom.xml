@@ -31,7 +31,15 @@
       <artifactId>javafx-controls</artifactId>
       <version>21.0.6</version>
     </dependency>
+
+    <dependency>
+        <groupId>org.xerial</groupId>
+        <artifactId>sqlite-jdbc</artifactId>
+        <version>3.46.1.0</version>
+    </dependency>
+    
   </dependencies>
+
 
   <build>
     <pluginManagement><!-- lock down plugins versions to avoid using Maven defaults (may be moved to parent pom) -->
