@@ -11,13 +11,18 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
 import javafx.scene.control.ComboBox;
+import javafx.scene.control.ChoiceDialog;
+import javafx.scene.control.TextInputDialog;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Dialog;
+import javafx.scene.control.ButtonType;
 import javafx.stage.DirectoryChooser;
 import javafx.geometry.Pos;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-import javax.swing.text.html.HTML.Tag;
 
 import java.io.File;
 import java.io.IOException;
@@ -50,6 +55,10 @@ public class MainView {
     private final FavouriteRepo favouriteRepo;
     
     private final TagRepo tagRepo;
+
+    private Label filesNavItem;
+
+    private final List<Label> navItems = new ArrayList<>();
 
     public MainView(FavouriteRepo favouriteRepo, TagRepo tagRepo) {
         this.favouriteRepo = favouriteRepo;
@@ -84,8 +93,8 @@ public class MainView {
         Label dashboard = new Label("Dashboard");
         dashboard.getStyleClass().add("nav-item");
 
-        Label files = new Label("Files");
-        files.getStyleClass().add("nav-item");
+        filesNavItem = new Label("Files");
+        filesNavItem.getStyleClass().add("nav-item");   
 
         Label favourites = new Label("Favourites");
         favourites.getStyleClass().add("nav-item");
@@ -102,144 +111,57 @@ public class MainView {
         Label settings = new Label("Settings");
         settings.getStyleClass().add("nav-item");
 
+        navItems.addAll(List.of(
+                home,
+                dashboard,
+                filesNavItem,
+                favourites,
+                duplicates,
+                tags,
+                history,
+                settings
+        ));
+
+        filesNavItem.setOnMouseClicked(event ->
+                selectNavItem(filesNavItem, "Files")
+        );
+
         home.setOnMouseClicked(event ->
-                selectNavItem(
-                        home,
-                        "Home",
-                        home,
-                        dashboard,
-                        files,
-                        favourites,
-                        duplicates,
-                        tags,
-                        history,
-                        settings
-                )
+                selectNavItem(home, "Home")
         );
 
         dashboard.setOnMouseClicked(event ->
-                selectNavItem(
-                        dashboard,
-                        "Dashboard",
-                        home,
-                        dashboard,
-                        files,
-                        favourites,
-                        duplicates,
-                        tags,
-                        history,
-                        settings
-                )
-        );
-
-        files.setOnMouseClicked(event ->
-                selectNavItem(
-                        files,
-                        "Files",
-                        home,
-                        dashboard,
-                        files,
-                        favourites,
-                        duplicates,
-                        tags,
-                        history,
-                        settings
-                )
+                selectNavItem(dashboard, "Dashboard")
         );
 
         favourites.setOnMouseClicked(event ->
-                selectNavItem(
-                        favourites,
-                        "Favourites",
-                        home,
-                        dashboard,
-                        files,
-                        favourites,
-                        duplicates,
-                        tags,
-                        history,
-                        settings
-                )
+                selectNavItem(favourites, "Favourites")
         );
 
         duplicates.setOnMouseClicked(event ->
-                selectNavItem(
-                        duplicates,
-                        "Duplicates",
-                        home,
-                        dashboard,
-                        files,
-                        favourites,
-                        duplicates,
-                        tags,
-                        history,
-                        settings
-                )
+                selectNavItem(duplicates, "Duplicates")
         );
 
         tags.setOnMouseClicked(event ->
-                selectNavItem(
-                        tags,
-                        "Tags",
-                        home,
-                        dashboard,
-                        files,
-                        favourites,
-                        duplicates,
-                        tags,
-                        history,
-                        settings
-                )
+                selectNavItem(tags, "Tags")
         );
 
         history.setOnMouseClicked(event ->
-                selectNavItem(
-                        history,
-                        "History",
-                        home,
-                        dashboard,
-                        files,
-                        favourites,
-                        duplicates,
-                        tags,
-                        history,
-                        settings
-                )
+                selectNavItem(history, "History")
         );
 
         settings.setOnMouseClicked(event ->
-                selectNavItem(
-                        settings,
-                        "Settings",
-                        home,
-                        dashboard,
-                        files,
-                        favourites,
-                        duplicates,
-                        tags,
-                        history,
-                        settings
-                )
+                selectNavItem(settings, "Settings")
         );
 
-        selectNavItem(
-            home,
-            "Home",
-            home,
-            dashboard,
-            files,
-            favourites,
-            duplicates,
-            tags,
-            history,
-            settings
-    );
+
+        selectNavItem(home, "Home");
 
         sidebar.getChildren().addAll(
                 logo,
                 home,
                 dashboard,
-                files,
+                filesNavItem,
                 favourites,
                 duplicates,
                 tags,
@@ -256,32 +178,7 @@ public class MainView {
 
         pageTitle.getStyleClass().add("page-title");
 
-        scanButton.setOnAction(event -> {
-            DirectoryChooser directoryChooser = new DirectoryChooser();
-            directoryChooser.setTitle("Select Folder");
-
-            File selectedFolder = directoryChooser.showDialog(
-                root.getScene().getWindow()
-            );
-
-            if (selectedFolder == null) {
-                return;
-            }
-
-            Path selectedPath = selectedFolder.toPath();
-
-            try {
-                ScanResult result = fileScanService.scan(selectedPath);
-                latestScanResult = result;
-
-                pageTitle.setText("Files");
-
-                pageContent.getChildren().clear();
-                pageContent.getChildren().add(createFilesContent());
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        });
+        scanButton.setOnAction(event -> handleScan());
 
         scanButton.getStyleClass().add("primary-button");
 
@@ -321,7 +218,13 @@ public class MainView {
         return card;
     }
 
-    private void selectNavItem(Label selectedItem, String title, Label... navItems ) {
+    private void selectNavItem(Label selectedItem, String title) {
+
+        for (Label navItem : navItems) {
+                navItem.getStyleClass().remove("nav-item-selected");
+        }
+
+        selectedItem.getStyleClass().add("nav-item-selected");
 
         pageTitle.setText(title);
 
@@ -378,13 +281,14 @@ public class MainView {
         );
         subtitle.getStyleClass().add("home-subtitle");
 
-        Button scanButton = new Button("Scan a folder");
-        scanButton.getStyleClass().add("home-scan-button");
+        Button homeScanButton  = new Button("Scan a folder");
+        homeScanButton.setOnAction(event -> handleScan());
+        homeScanButton.getStyleClass().add("home-scan-button");
 
         hero.getChildren().addAll(
                 heading,
                 subtitle,
-                scanButton
+                homeScanButton
         );
 
         homeContent.getChildren().add(hero);
@@ -604,39 +508,11 @@ public class MainView {
     private VBox createTagsContent() {
         VBox tagsContent = new VBox(12);
 
-        TextField tagField = new TextField();
-        tagField.setPromptText("Tag name");
-
-        Button addButton = new Button("Add");
-
-        HBox addTagRow = new HBox(10, tagField, addButton);
-
         VBox tagList = new VBox(8);
 
         populateTagList(tagList);
 
-        addButton.setOnAction(event -> {
-                String tagName = tagField.getText().trim();
-
-                if (tagName.isEmpty()) {
-                        return;
-                }
-
-                try {
-                        tagRepo.add(tagName);
-
-                        tagField.clear();
-
-                        populateTagList(tagList);
-                } catch (SQLException e) {
-                        e.printStackTrace();
-                }
-        });
-
-        tagsContent.getChildren().addAll(
-                addTagRow,
-                tagList
-        );
+        tagsContent.getChildren().add(tagList);
 
         return tagsContent;
     }
@@ -715,15 +591,113 @@ public class MainView {
                 .forEach(item -> {
                         HBox fileRow = new HBox(12);
                         fileRow.setAlignment(Pos.CENTER_LEFT);
+                        fileRow.getStyleClass().add("file-row");
 
-                        Label fileLabel = new Label(
+                        Label fileNameLabel = new Label(
                                 item.isDirectory()
                                         ? "[Folder] " + item.getName()
-                                        : item.getName() + "    " + formatSize(item.getSizeBytes())
+                                        : item.getName()
+                        );
+
+                        Label fileSizeLabel = new Label(
+                                item.isDirectory()
+                                        ? ""
+                                        : formatSize(item.getSizeBytes())
                         );
                         
+                        fileNameLabel.getStyleClass().add("file-name");
+                        fileSizeLabel.getStyleClass().add("file-size");
+
                         Region spacer = new Region();
                         HBox.setHgrow(spacer, Priority.ALWAYS);
+
+                        HBox tagContainer = new HBox(6);
+
+                        populateFileTags(
+                                tagContainer,
+                                item.getPath()
+                        );
+
+                        Button tagButton = new Button("+ Tag");
+
+                        tagButton.setOnAction(event -> {
+                                try {
+                                        List<String> existingTags  = tagRepo.getAll();
+
+                                        Dialog<String> dialog = new Dialog<>();
+                                        dialog.setTitle("Add Tag");
+                                        dialog.setHeaderText("Add a tag to " + item.getName());
+
+                                        ButtonType addButtonType = new ButtonType("Add");
+
+                                        dialog.getDialogPane().getButtonTypes().addAll(
+                                                addButtonType,
+                                                ButtonType.CANCEL
+                                        );
+
+                                        ComboBox<String> existingTagBox = new ComboBox<>();
+                                        existingTagBox.getItems().addAll(existingTags);
+
+                                        if (!existingTags.isEmpty()) {
+                                        existingTagBox.setValue(existingTags.get(0));
+                                        } else {
+                                        existingTagBox.setDisable(true);
+                                        existingTagBox.setPromptText("No existing tags");
+                                        }
+
+                                        TextField newTagField = new TextField();
+                                        newTagField.setPromptText("Create a new tag");
+
+                                        VBox dialogContent = new VBox(
+                                                                10,
+                                                                new Label("Existing tag:"),
+                                                                existingTagBox,
+                                                                new Label("Or create a new tag:"),
+                                                                newTagField
+                                                        );
+
+                                                        dialog.getDialogPane().setContent(dialogContent);
+
+                                                        dialog.setResultConverter(buttonType -> {
+                                                        if (buttonType == addButtonType) {
+
+                                                                String newTagName = newTagField.getText().trim();
+
+                                                                if (!newTagName.isEmpty()) {
+                                                                return newTagName;
+                                                                }
+
+                                                                return existingTagBox.getValue();
+                                                        }
+
+                                                        return null;
+                                                        });
+
+                                                        dialog.showAndWait().ifPresent(selectedTag -> {
+                                                        try {
+                                                                if (!existingTags.contains(selectedTag)) {
+                                                                tagRepo.add(selectedTag);
+                                                                }
+
+                                                                tagRepo.addTagToFile(
+                                                                        item.getPath(),
+                                                                        selectedTag
+                                                                );
+
+                                                                populateFileTags(
+                                                                        tagContainer,
+                                                                        item.getPath()
+                                                                );
+
+                                                        } catch (SQLException e) {
+                                                                e.printStackTrace();
+                                                        }
+                                                        });
+
+                                                } catch (SQLException e) {
+                                                        e.printStackTrace();
+                                                }
+                                });
 
                         Button favouriteButton = new Button();
 
@@ -755,8 +729,11 @@ public class MainView {
                         });
 
                         fileRow.getChildren().addAll(
-                                fileLabel,
+                                fileNameLabel,
+                                fileSizeLabel,
+                                tagContainer,
                                 spacer,
+                                tagButton,
                                 favouriteButton
                         );
 
@@ -790,9 +767,97 @@ public class MainView {
                 }
 
                 for (String tag : tags) {
-                        tagList.getChildren().add(
-                                new Label(tag)
+                        List<Path> files = tagRepo.getFilesForTag(tag);
+
+                        Label tagLabel = new Label(
+                                tag + "(" + files.size() + ")"
                         );
+
+                        Button deleteButton = new Button("Delete");
+
+                        deleteButton.setOnAction(event -> {
+                                Alert confirmation = new Alert(
+                                        Alert.AlertType.CONFIRMATION
+                                );
+
+                                confirmation.setTitle("Delete Tag");
+                                confirmation.setHeaderText(
+                                        "Delete \"" + tag + "\"?"
+                                );
+
+                                confirmation.setContentText(
+                                        "This will remove the tag from all files."
+                                );
+
+                                confirmation.showAndWait().ifPresent(buttonType -> {
+                                        if (buttonType == ButtonType.OK) {
+                                                try {
+                                                        tagRepo.deleteTag(tag);
+                                                        populateTagList(tagList);
+                                                } catch (SQLException e) {
+                                                        e.printStackTrace();
+                                                }
+                                        }
+                                });
+                        });
+                                
+
+                        Region spacer = new Region();
+                        HBox.setHgrow(spacer,Priority.ALWAYS);
+
+                        HBox tagHeader = new HBox(
+                                10,
+                                tagLabel,
+                                spacer,
+                                deleteButton
+                        );
+
+                        tagHeader.setAlignment(Pos.CENTER_LEFT);
+
+                        VBox fileList = new VBox(6);
+
+                        if (files.isEmpty()) {
+                                Label emptyLabel = new Label("No files with this tag.");
+                                emptyLabel.getStyleClass().add("tag-empty");
+
+                                fileList.getChildren().add(emptyLabel);
+                        } else {
+                                for (Path filePath : files) {
+                                        Label fileNameLabel = new Label(
+                                                filePath.getFileName().toString()
+                                        );
+
+                                        Label filePathLabel = new Label(
+                                                filePath.toString()
+                                        );
+
+                                        fileNameLabel.getStyleClass().add("tag-file-name");
+                                        filePathLabel.getStyleClass().add("tag-file-path");
+
+                                        VBox fileInfo = new VBox(
+                                                2,
+                                                fileNameLabel,
+                                                filePathLabel
+                                        );
+                                        fileList.getChildren().add(fileInfo);
+                                }
+                        }
+
+                        tagLabel.getStyleClass().add("tag-group-title");
+                        deleteButton.getStyleClass().add("tag-delete-button");
+
+                        tagHeader.getStyleClass().add("tag-header");
+                        fileList.getStyleClass().add("tag-header");
+
+                        VBox tagGroup = new VBox(
+                                8,
+                                tagHeader,
+                                fileList
+                        );
+
+                        tagGroup.getStyleClass().add("tag-group");
+
+                        tagList.getChildren().add(tagGroup);
                         }
 
                 } catch (SQLException e) {
@@ -802,4 +867,61 @@ public class MainView {
                         e.printStackTrace();
                 }
     }
+
+    private void populateFileTags(HBox tagContainer, Path filePath) {
+        tagContainer.getChildren().clear();
+
+        try {
+                List<String> tags = tagRepo.getTagsForFile(filePath);
+
+                for (String tag : tags) {
+                        Button removeTagButton = new Button(tag + " ×");
+                        removeTagButton.getStyleClass().add("file-tag-chip");
+                        removeTagButton.setOnAction(event -> {
+                        try {
+                                tagRepo.removeTagFromFile(filePath, tag);
+
+                                populateFileTags(
+                                        tagContainer,
+                                        filePath
+                                );
+
+                                } catch (SQLException e) {
+                                e.printStackTrace();
+                                }
+                        });
+
+                        tagContainer.getChildren().add(removeTagButton);
+                }
+
+                } catch (SQLException e) {
+                        e.printStackTrace();
+                }
+        }
+        
+        private void handleScan() {
+                DirectoryChooser directoryChooser = new DirectoryChooser();
+                directoryChooser.setTitle("Select Folder");
+
+                File selectedFolder = directoryChooser.showDialog(
+                        root.getScene().getWindow()
+                );
+
+                if (selectedFolder == null) {
+                        return;
+                }
+
+                Path selectedPath = selectedFolder.toPath();
+
+                try {
+                        ScanResult result = fileScanService.scan(selectedPath);
+
+                        latestScanResult = result;
+
+                        selectNavItem(filesNavItem, "Files");
+
+                } catch (IOException e) {
+                        e.printStackTrace();
+                } 
+        }
 }

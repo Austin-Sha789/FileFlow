@@ -64,7 +64,7 @@ public class TagRepo {
                 """;
 
         String addFileTagSql = """
-                INSERT INTO file_tags(file_path, tag_id)
+                INSERT OR IGNORE INTO file_tags(file_path, tag_id)
                 VALUES (?, ?)
                 """;
 
@@ -174,5 +174,32 @@ public class TagRepo {
             }
         }
             
+    }
+
+    public List<Path> getFilesForTag(String tagName) throws SQLException {
+        String sql = """
+                SELECT file_tags.file_path
+                FROM file_tags
+                JOIN tags ON file_tags.tag_id = tags.id
+                WHERE tags.name = ?
+                ORDER BY file_tags.file_path
+                """;
+
+        List<Path> files = new ArrayList<>();
+
+        try (Connection connection = databaseManager.getConnection();
+            PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setString(1, tagName);
+
+            var resultSet = statement.executeQuery();
+
+            while (resultSet.next()) {
+                String filePath = resultSet.getString("file_path");
+                files.add(Path.of(filePath));
+            }
+        }
+
+        return files;
     }
 }

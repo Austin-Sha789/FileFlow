@@ -194,5 +194,61 @@ public class TagRepoTest {
         assertTrue(secondFileTags.isEmpty());
         assertTrue(!allTags.contains("Work"));
     }
+
+    @Test
+    void addTagToFileIgnoresDuplicateRelationship() throws SQLException {
+        Path testDatabase = tempDir.resolve("test.db");
+
+        DatabaseManager databaseManager = new DatabaseManager(
+                "jdbc:sqlite:" + testDatabase
+        );
+
+        databaseManager.initialiseDatabase();
+
+        TagRepo tagRepo = new TagRepo(databaseManager);
+
+        Path filePath = Path.of("C:/test/report.pdf");
+
+        tagRepo.add("Work");
+
+        tagRepo.addTagToFile(filePath, "Work");
+        tagRepo.addTagToFile(filePath, "Work");
+
+        List<String> tags = tagRepo.getTagsForFile(filePath);
+
+        assertEquals(1, tags.size());
+        assertTrue(tags.contains("Work"));
+    }
+
+    @Test
+    void getFilesForTagReturnsOnlyFilesWithThatTag() throws SQLException {
+        Path testDatabase = tempDir.resolve("test.db");
+
+        DatabaseManager databaseManager = new DatabaseManager(
+                "jdbc:sqlite:" + testDatabase
+        );
+
+        databaseManager.initialiseDatabase();
+
+        TagRepo tagRepo = new TagRepo(databaseManager);
+
+        Path firstFile = Path.of("C:/test/report.pdf");
+        Path secondFile = Path.of("C:/test/notes.txt");
+        Path thirdFile = Path.of("C:/test/photo.jpg");
+
+        tagRepo.add("Work");
+        tagRepo.add("Photo");
+
+        tagRepo.addTagToFile(firstFile, "Work");
+        tagRepo.addTagToFile(secondFile, "Work");
+        tagRepo.addTagToFile(thirdFile, "Photo");
+
+        List<Path> workFiles = tagRepo.getFilesForTag("Work");
+
+        assertEquals(2, workFiles.size());
+        assertTrue(workFiles.contains(firstFile));
+        assertTrue(workFiles.contains(secondFile));
+        assertTrue(!workFiles.contains(thirdFile));
+    }
 }
 

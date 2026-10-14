@@ -142,3 +142,88 @@
     -fx-border-color: #deded8;
     -fx-background-color: #ffffff;
 }
+
+.tag-group {
+    -fx-background-color: white;
+    -fx-background-radius: 12;
+    -fx-border-color: #e8e8e8;
+    -fx-border-radius: 12;
+    -fx-padding: 16;
+}
+
+.tag-header {
+    -fx-alignment: center-left;
+}
+
+.tag-group-title {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+}
+
+.tag-file-list {
+    -fx-padding: 4 0 0 8;
+}
+
+.tag-file-name {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #333333;
+}
+
+.tag-file-path {
+    -fx-font-size: 11px;
+    -fx-text-fill: #999999;
+}
+
+.tag-empty {
+    -fx-text-fill: #999999;
+    -fx-font-size: 13px;
+}
+
+.tag-delete-button {
+    -fx-background-color: transparent;
+    -fx-text-fill: #777777;
+    -fx-cursor: hand;
+}
+
+.file-tag-chip {
+    -fx-background-color: #e6e6e6;
+    -fx-background-radius: 999;
+    -fx-border-color: #d2d2d2;
+    -fx-border-radius: 999;
+
+    -fx-padding: 4 10 4 10;
+    -fx-font-size: 12px;
+    -fx-text-fill: #333333;
+
+    -fx-cursor: hand;
+}
+
+.file-tag-chip:hover {
+    -fx-background-color: #dcdcdc;
+}
+
+.file-tag-chip:hover {
+    -fx-background-color: #e8e8e8;
+}
+
+.file-row {
+    -fx-padding: 10 12;
+    -fx-background-color: white;
+    -fx-border-color: #e8e8e8;
+    -fx-border-width: 0 0 1 0;
+}
+
+.file-row:hover {
+    -fx-background-color: #f7f7f7;
+}
+
+.file-name {
+    -fx-font-size: 13px;
+    -fx-text-fill: #2f2f2f;
+}
+
+.file-size {
+    -fx-font-size: 12px;
+    -fx-text-fill: #888888;
+}
