@@ -12,19 +12,23 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
 import javafx.scene.control.ComboBox;
 import javafx.stage.DirectoryChooser;
+import javafx.geometry.Pos;
 
 import java.util.Comparator;
+import java.util.List;
 
 import java.io.File;
 import java.io.IOException;
 
 import java.nio.file.Path;
+import java.sql.SQLException;
 
 import com.austin.fileflow.model.FileItem;
 import com.austin.fileflow.model.ScanResult;
 
 import com.austin.fileflow.service.FileScanService;
 import com.austin.fileflow.model.FileType;
+import com.austin.fileflow.repository.FavouriteRepo;
 
 public class MainView {
     
@@ -40,7 +44,11 @@ public class MainView {
 
     private ScanResult latestScanResult;
 
-    public MainView() {
+    private final FavouriteRepo favouriteRepo;
+
+    public MainView(FavouriteRepo favouriteRepo) {
+        this.favouriteRepo = favouriteRepo;
+
         root = new BorderPane();
         pageTitle = new Label("Home");
         pageContent = new VBox();
@@ -557,9 +565,28 @@ public class MainView {
     }
 
     private VBox createFavouritesContent() {
-        VBox content = new VBox();
-        content.getChildren().add(new Label("Favourites content"));
-        return content;
+        VBox favouritesContent = new VBox(12);
+
+        try {
+                List<Path> favouritePaths = favouriteRepo.getAll();
+
+                if (favouritePaths.isEmpty()) {
+                        Label emptyLabel = new Label("No favourite yet.");
+                        favouritesContent.getChildren().add(emptyLabel);
+                        return favouritesContent;
+                }
+
+                for (Path path : favouritePaths) {
+                        Label favouritLabel = new Label(path.toString());
+                        favouritesContent.getChildren().add(favouritLabel);
+                }
+        } catch(SQLException e) {
+                Label errorLabel = new Label("Unable to load favourites.");
+                favouritesContent.getChildren().add(errorLabel);
+                e.printStackTrace();
+        }
+        
+        return favouritesContent;
     }
 
     private VBox createDuplicatesContent() {
@@ -646,20 +673,55 @@ public class MainView {
                 .filter(item -> matchesType(item, selectedType))
                 .sorted(comparator)
                 .forEach(item -> {
-                    String text;
+                        HBox fileRow = new HBox(12);
+                        fileRow.setAlignment(Pos.CENTER_LEFT);
 
-                    if (item.isDirectory()) {
-                        text = "[Folder]" + item.getName();
-                    } else {
-                        text = item.getName()
-                                + "    "
-                                + formatSize(item.getSizeBytes());
+                        Label fileLabel = new Label(
+                                item.isDirectory()
+                                        ? "[Folder] " + item.getName()
+                                        : item.getName() + "    " + formatSize(item.getSizeBytes())
+                        );
+                        
+                        Region spacer = new Region();
+                        HBox.setHgrow(spacer, Priority.ALWAYS);
 
-                    }
+                        Button favouriteButton = new Button();
 
-                    Label fileLabel = new Label(text);
-                    fileList.getChildren().add(fileLabel);
-                });
+                        try {
+                                boolean isFavourite = favouriteRepo.isFavourite(item.getPath());
+
+                                favouriteButton.setText(
+                                        isFavourite ? "★" : "☆"
+                                );
+                        } catch (SQLException e) {
+                                favouriteButton.setText("☆");
+                                e.printStackTrace();
+                        }
+
+                        favouriteButton.setOnAction(event -> {
+                                try {
+                                        boolean isFavourite = favouriteRepo.isFavourite(item.getPath());
+
+                                        if (isFavourite) {
+                                                favouriteRepo.remove(item.getPath());
+                                                favouriteButton.setText("☆");
+                                        } else {
+                                                favouriteRepo.add(item.getPath());
+                                                favouriteButton.setText("★");
+                                        }
+                                } catch (SQLException e) {
+                                        e.printStackTrace();
+                                }
+                        });
+
+                        fileRow.getChildren().addAll(
+                                fileLabel,
+                                spacer,
+                                favouriteButton
+                        );
+
+                        fileList.getChildren().add(fileRow);
+        });
     }
 
     private boolean matchesType(FileItem item, String selectedType) {
