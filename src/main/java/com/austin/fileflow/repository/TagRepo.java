@@ -139,4 +139,40 @@ public class TagRepo {
                 statement.executeUpdate();
             }
     }
+
+    public void deleteTag(String tagName) throws SQLException {
+        String deleteFileTagsSql = """
+                DELETE FROM file_tags
+                WHERE tag_id = (
+                    SELECT id
+                    FROM tags
+                    WHERE name = ?
+                )
+                """;
+
+        String deleteTagSql = """
+                DELETE FROM tags
+                WHERE name = ?
+                """;
+
+        try (Connection connection = databaseManager.getConnection()) {
+            connection.setAutoCommit(false);
+
+            try (PreparedStatement deleteFileTagsStatement = connection.prepareStatement(deleteTagSql);
+                PreparedStatement deleteTagStatement = connection.prepareStatement(deleteTagSql)) {
+
+                deleteFileTagsStatement.setString(1, tagName);
+                deleteFileTagsStatement.executeUpdate();
+
+                deleteTagStatement.setString(1, tagName);
+                deleteTagStatement.executeUpdate();
+
+                connection.commit();
+            } catch (SQLException e) {
+                connection.rollback();
+                throw e;
+            }
+        }
+            
+    }
 }

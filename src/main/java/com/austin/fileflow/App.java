@@ -7,6 +7,7 @@ import javafx.scene.Scene;
 
 import com.austin.fileflow.database.DatabaseManager;
 import com.austin.fileflow.repository.FavouriteRepo;
+import com.austin.fileflow.repository.TagRepo;
 import com.austin.fileflow.ui.MainView;
 
 
@@ -24,8 +25,10 @@ public class App extends Application
         databaseManager.initialiseDatabase();
 
         FavouriteRepo favouriteRepo = new FavouriteRepo(databaseManager);
+        TagRepo tagRepo = new TagRepo(databaseManager);
+        
 
-        MainView mainView = new MainView(favouriteRepo);
+        MainView mainView = new MainView(favouriteRepo, tagRepo);
 
         Scene scene = new Scene(mainView.getView(), 1200, 760);
         scene.getStylesheets().add(getClass().getResource("/css/app.css").toExternalForm());

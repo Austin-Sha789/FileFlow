@@ -17,6 +17,8 @@ import javafx.geometry.Pos;
 import java.util.Comparator;
 import java.util.List;
 
+import javax.swing.text.html.HTML.Tag;
+
 import java.io.File;
 import java.io.IOException;
 
@@ -29,6 +31,7 @@ import com.austin.fileflow.model.ScanResult;
 import com.austin.fileflow.service.FileScanService;
 import com.austin.fileflow.model.FileType;
 import com.austin.fileflow.repository.FavouriteRepo;
+import com.austin.fileflow.repository.TagRepo;
 
 public class MainView {
     
@@ -45,9 +48,12 @@ public class MainView {
     private ScanResult latestScanResult;
 
     private final FavouriteRepo favouriteRepo;
+    
+    private final TagRepo tagRepo;
 
-    public MainView(FavouriteRepo favouriteRepo) {
+    public MainView(FavouriteRepo favouriteRepo, TagRepo tagRepo) {
         this.favouriteRepo = favouriteRepo;
+        this.tagRepo = tagRepo;
 
         root = new BorderPane();
         pageTitle = new Label("Home");
@@ -596,9 +602,43 @@ public class MainView {
     }
 
     private VBox createTagsContent() {
-        VBox content = new VBox();
-        content.getChildren().add(new Label("Tags content"));
-        return content;
+        VBox tagsContent = new VBox(12);
+
+        TextField tagField = new TextField();
+        tagField.setPromptText("Tag name");
+
+        Button addButton = new Button("Add");
+
+        HBox addTagRow = new HBox(10, tagField, addButton);
+
+        VBox tagList = new VBox(8);
+
+        populateTagList(tagList);
+
+        addButton.setOnAction(event -> {
+                String tagName = tagField.getText().trim();
+
+                if (tagName.isEmpty()) {
+                        return;
+                }
+
+                try {
+                        tagRepo.add(tagName);
+
+                        tagField.clear();
+
+                        populateTagList(tagList);
+                } catch (SQLException e) {
+                        e.printStackTrace();
+                }
+        });
+
+        tagsContent.getChildren().addAll(
+                addTagRow,
+                tagList
+        );
+
+        return tagsContent;
     }
 
     private VBox createHistoryContent() {
@@ -734,5 +774,32 @@ public class MainView {
             case "Code" -> item.getType() == FileType.CODE;
             default -> true;
         };
+    }
+
+    private void populateTagList(VBox tagList) {
+        tagList.getChildren().clear();
+
+        try {
+                List<String> tags = tagRepo.getAll();
+
+                if (tags.isEmpty()) {
+                        tagList.getChildren().add(
+                                new Label("No tags yet.")
+                        );
+                        return;
+                }
+
+                for (String tag : tags) {
+                        tagList.getChildren().add(
+                                new Label(tag)
+                        );
+                        }
+
+                } catch (SQLException e) {
+                        tagList.getChildren().add(
+                                new Label("Unable to load tags.")
+                        );
+                        e.printStackTrace();
+                }
     }
 }

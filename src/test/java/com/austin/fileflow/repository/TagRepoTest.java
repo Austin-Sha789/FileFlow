@@ -163,5 +163,36 @@ public class TagRepoTest {
 
         assertTrue(tags.isEmpty());
     }
+
+    @Test
+    void deleteTagRemovesTagAndAllFileRelationships() throws SQLException {
+        Path testDatabase = tempDir.resolve("test.db");
+
+        DatabaseManager databaseManager = new DatabaseManager(
+                "jdbc:sqlite:" + testDatabase
+        );
+
+        databaseManager.initialiseDatabase();
+
+        TagRepo tagRepo = new TagRepo(databaseManager);
+
+        Path firstFile = Path.of("C:/test/report.pdf");
+        Path secondFile = Path.of("C:/test/photo.jpg");
+
+        tagRepo.add("Work");
+
+        tagRepo.addTagToFile(firstFile, "Work");
+        tagRepo.addTagToFile(secondFile, "Work");
+
+        tagRepo.deleteTag("Work");
+
+        List<String> firstFileTags = tagRepo.getTagsForFile(firstFile);
+        List<String> secondFileTags = tagRepo.getTagsForFile(secondFile);
+        List<String> allTags = tagRepo.getAll();
+
+        assertTrue(firstFileTags.isEmpty());
+        assertTrue(secondFileTags.isEmpty());
+        assertTrue(!allTags.contains("Work"));
+    }
 }
 
