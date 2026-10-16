@@ -721,28 +721,73 @@ public class MainView {
     }
 
     private VBox createFavouritesContent() {
-        VBox favouritesContent = new VBox(12);
+        VBox content  = new VBox(12);
 
         try {
                 List<Path> favouritePaths = favouriteRepo.getAll();
 
                 if (favouritePaths.isEmpty()) {
-                        Label emptyLabel = new Label("No favourite yet.");
-                        favouritesContent.getChildren().add(emptyLabel);
-                        return favouritesContent;
+                        content.getChildren().add(
+                                new Label("No favourite files yet.")
+                        );
+                        return content ;
                 }
 
-                for (Path path : favouritePaths) {
-                        Label favouritLabel = new Label(path.toString());
-                        favouritesContent.getChildren().add(favouritLabel);
+                for (Path filePath : favouritePaths) {
+                        Label fileNameLabel = new Label(
+                                filePath.getFileName().toString()
+                        );
+                        fileNameLabel.getStyleClass().add("file-name");
+
+                        Label filePathLabel = new Label(
+                                filePath.toString()
+                        );
+                        filePathLabel.getStyleClass().add("file-path");
+
+                        VBox fileInfo = new VBox(
+                                3,
+                                fileNameLabel,
+                                filePathLabel
+                        );
+
+                        Region spacer = new Region();
+                        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+                        Button favouriteButton = new Button("★");
+                        favouriteButton.getStyleClass().add(
+                                "favourite-button"
+                        );
+
+                        Button moreButton = createFileActionsButton(filePath);
+
+                        HBox row = new HBox(
+                                12,
+                                fileInfo,
+                                spacer,
+                                favouriteButton,
+                                moreButton
+                        );
+
+                        row.setAlignment(Pos.CENTER_LEFT);
+                        row.getStyleClass().add("file-row");
+
+                        favouriteButton.setOnAction(event -> {
+                                try {
+                                        favouriteRepo.remove(filePath);
+                                        content.getChildren().remove(row);
+                                } catch (SQLException e) {
+                                        e.printStackTrace();
+                                }
+                        });
+
+                        content.getChildren().add(row);
                 }
+
         } catch(SQLException e) {
-                Label errorLabel = new Label("Unable to load favourites.");
-                favouritesContent.getChildren().add(errorLabel);
                 e.printStackTrace();
         }
         
-        return favouritesContent;
+        return content;
     }
 
     private VBox createDuplicatesContent() {
@@ -924,20 +969,49 @@ public class MainView {
                                         Label fileNameLabel = new Label(
                                                 filePath.getFileName().toString()
                                         );
+                                        fileNameLabel.getStyleClass().add("tag-file-name");
 
                                         Label filePathLabel = new Label(
                                                 filePath.toString()
                                         );
 
-                                        fileNameLabel.getStyleClass().add("tag-file-name");
                                         filePathLabel.getStyleClass().add("tag-file-path");
 
                                         VBox fileInfo = new VBox(
-                                                2,
+                                                3,
                                                 fileNameLabel,
                                                 filePathLabel
                                         );
-                                        fileList.getChildren().add(fileInfo);
+
+                                        Region spacer1 = new Region();
+                                        HBox.setHgrow(spacer1, Priority.ALWAYS);
+
+                                        Button removeButton = new Button("×");
+                                        removeButton.getStyleClass().add("tag-remove-button");
+
+                                        removeButton.setOnAction(event -> {
+                                                try {
+                                                        tagRepo.removeTagFromFile(filePath, tag);
+                                                        populateTagList(tagList);
+                                                } catch (SQLException e) {
+                                                        e.printStackTrace();
+                                                }
+                                        });
+
+                                        Button moreButton = createFileActionsButton(filePath);
+
+                                        HBox fileRow = new HBox(
+                                                10,
+                                                fileInfo,
+                                                spacer1,
+                                                removeButton,
+                                                moreButton
+                                        );
+
+                                        fileRow.setAlignment(Pos.CENTER_LEFT);
+                                        fileRow.setMaxWidth(Double.MAX_VALUE);
+                                        
+                                        fileList.getChildren().add(fileRow );
                                 }
                         }
 
@@ -945,7 +1019,7 @@ public class MainView {
                         deleteButton.getStyleClass().add("tag-delete-button");
 
                         tagHeader.getStyleClass().add("tag-header");
-                        fileList.getStyleClass().add("tag-header");
+                        fileList.getStyleClass().add("tag-file-list");
 
                         VBox tagGroup = new VBox(
                                 8,
