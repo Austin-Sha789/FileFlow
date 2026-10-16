@@ -227,3 +227,30 @@
     -fx-font-size: 12px;
     -fx-text-fill: #888888;
 }
+
+.add-tag-button {
+    -fx-background-color: transparent;
+    -fx-border-color: #d8d8d8;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-padding: 5 10;
+    -fx-text-fill: #444444;
+    -fx-cursor: hand;
+}
+
+.add-tag-button:hover {
+    -fx-background-color: #f1f1f1;
+}
+
+.favourite-button {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-font-size: 16px;
+    -fx-padding: 4 8;
+    -fx-cursor: hand;
+}
+
+.favourite-button:hover {
+    -fx-background-color: #f1f1f1;
+    -fx-background-radius: 8;
+}

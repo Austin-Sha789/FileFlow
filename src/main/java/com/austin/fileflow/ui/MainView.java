@@ -13,6 +13,9 @@ import javafx.scene.control.TextField;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.ChoiceDialog;
 import javafx.scene.control.TextInputDialog;
+import javafx.scene.control.ListView;
+import javafx.scene.control.ListCell;
+import javafx.concurrent.Task;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.ButtonType;
@@ -22,6 +25,10 @@ import javafx.geometry.Pos;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.HashMap;
+import java.util.Map;
 
 
 import java.io.File;
@@ -59,6 +66,10 @@ public class MainView {
     private Label filesNavItem;
 
     private final List<Label> navItems = new ArrayList<>();
+
+    private Button homeScanButton;
+
+    private boolean scanning;
 
     public MainView(FavouriteRepo favouriteRepo, TagRepo tagRepo) {
         this.favouriteRepo = favouriteRepo;
@@ -281,7 +292,7 @@ public class MainView {
         );
         subtitle.getStyleClass().add("home-subtitle");
 
-        Button homeScanButton  = new Button("Scan a folder");
+        homeScanButton  = new Button("Scan a folder");
         homeScanButton.setOnAction(event -> handleScan());
         homeScanButton.getStyleClass().add("home-scan-button");
 
@@ -409,8 +420,7 @@ public class MainView {
 
         sortBy.setValue("Name A-Z");
 
-        HBox controlsRow = new HBox();
-        controlsRow.setSpacing(12);
+        HBox controlsRow = new HBox(12);
 
         controlsRow.getChildren().addAll(
                 searchField,
@@ -431,8 +441,223 @@ public class MainView {
             filesContent.getChildren().add(issueLabel);
         }
 
-        VBox fileList = new VBox();
-        fileList.setSpacing(8);
+        Set<Path> favouritePaths = new HashSet<>();
+
+        try {
+                favouritePaths.addAll(favouriteRepo.getAll());
+        } catch (SQLException e) {
+                e.printStackTrace();
+        }
+
+        Map<Path, List<String>> fileTags = new HashMap<>();
+
+        try {
+                fileTags.putAll(tagRepo.getAllFileTags());
+        } catch (SQLException e) {
+                e.printStackTrace();
+        }
+
+        List<String> existingTags = new ArrayList<>();
+
+        try {
+                existingTags.addAll(tagRepo.getAll());
+        } catch (SQLException e) {
+                e.printStackTrace();
+        }
+
+        ListView<FileItem> fileList = new ListView<>();
+        fileList.setCellFactory(listView -> new ListCell<FileItem>() {
+                @Override
+                protected void updateItem(FileItem item, boolean empty) {
+                        super.updateItem(item, empty);
+
+                        if (empty || item == null) {
+                                setText(null);
+                                setGraphic(null);
+                                return;
+                        }
+
+                        Label fileNameLabel = new Label(
+                                item.isDirectory()
+                                        ? "[Folder] " + item.getName()
+                                        : item.getName()
+                        );
+
+                        Label fileSizeLabel = new Label(
+                                item.isDirectory()
+                                        ? "-"
+                                        : formatSize(item.getSizeBytes())
+                        );
+
+                        fileNameLabel.getStyleClass().add("file-name");
+                        fileSizeLabel.getStyleClass().add("file-size");
+
+                        Button favouriteButton = new Button(
+                                favouritePaths.contains(item.getPath())
+                                        ? "★"
+                                        : "☆"
+                        );
+                        favouriteButton.getStyleClass().add("favourite-button");
+
+                        favouriteButton.setOnAction(event -> {
+                                Path filePath = item.getPath();
+
+                                try {
+                                        if (favouritePaths.contains(filePath)) {
+                                                favouriteRepo.remove(filePath);
+
+                                                favouritePaths.remove(filePath);
+                                                favouriteButton.setText("☆");
+                                        } else {
+                                                favouriteRepo.add(filePath);
+
+                                                favouritePaths.add(filePath);
+                                                favouriteButton.setText("★");
+                                        }
+                                } catch (SQLException e) {
+                                        e.printStackTrace();
+                                }
+                        });
+
+                        HBox tagContainer = new HBox(6);
+
+                        Button tagButton = new Button("+ Tag");
+                        tagButton.getStyleClass().add("add-tag-button");
+
+                        tagButton.setOnAction(event -> {
+                                Dialog<String> dialog = new Dialog<>();
+
+                                dialog.setTitle("Add Tag");
+                                dialog.setHeaderText("Add a tag to " + item.getName());
+
+                                ButtonType addButtonType = new ButtonType("Add");
+
+                                dialog.getDialogPane().getButtonTypes().addAll(
+                                        addButtonType,
+                                        ButtonType.CANCEL
+                                );
+
+                                ComboBox<String> existingTagBox = new ComboBox<>();
+                                existingTagBox.getItems().addAll(existingTags);
+
+                                if (!existingTags.isEmpty()) {
+                                        existingTagBox.setValue(existingTags.get(0));
+                                } else {
+                                        existingTagBox.setDisable(true);
+                                        existingTagBox.setPromptText("No existing tags");
+                                }
+
+                                TextField newTagField = new TextField();
+                                newTagField.setPromptText("Create a new tag");
+
+                                VBox dialogContent = new VBox(
+                                        10,
+                                        new Label("Existing tag:"),
+                                        existingTagBox,
+                                        new Label("Or create a new tag:"),
+                                        newTagField
+                                );
+
+                                dialog.getDialogPane().setContent(dialogContent);
+
+                                dialog.setResultConverter(buttonType -> {
+                                        if (buttonType == addButtonType) {
+                                                String newTagName = newTagField.getText().trim();
+
+                                                if (!newTagName.isEmpty()) {
+                                                        return newTagName;
+                                                }
+
+                                                return existingTagBox.getValue();
+                                        }
+
+                                        return null;
+                                });
+
+                                dialog.showAndWait().ifPresent(selectedTag -> {
+                                        try {
+                                                if (!existingTags.contains(selectedTag)) {
+                                                        tagRepo.add(selectedTag);
+                                                        existingTags.add(selectedTag);
+                                                }
+
+                                                tagRepo.addTagToFile(
+                                                        item.getPath(),
+                                                        selectedTag
+                                                );
+
+                                                List<String> itemTags = fileTags.computeIfAbsent(
+                                                        item.getPath(),
+                                                        path -> new ArrayList<>()
+                                                );
+
+                                                if (!itemTags.contains(selectedTag)) {
+                                                        itemTags.add(selectedTag);
+                                                }
+
+                                                getListView().refresh();
+                                        } catch (SQLException e) {
+                                                e.printStackTrace();
+                                        }
+                                });
+                        });
+
+                        List<String> tags = fileTags.getOrDefault(
+                                item.getPath(),
+                                List.of()
+                        );
+
+                        for (String tag : tags) {
+                                Button tagChip = new Button(tag + "x");
+                                tagChip.getStyleClass().add("file-tag-chip");
+
+                                tagChip.setOnAction(event -> {
+                                        try {
+                                                Path filePath = item.getPath();
+
+                                                tagRepo.removeTagFromFile(filePath, tag);
+
+                                                List<String> itemTags = fileTags.get(filePath);
+
+                                                if (itemTags != null) {
+                                                        itemTags.remove(tag);
+
+                                                        if (itemTags.isEmpty()) {
+                                                                fileTags.remove(filePath);
+                                                        }
+                                                }
+
+                                                getListView().refresh();
+                                        } catch (SQLException e) {
+                                                e.printStackTrace();
+                                        }
+                                });
+
+                                tagContainer.getChildren().add(tagChip);
+                        }
+
+                        Region spacer = new Region();
+                        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+                        HBox fileRow = new HBox(
+                                12,
+                                fileNameLabel,
+                                fileSizeLabel,
+                                tagContainer,
+                                spacer,
+                                tagButton,
+                                favouriteButton
+                        );
+
+                        fileRow.setAlignment(Pos.CENTER_LEFT);
+                        fileRow.getStyleClass().add("file-row");
+
+                        setText(null);
+                        setGraphic(fileRow);
+                }
+        });
+
+        VBox.setVgrow(fileList, Priority.ALWAYS);
 
         populateFileList(fileList, "", typeFilter.getValue(), sortBy.getValue());
 
@@ -464,12 +689,7 @@ public class MainView {
             }  
         );
 
-        ScrollPane scrollPane = new ScrollPane(fileList);
-        scrollPane.setFitToWidth(true);
-
-        VBox.setVgrow(scrollPane, Priority.ALWAYS);
-
-        filesContent.getChildren().add(scrollPane);
+        filesContent.getChildren().add(fileList);
 
         return filesContent;
     }
@@ -550,13 +770,11 @@ public class MainView {
     }
 
     private void populateFileList(
-            VBox fileList, 
+            ListView<FileItem> fileList, 
             String searchText, 
             String selectedType,
             String selectedSort
         ) {
-        fileList.getChildren().clear();
-
         String keyword = searchText.toLowerCase();
 
         Comparator<FileItem> comparator = switch (selectedSort) {
@@ -579,166 +797,20 @@ public class MainView {
                         Comparator.comparing(FileItem::getName);
         };
 
-        latestScanResult.getItems()
+        List<FileItem> filteredItems = latestScanResult.getItems()
                 .stream()
                 .filter(item ->
                         item.getName()
-                            .toLowerCase()
-                            .contains(keyword)
+                                .toLowerCase()
+                                .contains(keyword)
                 )
-                .filter(item -> matchesType(item, selectedType))
+                .filter(item ->
+                        matchesType(item, selectedType)
+                )
                 .sorted(comparator)
-                .forEach(item -> {
-                        HBox fileRow = new HBox(12);
-                        fileRow.setAlignment(Pos.CENTER_LEFT);
-                        fileRow.getStyleClass().add("file-row");
+                .toList();
 
-                        Label fileNameLabel = new Label(
-                                item.isDirectory()
-                                        ? "[Folder] " + item.getName()
-                                        : item.getName()
-                        );
-
-                        Label fileSizeLabel = new Label(
-                                item.isDirectory()
-                                        ? ""
-                                        : formatSize(item.getSizeBytes())
-                        );
-                        
-                        fileNameLabel.getStyleClass().add("file-name");
-                        fileSizeLabel.getStyleClass().add("file-size");
-
-                        Region spacer = new Region();
-                        HBox.setHgrow(spacer, Priority.ALWAYS);
-
-                        HBox tagContainer = new HBox(6);
-
-                        populateFileTags(
-                                tagContainer,
-                                item.getPath()
-                        );
-
-                        Button tagButton = new Button("+ Tag");
-
-                        tagButton.setOnAction(event -> {
-                                try {
-                                        List<String> existingTags  = tagRepo.getAll();
-
-                                        Dialog<String> dialog = new Dialog<>();
-                                        dialog.setTitle("Add Tag");
-                                        dialog.setHeaderText("Add a tag to " + item.getName());
-
-                                        ButtonType addButtonType = new ButtonType("Add");
-
-                                        dialog.getDialogPane().getButtonTypes().addAll(
-                                                addButtonType,
-                                                ButtonType.CANCEL
-                                        );
-
-                                        ComboBox<String> existingTagBox = new ComboBox<>();
-                                        existingTagBox.getItems().addAll(existingTags);
-
-                                        if (!existingTags.isEmpty()) {
-                                        existingTagBox.setValue(existingTags.get(0));
-                                        } else {
-                                        existingTagBox.setDisable(true);
-                                        existingTagBox.setPromptText("No existing tags");
-                                        }
-
-                                        TextField newTagField = new TextField();
-                                        newTagField.setPromptText("Create a new tag");
-
-                                        VBox dialogContent = new VBox(
-                                                                10,
-                                                                new Label("Existing tag:"),
-                                                                existingTagBox,
-                                                                new Label("Or create a new tag:"),
-                                                                newTagField
-                                                        );
-
-                                                        dialog.getDialogPane().setContent(dialogContent);
-
-                                                        dialog.setResultConverter(buttonType -> {
-                                                        if (buttonType == addButtonType) {
-
-                                                                String newTagName = newTagField.getText().trim();
-
-                                                                if (!newTagName.isEmpty()) {
-                                                                return newTagName;
-                                                                }
-
-                                                                return existingTagBox.getValue();
-                                                        }
-
-                                                        return null;
-                                                        });
-
-                                                        dialog.showAndWait().ifPresent(selectedTag -> {
-                                                        try {
-                                                                if (!existingTags.contains(selectedTag)) {
-                                                                tagRepo.add(selectedTag);
-                                                                }
-
-                                                                tagRepo.addTagToFile(
-                                                                        item.getPath(),
-                                                                        selectedTag
-                                                                );
-
-                                                                populateFileTags(
-                                                                        tagContainer,
-                                                                        item.getPath()
-                                                                );
-
-                                                        } catch (SQLException e) {
-                                                                e.printStackTrace();
-                                                        }
-                                                        });
-
-                                                } catch (SQLException e) {
-                                                        e.printStackTrace();
-                                                }
-                                });
-
-                        Button favouriteButton = new Button();
-
-                        try {
-                                boolean isFavourite = favouriteRepo.isFavourite(item.getPath());
-
-                                favouriteButton.setText(
-                                        isFavourite ? "★" : "☆"
-                                );
-                        } catch (SQLException e) {
-                                favouriteButton.setText("☆");
-                                e.printStackTrace();
-                        }
-
-                        favouriteButton.setOnAction(event -> {
-                                try {
-                                        boolean isFavourite = favouriteRepo.isFavourite(item.getPath());
-
-                                        if (isFavourite) {
-                                                favouriteRepo.remove(item.getPath());
-                                                favouriteButton.setText("☆");
-                                        } else {
-                                                favouriteRepo.add(item.getPath());
-                                                favouriteButton.setText("★");
-                                        }
-                                } catch (SQLException e) {
-                                        e.printStackTrace();
-                                }
-                        });
-
-                        fileRow.getChildren().addAll(
-                                fileNameLabel,
-                                fileSizeLabel,
-                                tagContainer,
-                                spacer,
-                                tagButton,
-                                favouriteButton
-                        );
-
-                        fileList.getChildren().add(fileRow);
-        });
+        fileList.getItems().setAll(filteredItems);
     }
 
     private boolean matchesType(FileItem item, String selectedType) {
@@ -900,6 +972,10 @@ public class MainView {
         }
         
         private void handleScan() {
+                if (scanning) {
+                        return; 
+                }
+
                 DirectoryChooser directoryChooser = new DirectoryChooser();
                 directoryChooser.setTitle("Select Folder");
 
@@ -913,15 +989,56 @@ public class MainView {
 
                 Path selectedPath = selectedFolder.toPath();
 
-                try {
-                        ScanResult result = fileScanService.scan(selectedPath);
+                Task<ScanResult> scanTask = new Task<>() {
+                        @Override 
+                        protected ScanResult call() throws Exception {
+                                return fileScanService.scan(selectedPath);
+                        }
+                };
 
-                        latestScanResult = result;
+                scanTask.setOnSucceeded(event -> {
+                        setScanningState(false);
+
+                        latestScanResult = scanTask.getValue();
+
+                        System.out.println(
+                                "SCAN SUCCEEDED - items: "
+                                        + latestScanResult.getItems().size()
+                        );
+
+                        System.out.println("Opening Files page...");
 
                         selectNavItem(filesNavItem, "Files");
 
-                } catch (IOException e) {
-                        e.printStackTrace();
-                } 
+                        System.out.println("Files page rendered.");
+                });
+
+                scanTask.setOnFailed(event -> {
+                        setScanningState(false);
+
+                        scanTask.getException().printStackTrace();
+                });
+
+                setScanningState(true);
+
+                Thread scanThread = new Thread(scanTask);
+                scanThread.setDaemon(true);
+                scanThread.start();
+        }
+
+        private void setScanningState(boolean scanning) {
+                this.scanning = scanning;
+
+                scanButton.setDisable(scanning);
+                scanButton.setText(
+                        scanning ? "Scanning..." : "Scan Folder" 
+                );
+
+                if (homeScanButton != null) {
+                        homeScanButton.setDisable(scanning);
+                        homeScanButton.setText(
+                                scanning ? "Scanning..." : "Scan Folder"
+                        );
+                }
         }
 }

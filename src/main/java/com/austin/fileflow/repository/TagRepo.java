@@ -7,7 +7,9 @@ import java.sql.SQLException;
 import java.nio.file.Path;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import com.austin.fileflow.database.DatabaseManager;
 
@@ -201,5 +203,39 @@ public class TagRepo {
         }
 
         return files;
+    }
+
+    public Map<Path, List<String>> getAllFileTags() throws SQLException {
+        String sql = """
+                SELECT file_tags.file_path, tags.name
+                FROM file_tags
+                JOIN tags ON file_tags.tag_id = tags.id
+                ORDER BY file_tags.file_path, tags.name
+                """;
+
+        Map<Path, List<String>> fileTags = new HashMap<>();
+
+        try (Connection connection = databaseManager.getConnection();
+            PreparedStatement statement = connection.prepareStatement(sql)) {
+
+                var resultSet = statement.executeQuery();
+
+                while (resultSet.next()) {
+                    Path filePath = Path.of(
+                        resultSet.getString("file_path")
+                    );
+
+                    String tagName = resultSet.getString("name");
+
+                    fileTags
+                        .computeIfAbsent(
+                            filePath,
+                            path -> new ArrayList<>()
+                        )
+                        .add(tagName);
+                }
+            }
+
+        return fileTags;
     }
 }

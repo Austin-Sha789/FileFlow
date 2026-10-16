@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.util.List;
+import java.util.Map;
 
 import javax.swing.text.html.HTML.Tag;
 
@@ -249,6 +250,44 @@ public class TagRepoTest {
         assertTrue(workFiles.contains(firstFile));
         assertTrue(workFiles.contains(secondFile));
         assertTrue(!workFiles.contains(thirdFile));
+    }
+
+    @Test
+    void getAllFileTagsReturnsAllFileTagMappings() throws SQLException {
+        Path testDatabase = tempDir.resolve("test.db");
+
+        DatabaseManager databaseManager = new DatabaseManager(
+                "jdbc:sqlite:" + testDatabase
+        );
+
+        databaseManager.initialiseDatabase();
+
+        TagRepo tagRepo = new TagRepo(databaseManager);
+
+        Path firstFile = Path.of("C:/test/report.pdf");
+        Path secondFile = Path.of("C:/test/photo.jpg");
+
+        tagRepo.add("Work");
+        tagRepo.add("Important");
+        tagRepo.add("Photo");
+
+        tagRepo.addTagToFile(firstFile, "Work");
+        tagRepo.addTagToFile(firstFile, "Important");
+        tagRepo.addTagToFile(secondFile, "Photo");
+
+        Map<Path, List<String>> fileTags = tagRepo.getAllFileTags();
+
+        assertEquals(2, fileTags.size());
+
+        assertTrue(fileTags.containsKey(firstFile));
+        assertTrue(fileTags.containsKey(secondFile));
+
+        assertEquals(2, fileTags.get(firstFile).size());
+        assertTrue(fileTags.get(firstFile).contains("Work"));
+        assertTrue(fileTags.get(firstFile).contains("Important"));
+
+        assertEquals(1, fileTags.get(secondFile).size());
+        assertTrue(fileTags.get(secondFile).contains("Photo"));
     }
 }
 
