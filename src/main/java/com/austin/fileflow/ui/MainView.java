@@ -19,6 +19,8 @@ import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.ProgressIndicator;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.MenuItem;
 import javafx.geometry.Side;
@@ -36,6 +38,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Consumer;
 
 
 import java.io.File;
@@ -71,6 +74,16 @@ public class MainView {
     private final ProgressBar scanProgressBar;
     private final Label scanStatusLabel;
     private final FilePlatformService filePlatformService;
+    private Path scanRootPath;
+    private Path currentFolder;
+    private FilesViewMode filesViewMode = FilesViewMode.BROWSE;
+
+
+    private enum FilesViewMode {
+        BROWSE,
+        ALL_FILES,
+        CATEGORIES
+        }
 
     public MainView(
                 FavouriteRepo favouriteRepo, 
@@ -412,6 +425,43 @@ public class MainView {
             return filesContent;
         }
 
+        VBox categoriesContent = new VBox(10);
+        categoriesContent.setVisible(false);
+        categoriesContent.setManaged(false);
+
+        ToggleButton browseButton = new ToggleButton("Browse");
+        ToggleButton allFilesButton = new ToggleButton("All Files");
+        ToggleButton categoriesButton =
+                new ToggleButton("Categories");
+
+        ToggleGroup viewGroup = new ToggleGroup();
+
+        browseButton.setToggleGroup(viewGroup);
+        allFilesButton.setToggleGroup(viewGroup);
+        categoriesButton.setToggleGroup(viewGroup);
+
+        switch (filesViewMode) {
+                case BROWSE -> browseButton.setSelected(true);
+                case ALL_FILES -> allFilesButton.setSelected(true);
+                case CATEGORIES -> categoriesButton.setSelected(true);
+        }
+
+
+        Button backButton = new Button("←");
+        backButton.getStyleClass().add("breadcrumb-back");
+        HBox breadcrumbBar = new HBox(6);
+
+        HBox browseHeader = new HBox(
+                10,
+                backButton,
+                breadcrumbBar
+        );
+
+        browseHeader.setAlignment(Pos.CENTER_LEFT);
+        breadcrumbBar.setAlignment(Pos.CENTER_LEFT);
+
+        updateFilesViewControls(browseHeader);
+
         TextField searchField = new TextField();
         searchField.setPromptText("Search files...");
         searchField.getStyleClass().add("search-field");
@@ -424,7 +474,8 @@ public class MainView {
                         "Documents",
                         "Audio",
                         "Archives",
-                        "Code"
+                        "Code",
+                        "Other"
                 );
 
         typeFilter.setValue("All");
@@ -450,7 +501,30 @@ public class MainView {
                 sortBy
         );
 
-        filesContent.getChildren().add(controlsRow);
+        searchField.setPrefWidth(220);
+        typeFilter.setPrefWidth(140);
+        sortBy.setPrefWidth(170);
+
+        Region toolbarSpacer = new Region();
+        HBox.setHgrow(toolbarSpacer, Priority.ALWAYS);
+
+        HBox viewBar = new HBox(
+                10,
+                browseButton,
+                allFilesButton,
+                categoriesButton,
+                toolbarSpacer,
+                controlsRow
+        );
+
+        viewBar.setAlignment(Pos.CENTER_LEFT);
+        viewBar.setMaxWidth(Double.MAX_VALUE);  
+
+        controlsRow.setAlignment(Pos.CENTER_RIGHT);
+
+        filesContent.getChildren().add(viewBar);
+        filesContent.getChildren().add(browseHeader);
+        filesContent.getChildren().add(categoriesContent);
 
         if (!latestScanResult.getIssues().isEmpty()) {
             Label issueLabel = new Label(
@@ -488,6 +562,149 @@ public class MainView {
         }
 
         ListView<FileItem> fileList = new ListView<>();
+
+        updateBrowseHeader(
+                        backButton,
+                        breadcrumbBar,
+                        fileList,
+                        searchField,
+                        typeFilter,
+                        sortBy
+                );
+
+        browseButton.setOnAction(event -> {
+                filesViewMode  = FilesViewMode.BROWSE;
+
+                searchField.clear();
+                typeFilter.setValue("All");
+
+                categoriesContent.setVisible(false);
+                categoriesContent.setManaged(false);
+
+                controlsRow.setVisible(true);
+                controlsRow.setManaged(true);
+
+                fileList.setVisible(true);
+                fileList.setManaged(true);
+
+                updateFilesViewControls(browseHeader);
+
+                updateBrowseHeader(
+                        backButton,
+                        breadcrumbBar,
+                        fileList,
+                        searchField,
+                        typeFilter,
+                        sortBy
+                );
+
+                populateFileList(
+                        fileList,
+                        searchField.getText(), 
+                        typeFilter.getValue(),
+                        sortBy.getValue() 
+                );
+        });
+
+        allFilesButton.setOnAction(event -> {
+                filesViewMode = FilesViewMode.ALL_FILES;
+
+                categoriesContent.setVisible(false);
+                categoriesContent.setManaged(false);
+
+                controlsRow.setVisible(true);
+                controlsRow.setManaged(true);
+
+                fileList.setVisible(true);
+                fileList.setManaged(true);
+
+                updateFilesViewControls(browseHeader);
+
+                populateFileList(
+                        fileList,
+                        searchField.getText(),
+                        typeFilter.getValue(),
+                        sortBy.getValue()
+                );
+        });
+
+        categoriesButton.setOnAction(event -> {
+                filesViewMode = FilesViewMode.CATEGORIES;
+
+                browseHeader.setVisible(false);
+                browseHeader.setManaged(false);
+
+                controlsRow.setVisible(false);
+                controlsRow.setManaged(false);
+
+                fileList.setVisible(false);
+                fileList.setManaged(false);
+
+                categoriesContent.setVisible(true);
+                categoriesContent.setManaged(true);
+
+                populateCategories(
+                        categoriesContent,
+                        type -> {
+                                filesViewMode = FilesViewMode.ALL_FILES;
+
+                                allFilesButton.setSelected(true);
+
+                                categoriesContent.setVisible(false);
+                                categoriesContent.setManaged(false);
+
+                                controlsRow.setVisible(true);
+                                controlsRow.setManaged(true);
+
+                                fileList.setVisible(true);
+                                fileList.setManaged(true);
+
+                                updateFilesViewControls(browseHeader);
+
+                                searchField.clear();
+
+                                typeFilter.setValue(
+                                        getFileTypeDisplayName(type)
+                                );
+
+                                populateFileList(
+                                        fileList,
+                                        searchField.getText(),
+                                        typeFilter.getValue(),
+                                        sortBy.getValue()
+                                );
+                        }
+                );
+        });
+
+        backButton.setOnAction(event -> {
+                if (currentFolder == null || scanRootPath == null || currentFolder.equals(scanRootPath)) {
+                        return;
+                }
+
+                Path parent = currentFolder.getParent();
+
+                if (parent != null) {
+                        currentFolder = parent;
+
+                        updateBrowseHeader(
+                                backButton,
+                                breadcrumbBar,
+                                fileList,
+                                searchField,
+                                typeFilter,
+                                sortBy
+                        );
+
+                        populateFileList(
+                                fileList,
+                                searchField.getText(),
+                                typeFilter.getValue(),
+                                sortBy.getValue()
+                        );
+                }
+        });
+
         fileList.setCellFactory(listView -> new ListCell<FileItem>() {
                 @Override
                 protected void updateItem(FileItem item, boolean empty) {
@@ -504,15 +721,47 @@ public class MainView {
                                         ? "[Folder] " + item.getName()
                                         : item.getName()
                         );
+                        fileNameLabel.getStyleClass().add("file-name");
 
                         Label fileSizeLabel = new Label(
                                 item.isDirectory()
-                                        ? "-"
+                                        ? "——"
                                         : formatSize(item.getSizeBytes())
                         );
-
-                        fileNameLabel.getStyleClass().add("file-name");
                         fileSizeLabel.getStyleClass().add("file-size");
+
+                        Label relativePathLabel = new Label();
+                        relativePathLabel.getStyleClass().add("file-relative-path");
+
+                        if (filesViewMode == FilesViewMode.ALL_FILES
+                                && scanRootPath != null) {
+
+                                Path parent = item.getPath().getParent();
+
+                                if (parent != null) {
+                                        Path relativeParent = scanRootPath.relativize(parent);
+
+                                        if (relativeParent.toString().isEmpty()) {
+                                                relativePathLabel.setText("Scan root");
+                                        } else {
+                                                relativePathLabel.setText(
+                                                        relativeParent.toString()
+                                                );
+                                        }
+                                }
+                        }
+
+                        boolean showRelativePath =
+                                filesViewMode == FilesViewMode.ALL_FILES;
+
+                        relativePathLabel.setVisible(showRelativePath);
+                        relativePathLabel.setManaged(showRelativePath);
+
+                        VBox fileInfo = new VBox(
+                                3,
+                                fileNameLabel,
+                                relativePathLabel
+                        );
 
                         Button favouriteButton = new Button(
                                 favouritePaths.contains(item.getPath())
@@ -674,6 +923,32 @@ public class MainView {
                                 favouriteButton,
                                 moreButton
                         );
+
+                        fileRow.setOnMouseClicked(event -> {
+                                if (filesViewMode == FilesViewMode.BROWSE
+                                        && item.isDirectory()
+                                        && event.getClickCount() == 2) {
+                                        currentFolder = item.getPath()
+                                                .toAbsolutePath()
+                                                .normalize();
+
+                                        updateBrowseHeader(
+                                                backButton,
+                                                breadcrumbBar,
+                                                getListView(),
+                                                searchField,
+                                                typeFilter,
+                                                sortBy
+                                        );
+
+                                        populateFileList(
+                                                getListView(),
+                                                searchField.getText(), 
+                                                typeFilter.getValue(), 
+                                                sortBy.getValue()
+                                        );
+                                }
+                        });
 
                         fileRow.setAlignment(Pos.CENTER_LEFT);
                         fileRow.getStyleClass().add("file-row");
@@ -870,6 +1145,19 @@ public class MainView {
 
         List<FileItem> filteredItems = latestScanResult.getItems()
                 .stream()
+                .filter(item -> {
+                        if (filesViewMode == FilesViewMode.ALL_FILES) {
+                                return !item.isDirectory();
+                        }
+
+                        if (currentFolder == null) {
+                                return false;
+                        }
+
+                        Path parent = item.getPath().getParent();
+
+                        return parent != null && parent.equals(currentFolder);
+                })
                 .filter(item ->
                         item.getName()
                                 .toLowerCase()
@@ -892,6 +1180,7 @@ public class MainView {
             case "Audio" -> item.getType() == FileType.AUDIO;
             case "Archives" -> item.getType() == FileType.ARCHIVE;
             case "Code" -> item.getType() == FileType.CODE;
+            case "Other" -> item.getType() == FileType.OTHER;
             default -> true;
         };
     }
@@ -1117,6 +1406,12 @@ public class MainView {
 
                         latestScanResult = scanTask.getValue();
 
+                        scanRootPath = selectedPath
+                                .toAbsolutePath()
+                                .normalize();
+
+                        currentFolder = scanRootPath;
+
                         selectNavItem(filesNavItem, "Files");
                 });
 
@@ -1226,5 +1521,250 @@ public class MainView {
                 );
 
                 return moreButton;
+        }
+
+        private void updateBrowseHeader(
+                Button backButton,
+                HBox breadcrumbBar,
+                ListView<FileItem> fileList,
+                TextField searchField,
+                ComboBox<String> typeFilter,
+                ComboBox<String> sortBy
+        ){
+                boolean atRoot = currentFolder == null || scanRootPath == null || currentFolder.equals(scanRootPath);
+
+                backButton.setDisable(atRoot);
+
+                breadcrumbBar.getChildren().clear();
+
+                if (currentFolder == null || scanRootPath == null) {
+                        return;
                 }
+
+                Button rootButton = new Button(getPathDisplayName(scanRootPath));
+                rootButton.getStyleClass().add("breadcrumb-button");
+
+                rootButton.setOnAction(event -> {
+                        currentFolder = scanRootPath;
+
+                        updateBrowseHeader(
+                                backButton,
+                                breadcrumbBar,
+                                fileList,
+                                searchField,
+                                typeFilter,
+                                sortBy
+                        );
+
+                        populateFileList(
+                                fileList,
+                                searchField.getText(),
+                                typeFilter.getValue(),
+                                sortBy.getValue()
+                        );
+                });
+
+                breadcrumbBar.getChildren().add(rootButton);
+
+                Path relativePath = scanRootPath.relativize(
+                        currentFolder
+                );
+
+                Path accumulatedPath = scanRootPath;
+
+                for (Path part : relativePath) {
+                        Label separator = new Label(">");
+                        separator.getStyleClass().add("breadcrumb-separator");
+
+                        accumulatedPath = accumulatedPath.resolve(part);
+                        
+                        Path targetPath = accumulatedPath;
+
+                        Button pathButton = new Button(part.toString());
+                        pathButton.getStyleClass().add("breadcrumb-button");
+
+                        pathButton.setOnAction(event -> {
+                                currentFolder = targetPath;
+
+                                updateBrowseHeader(
+                                        backButton,
+                                        breadcrumbBar,
+                                        fileList,
+                                        searchField,
+                                        typeFilter,
+                                        sortBy
+                                );
+
+                                populateFileList(
+                                        fileList,
+                                        searchField.getText(),
+                                        typeFilter.getValue(),
+                                        sortBy.getValue()
+                                );
+                        });
+
+                        breadcrumbBar.getChildren().addAll(separator, pathButton);
+                }
+
+        }
+
+        private String getPathDisplayName(Path path) {
+                Path fileName = path.getFileName();
+
+                if (fileName != null) {
+                        return fileName.toString();
+                }
+
+                return path.toString();
+        }
+
+        private void updateFilesViewControls(HBox browseHeader) {
+                boolean browseMode =
+                        filesViewMode == FilesViewMode.BROWSE;
+
+                browseHeader.setVisible(browseMode);
+                browseHeader.setManaged(browseMode);
+        }
+
+        private void populateCategories(VBox categoriesContent, Consumer<FileType> onCategorySelected) {
+                categoriesContent.getChildren().clear();
+
+                if (latestScanResult == null) {
+                        return;
+                }
+
+                long totalScannedBytes = latestScanResult.getItems()
+                        .stream()
+                        .filter(item -> !item.isDirectory())
+                        .mapToLong(FileItem::getSizeBytes)
+                        .sum();
+
+                Label titleLabel = new Label("File Categories");
+                titleLabel.getStyleClass().add("categories-title");
+
+                Label subtitleLabel = new Label(
+                        "Storage breakdown for this scan"
+                );
+                subtitleLabel.getStyleClass().add("categories-subtitle");
+
+                categoriesContent.getChildren().addAll(
+                        titleLabel,
+                        subtitleLabel
+                );
+
+                Map<FileType, Long> fileCounts = new HashMap<>();
+                Map<FileType, Long> totalBytesByType = new HashMap<>();
+
+                for (FileItem item : latestScanResult.getItems()) {
+                        if (item.isDirectory()) {
+                                continue;
+                        }
+
+                        FileType type = item.getType();
+
+                        fileCounts.merge(
+                                type,
+                                1L,
+                                Long::sum
+                        );
+
+                        totalBytesByType.merge(
+                                type,
+                                item.getSizeBytes(),
+                                Long::sum
+                        );
+                }
+
+                        List<FileType> sortedTypes = List.of(FileType.values())
+                                .stream()
+                                .sorted(
+                                        Comparator.comparingLong(
+                                                (FileType type) ->
+                                                        totalBytesByType.getOrDefault(type, 0L)
+                                        ).reversed()
+                                )
+                                .toList();
+
+                for (FileType type : sortedTypes) {
+
+                        long fileCount = fileCounts.getOrDefault(
+                                type,
+                                0L
+                        );
+
+                        long totalBytes = totalBytesByType.getOrDefault(
+                                type,
+                                0L
+                        );
+
+                        double percentage = totalScannedBytes == 0
+                                ? 0
+                                : (double) totalBytes / totalScannedBytes * 100;
+
+                        Label percentageLabel = new Label(
+                                String.format("%.1f%%", percentage)
+                        );
+
+                        percentageLabel.getStyleClass().add(
+                                "category-percentage"
+                        );
+
+                        if (fileCount == 0) {
+                                continue;
+                        }
+
+                        Label nameLabel = new Label(
+                                getFileTypeDisplayName(type)
+                        );
+                        nameLabel.getStyleClass().add("category-name");
+
+                        Label countLabel = new Label(
+                                fileCount + " files"
+                        );
+                        countLabel.getStyleClass().add("category-count");
+
+                        Label sizeLabel = new Label(
+                                formatSize(totalBytes)
+                        );
+                        sizeLabel.getStyleClass().add("category-size");
+
+                        Label arrowLabel = new Label("›");
+                        arrowLabel.getStyleClass().add("category-arrow");
+
+                        Region spacer = new Region();
+                        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+                        HBox categoryRow = new HBox(
+                                16,
+                                nameLabel,
+                                spacer,
+                                countLabel,
+                                sizeLabel,
+                                percentageLabel,
+                                arrowLabel
+                        );
+
+                        categoryRow.setAlignment(Pos.CENTER_LEFT);
+                        categoryRow.setMaxWidth(Double.MAX_VALUE);
+                        categoryRow.getStyleClass().add("category-row");
+                        
+                        categoryRow.setOnMouseClicked(event ->
+                                onCategorySelected.accept(type)
+                        );
+
+                        categoriesContent.getChildren().add(categoryRow);
+                }
+        }
+
+        private String getFileTypeDisplayName(FileType type) {
+                return switch (type) {
+                        case IMAGE -> "Images";
+                        case VIDEO -> "Videos";
+                        case AUDIO -> "Audio";
+                        case DOCUMENT -> "Documents";
+                        case ARCHIVE -> "Archives";
+                        case CODE -> "Code";
+                        case OTHER -> "Other";
+                };
+        }
 }

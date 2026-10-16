@@ -105,7 +105,12 @@ public class FileScanService {
         BasicFileAttributes attributes = 
             Files.readAttributes(path, BasicFileAttributes.class);
 
-            String name = path.getFileName().toString();
+            Path fileName = path.getFileName();
+
+            String name = fileName != null
+                    ? fileName.toString()
+                    : path.toString();
+
             long sizeBytes = attributes.size();
             String extension = getExtension(name);
 
