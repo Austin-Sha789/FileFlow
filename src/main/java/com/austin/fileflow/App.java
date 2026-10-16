@@ -9,7 +9,7 @@ import com.austin.fileflow.database.DatabaseManager;
 import com.austin.fileflow.repository.FavouriteRepo;
 import com.austin.fileflow.repository.TagRepo;
 import com.austin.fileflow.ui.MainView;
-
+import com.austin.fileflow.platform.FilePlatformService;
 
 public class App extends Application
 {
@@ -26,9 +26,10 @@ public class App extends Application
 
         FavouriteRepo favouriteRepo = new FavouriteRepo(databaseManager);
         TagRepo tagRepo = new TagRepo(databaseManager);
+        FilePlatformService filePlatformService = new FilePlatformService();
         
 
-        MainView mainView = new MainView(favouriteRepo, tagRepo);
+        MainView mainView = new MainView(favouriteRepo, tagRepo, filePlatformService);
 
         Scene scene = new Scene(mainView.getView(), 1200, 760);
         scene.getStylesheets().add(getClass().getResource("/css/app.css").toExternalForm());

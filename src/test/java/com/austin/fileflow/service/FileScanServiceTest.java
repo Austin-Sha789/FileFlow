@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -101,6 +102,52 @@ public class FileScanServiceTest {
         assertEquals(
                 missingPath,
                 result.getIssues().get(0).getPath()
+        );
+    }
+
+    @Test
+    void scanStopsEarlyWhenCancelled() throws IOException {
+        for (int i = 0; i < 10; i++) {
+            Files.createFile(
+                    tempDir.resolve("file" + i + ".txt")
+            );
+        }
+
+        FileScanService service = new FileScanService();
+
+        ScanResult fullResult = service.scan(tempDir);
+
+        AtomicInteger checks = new AtomicInteger();
+
+        ScanResult cancelledResult = service.scan(
+                tempDir,
+                () -> checks.incrementAndGet() > 2
+        );
+
+        assertTrue(
+                cancelledResult.getItems().size()
+                        < fullResult.getItems().size()
+        );
+    }
+
+    @Test
+    void scanReportsScannedItemCount() throws IOException {
+        Files.createFile(tempDir.resolve("one.txt"));
+        Files.createFile(tempDir.resolve("two.txt"));
+
+        FileScanService service = new FileScanService();
+
+        AtomicInteger reportedCount = new AtomicInteger();
+
+        ScanResult result = service.scan(
+                tempDir,
+                () -> false,
+                reportedCount::set
+        );
+
+        assertEquals(
+                result.getItems().size(),
+                reportedCount.get()
         );
     }
 }

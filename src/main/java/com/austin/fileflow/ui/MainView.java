@@ -14,7 +14,14 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.ChoiceDialog;
 import javafx.scene.control.TextInputDialog;
 import javafx.scene.control.ListView;
+import javafx.scene.control.ProgressBar;
+import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.ListCell;
+import javafx.scene.control.ProgressBar;
+import javafx.scene.control.ProgressIndicator;
+import javafx.scene.control.ContextMenu;
+import javafx.scene.control.MenuItem;
+import javafx.geometry.Side;
 import javafx.concurrent.Task;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Dialog;
@@ -44,36 +51,48 @@ import com.austin.fileflow.service.FileScanService;
 import com.austin.fileflow.model.FileType;
 import com.austin.fileflow.repository.FavouriteRepo;
 import com.austin.fileflow.repository.TagRepo;
+import com.austin.fileflow.platform.FilePlatformService;
 
 public class MainView {
     
     private final BorderPane root;
-
     private final Label pageTitle;
-
     private final VBox pageContent;
-
     private final Button scanButton;
-
     private final FileScanService fileScanService;
-
     private ScanResult latestScanResult;
-
     private final FavouriteRepo favouriteRepo;
-    
     private final TagRepo tagRepo;
-
     private Label filesNavItem;
-
     private final List<Label> navItems = new ArrayList<>();
-
     private Button homeScanButton;
-
     private boolean scanning;
+    private Task<ScanResult> currentScanTask;
+    private final ProgressBar scanProgressBar;
+    private final Label scanStatusLabel;
+    private final FilePlatformService filePlatformService;
 
-    public MainView(FavouriteRepo favouriteRepo, TagRepo tagRepo) {
+    public MainView(
+                FavouriteRepo favouriteRepo, 
+                TagRepo tagRepo, 
+                FilePlatformService filePlatformService
+        ) {
         this.favouriteRepo = favouriteRepo;
         this.tagRepo = tagRepo;
+        this.filePlatformService = filePlatformService;
+
+        scanProgressBar = new ProgressBar();
+
+        scanProgressBar.setProgress(
+                ProgressIndicator.INDETERMINATE_PROGRESS
+        );
+
+        scanProgressBar.setVisible(false);
+        scanProgressBar.setManaged(false);
+
+        scanStatusLabel = new Label();
+        scanStatusLabel.setVisible(false);
+        scanStatusLabel.setManaged(false);
 
         root = new BorderPane();
         pageTitle = new Label("Home");
@@ -189,7 +208,7 @@ public class MainView {
 
         pageTitle.getStyleClass().add("page-title");
 
-        scanButton.setOnAction(event -> handleScan());
+        scanButton.setOnAction(event -> handleScanAction());
 
         scanButton.getStyleClass().add("primary-button");
 
@@ -197,8 +216,11 @@ public class MainView {
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
         HBox topBar = new HBox(
+                12,
                 pageTitle,
                 spacer,
+                scanStatusLabel,
+                scanProgressBar,
                 scanButton
         );
         topBar.getStyleClass().add("top-bar");
@@ -293,7 +315,7 @@ public class MainView {
         subtitle.getStyleClass().add("home-subtitle");
 
         homeScanButton  = new Button("Scan a folder");
-        homeScanButton.setOnAction(event -> handleScan());
+        homeScanButton.setOnAction(event -> handleScanAction());
         homeScanButton.getStyleClass().add("home-scan-button");
 
         hero.getChildren().addAll(
@@ -602,6 +624,9 @@ public class MainView {
                                 });
                         });
 
+                        Button moreButton =
+                                createFileActionsButton(item.getPath());
+
                         List<String> tags = fileTags.getOrDefault(
                                 item.getPath(),
                                 List.of()
@@ -646,7 +671,8 @@ public class MainView {
                                 tagContainer,
                                 spacer,
                                 tagButton,
-                                favouriteButton
+                                favouriteButton,
+                                moreButton
                         );
 
                         fileRow.setAlignment(Pos.CENTER_LEFT);
@@ -992,34 +1018,53 @@ public class MainView {
                 Task<ScanResult> scanTask = new Task<>() {
                         @Override 
                         protected ScanResult call() throws Exception {
-                                return fileScanService.scan(selectedPath);
+                                return fileScanService.scan(
+                                        selectedPath,
+                                        this::isCancelled,
+                                        count -> updateMessage(
+                                                String.format(
+                                                        "Scanning... %,d items",
+                                                        count
+                                                )
+                                        )
+                                );
                         }
                 };
 
+                scanStatusLabel.textProperty().bind(
+                        scanTask.messageProperty()
+                );
+
                 scanTask.setOnSucceeded(event -> {
+                        scanStatusLabel.textProperty().unbind();
+
                         setScanningState(false);
+                        currentScanTask = null;
 
                         latestScanResult = scanTask.getValue();
 
-                        System.out.println(
-                                "SCAN SUCCEEDED - items: "
-                                        + latestScanResult.getItems().size()
-                        );
-
-                        System.out.println("Opening Files page...");
-
                         selectNavItem(filesNavItem, "Files");
-
-                        System.out.println("Files page rendered.");
                 });
 
                 scanTask.setOnFailed(event -> {
+                        scanStatusLabel.textProperty().unbind();
+
                         setScanningState(false);
+                        currentScanTask = null;
 
                         scanTask.getException().printStackTrace();
                 });
 
+                scanTask.setOnCancelled(event -> {
+                        scanStatusLabel.textProperty().unbind();
+
+                        setScanningState(false);
+                        currentScanTask = null;
+                });
+
                 setScanningState(true);
+
+                currentScanTask = scanTask;
 
                 Thread scanThread = new Thread(scanTask);
                 scanThread.setDaemon(true);
@@ -1029,16 +1074,83 @@ public class MainView {
         private void setScanningState(boolean scanning) {
                 this.scanning = scanning;
 
-                scanButton.setDisable(scanning);
                 scanButton.setText(
-                        scanning ? "Scanning..." : "Scan Folder" 
+                        scanning ? "Cancel Scan" : "Scan Folder" 
                 );
+
+                scanProgressBar.setVisible(scanning);
+                scanProgressBar.setManaged(scanning);
+
+                scanStatusLabel.setVisible(scanning);
+                scanStatusLabel.setManaged(scanning);
 
                 if (homeScanButton != null) {
                         homeScanButton.setDisable(scanning);
                         homeScanButton.setText(
-                                scanning ? "Scanning..." : "Scan Folder"
+                                scanning ? "Cancel Scan" : "Scan Folder"
                         );
                 }
         }
+
+        private void handleScanAction() {
+                if (scanning) {
+                        if (currentScanTask != null) {
+                                currentScanTask.cancel();
+                        }
+
+                        return;
+                }
+
+                handleScan();
+        }
+
+        private Button createFileActionsButton(Path filePath) {
+                Button moreButton = new Button("⋯");
+                moreButton.getStyleClass().add("more-button");
+
+                MenuItem openItem = new MenuItem("Open");
+                MenuItem showInFolderItem = new MenuItem("Show in Folder");
+                MenuItem copyPathItem = new MenuItem("Copy Path");
+
+                ContextMenu fileMenu = new ContextMenu(
+                        openItem,
+                        showInFolderItem,
+                        copyPathItem
+                );
+
+                openItem.setOnAction(event -> {
+                        try {
+                        filePlatformService.open(filePath);
+                        } catch (IOException e) {
+                        e.printStackTrace();
+                        }
+                });
+
+                showInFolderItem.setOnAction(event -> {
+                        try {
+                        filePlatformService.showInFolder(filePath);
+                        } catch (IOException e) {
+                        e.printStackTrace();
+                        }
+                });
+
+                copyPathItem.setOnAction(event -> {
+                        try {
+                        filePlatformService.copyPath(filePath);
+                        } catch (IOException e) {
+                        e.printStackTrace();
+                        }
+                });
+
+                moreButton.setOnAction(event ->
+                        fileMenu.show(
+                                moreButton,
+                                Side.BOTTOM,
+                                0,
+                                0
+                        )
+                );
+
+                return moreButton;
+                }
 }

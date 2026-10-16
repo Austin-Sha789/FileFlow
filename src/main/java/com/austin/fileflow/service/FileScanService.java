@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
+import java.util.function.IntConsumer;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -23,6 +24,21 @@ import com.austin.fileflow.model.FileType;
 
 public class FileScanService {
     public ScanResult scan(Path rootPath) throws IOException {
+        return scan(rootPath, () -> false);
+    } 
+
+    public ScanResult scan(
+            Path rootPath,
+            BooleanSupplier isCancelled
+    ) throws IOException {
+        return scan(rootPath, isCancelled, count -> {});
+    }
+
+    public ScanResult scan(
+        Path rootPath,
+        BooleanSupplier isCancelled,
+        IntConsumer onItemScanned
+    ) throws IOException {
 
         List<FileItem> items = new ArrayList<>();
         List<ScanIssue> issues = new ArrayList<>();
@@ -34,9 +50,13 @@ public class FileScanService {
                     Path dir,
                     BasicFileAttributes attrs
             ) {
+                if (isCancelled.getAsBoolean()) {
+                    return FileVisitResult.TERMINATE;
+                }
 
                 try {
                     items.add(createFileItem(dir));
+                    onItemScanned.accept(items.size());
                 } catch (IOException e) {
                     issues.add(new ScanIssue(dir, e.getMessage()));
                 }
@@ -48,8 +68,14 @@ public class FileScanService {
             public FileVisitResult visitFile(
                     Path file,
                     BasicFileAttributes attrs) {
+
+                if (isCancelled.getAsBoolean()) {
+                    return FileVisitResult.TERMINATE;
+                }
+
                 try {
                     items.add(createFileItem(file));
+                    onItemScanned.accept(items.size());
                 } catch (IOException e) {
                     issues.add(new ScanIssue(file, e.getMessage()));
                 }
@@ -62,6 +88,10 @@ public class FileScanService {
                     Path file,
                     IOException exc) {
 
+                if (isCancelled.getAsBoolean()) {
+                    return FileVisitResult.TERMINATE;
+                }
+
                 issues.add(new ScanIssue(file, exc.getMessage()));
 
                 return FileVisitResult.CONTINUE;
@@ -69,7 +99,7 @@ public class FileScanService {
         });
 
         return new ScanResult(items, issues);
-    } 
+    }
 
     private FileItem createFileItem(Path path) throws IOException {
         BasicFileAttributes attributes = 
