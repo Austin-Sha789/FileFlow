@@ -368,3 +368,160 @@
     -fx-text-fill: #aaaaaa;
     -fx-font-size: 12px;
 }
+
+.dashboard-file-row {
+    -fx-padding: 10 12;
+    -fx-background-color: white;
+    -fx-border-color: #e8e8e8;
+    -fx-border-width: 0 0 1 0;
+}
+
+.dashboard-file-row:hover {
+    -fx-background-color: #f7f7f7;
+}
+
+.dashboard-file-path {
+    -fx-font-size: 11px;
+    -fx-text-fill: #999999;
+}
+
+.dashboard-type-row {
+    -fx-padding: 10 12;
+    -fx-background-color: white;
+    -fx-border-color: #e8e8e8;
+    -fx-border-width: 0 0 1 0;
+}
+
+.dashboard-type-name {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #333333;
+}
+
+.dashboard-type-meta,
+.dashboard-type-percentage {
+    -fx-font-size: 12px;
+    -fx-text-fill: #888888;
+}
+
+.dashboard-type-percentage {
+    -fx-min-width: 55px;
+    -fx-alignment: CENTER-RIGHT;
+}
+
+.dashboard-scroll {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+
+.dashboard-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+.dashboard-type-progress {
+    -fx-pref-height: 7px;
+    -fx-accent: #555555;
+}
+
+.dashboard-type-progress > .track {
+    -fx-background-color: #eeeeee;
+    -fx-background-radius: 999;
+}
+
+.dashboard-type-progress > .bar {
+    -fx-background-radius: 999;
+    -fx-background-insets: 0;
+}
+
+.current-scan-card {
+    -fx-background-color: white;
+    -fx-background-radius: 14;
+    -fx-border-color: #e8e8e8;
+    -fx-border-radius: 14;
+    -fx-padding: 18 20;
+}
+
+.current-scan-name {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #2b2b2b;
+}
+
+.current-scan-path {
+    -fx-font-size: 12px;
+    -fx-text-fill: #888888;
+}
+
+.current-scan-summary {
+    -fx-font-size: 12px;
+    -fx-text-fill: #666666;
+}
+
+.dashboard-folder-row {
+    -fx-padding: 10 12;
+    -fx-background-color: white;
+    -fx-border-color: #e8e8e8;
+    -fx-border-width: 0 0 1 0;
+}
+
+.dashboard-folder-name {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #333333;
+}
+
+.dashboard-folder-meta,
+.dashboard-folder-percentage {
+    -fx-font-size: 12px;
+    -fx-text-fill: #888888;
+}
+
+.dashboard-folder-percentage {
+    -fx-min-width: 55px;
+    -fx-alignment: CENTER-RIGHT;
+}
+
+.dashboard-folder-progress {
+    -fx-pref-height: 7px;
+    -fx-accent: #555555;
+}
+
+.dashboard-folder-progress > .track {
+    -fx-background-color: #eeeeee;
+    -fx-background-radius: 999;
+}
+
+.dashboard-folder-progress > .bar {
+    -fx-background-radius: 999;
+    -fx-background-insets: 0;
+}
+
+.dashboard-modified-time {
+    -fx-font-size: 12px;
+    -fx-text-fill: #777777;
+    -fx-min-width: 140px;
+    -fx-alignment: CENTER-RIGHT;
+}
+
+.collapsible-section-header {
+    -fx-padding: 12 4;
+    -fx-cursor: hand;
+    -fx-background-color: transparent;
+}
+
+.collapsible-section-header:hover {
+    -fx-background-color: #f3f3f3;
+    -fx-background-radius: 8;
+}
+
+.collapsible-section-title {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #333333;
+}
+
+.collapsible-section-arrow {
+    -fx-font-size: 16px;
+    -fx-text-fill: #777777;
+    -fx-min-width: 14px;
+}

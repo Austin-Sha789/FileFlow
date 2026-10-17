@@ -46,6 +46,8 @@ import java.io.IOException;
 
 import java.nio.file.Path;
 import java.sql.SQLException;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 import com.austin.fileflow.model.FileItem;
 import com.austin.fileflow.model.ScanResult;
@@ -243,6 +245,8 @@ public class MainView {
                 pageContent
         );
 
+        VBox.setVgrow(pageContent, Priority.ALWAYS);
+
         return content;
     }
 
@@ -367,7 +371,21 @@ public class MainView {
     }
 
     private VBox createDashboardContent() {
-        VBox dashboardContent = new VBox();
+        VBox dashboardPage = new VBox();
+
+        VBox dashboardContent = new VBox(18);
+
+        ScrollPane scrollPane = new ScrollPane(dashboardContent);
+        scrollPane.getStyleClass().add("dashboard-scroll");
+
+        scrollPane.setFitToWidth(true);
+        scrollPane.setHbarPolicy(
+                ScrollPane.ScrollBarPolicy.NEVER
+        );
+
+        VBox.setVgrow(scrollPane, Priority.ALWAYS);
+
+        dashboardPage.getChildren().add(scrollPane);
 
         if (latestScanResult == null) {
             Label emptyLabel = new Label(
@@ -375,7 +393,7 @@ public class MainView {
             );
 
             dashboardContent.getChildren().add(emptyLabel);
-            return dashboardContent;
+            return dashboardPage;
         }
 
         long fileCount = latestScanResult.getItems()
@@ -389,31 +407,485 @@ public class MainView {
                 .mapToLong(item -> item.getSizeBytes())
                 .sum();
 
+        long folderCount = latestScanResult.getItems()
+                .stream()
+                .filter(FileItem::isDirectory)
+                .count();
+
 
         HBox summaryRow = new HBox();
         summaryRow.getStyleClass().add("summary-grid");
 
         VBox filesCard = createSummaryCard("Files", String.valueOf(fileCount));
         VBox storageCard = createSummaryCard("Storage", formatSize(totalBytes));
-        VBox duplicatesCard = createSummaryCard("Duplicates", "Not analysed");
+        VBox foldersCard = createSummaryCard("Folders", String.valueOf(folderCount));
+        VBox issuesCard =
+                createSummaryCard(
+                        "Scan Issues",
+                        String.valueOf(latestScanResult.getIssues().size())
+        );
 
         HBox.setHgrow(filesCard, Priority.ALWAYS);
         HBox.setHgrow(storageCard, Priority.ALWAYS);
-        HBox.setHgrow(duplicatesCard, Priority.ALWAYS);
+        HBox.setHgrow(foldersCard, Priority.ALWAYS);
+        HBox.setHgrow(issuesCard, Priority.ALWAYS);
 
         filesCard.setMaxWidth(Double.MAX_VALUE);
         storageCard.setMaxWidth(Double.MAX_VALUE);
-        duplicatesCard.setMaxWidth(Double.MAX_VALUE);
+        foldersCard.setMaxWidth(Double.MAX_VALUE);
+        issuesCard.setMaxWidth(Double.MAX_VALUE);
 
         summaryRow.getChildren().addAll(
                 filesCard,
                 storageCard,
-                duplicatesCard
+                foldersCard,
+                issuesCard
         );
 
         dashboardContent.getChildren().add(summaryRow);
 
-        return dashboardContent;
+        VBox largestFilesList = new VBox(6);
+
+        List<FileItem> largestFiles = latestScanResult.getItems()
+                .stream()
+                .filter(item -> !item.isDirectory())
+                .sorted(
+                        Comparator.comparingLong(FileItem::getSizeBytes)
+                                .reversed()
+                )
+                .limit(10)
+                .toList();
+
+        for (FileItem item : largestFiles) {
+                Label nameLabel = new Label(item.getName());
+                nameLabel.getStyleClass().add("file-name");
+
+                Label pathLabel = new Label();
+
+                if (scanRootPath != null) {
+                        Path parent = item.getPath().getParent();
+
+                        if (parent != null) {
+                                Path relativeParent = scanRootPath.relativize(parent);
+
+                                pathLabel.setText(
+                                        relativeParent.toString().isEmpty()
+                                                ? "Scan root"
+                                                : relativeParent.toString()
+                                );
+                        }
+                }
+
+                pathLabel.getStyleClass().add("dashboard-file-path");
+
+                VBox fileInfo = new VBox(
+                        3,
+                        nameLabel,
+                        pathLabel
+                );
+
+                Label sizeLabel = new Label(formatSize(item.getSizeBytes()));
+                sizeLabel.getStyleClass().add("file-size");
+
+                Region spacer = new Region();
+                HBox.setHgrow(spacer, Priority.ALWAYS);
+
+                Button moreButton =
+                        createFileActionsButton(item.getPath());
+
+                HBox row = new HBox(
+                        12,
+                        fileInfo,
+                        spacer,
+                        sizeLabel,
+                        moreButton
+                );
+
+                row.setAlignment(Pos.CENTER_LEFT);
+                row.getStyleClass().add("dashboard-file-row");
+
+                largestFilesList.getChildren().add(row);
+        }
+
+        VBox largestFilesSection = createCollapsibleSection(
+                "Largest Files",
+                largestFiles.size(),
+                largestFilesList
+        );
+
+        Label typeBreakdownTitle = new Label("File Type Breakdown");
+        typeBreakdownTitle.getStyleClass().add("section-title");
+
+        VBox typeBreakdownList = new VBox(6);
+
+        Map<FileType, Long> fileCountsByType = new HashMap<>();
+        Map<FileType, Long> bytesByType = new HashMap<>();
+
+        for (FileItem item : latestScanResult.getItems()) {
+                if (item.isDirectory()) {
+                        continue;
+                }
+
+                FileType type = item.getType();
+
+                fileCountsByType.merge(
+                        type,
+                        1L,
+                        Long::sum
+                );
+
+                bytesByType.merge(
+                        type,
+                        item.getSizeBytes(),
+                        Long::sum
+                );
+        }
+
+        List<FileType> dashboardTypes = List.of(FileType.values())
+                .stream()
+                .filter(type -> 
+                        fileCountsByType.getOrDefault(type, 0L) > 0
+                )
+                .sorted(
+                        Comparator.comparingLong(
+                                (FileType type) ->
+                                        bytesByType.getOrDefault(type, 0L)
+                        ).reversed()
+                )
+                .toList();
+
+        for (FileType type : dashboardTypes) {
+                long count = fileCountsByType.getOrDefault(
+                        type,
+                        0L
+                );
+
+                long bytes = bytesByType.getOrDefault(
+                        type,
+                        0L
+                );
+
+                double percentage = totalBytes == 0
+                        ? 0
+                        : (double) bytes / totalBytes * 100;
+
+                Label typeLabel = new Label(
+                        getFileTypeDisplayName(type)
+                );
+                typeLabel.getStyleClass().add("dashboard-type-name");
+
+                Label countLabel = new Label(
+                         String.format("%,d files", count)
+                );
+                countLabel.getStyleClass().add(
+                        "dashboard-type-meta"
+                );
+
+                Label sizeLabel = new Label(
+                        formatSize(bytes)
+                );
+                sizeLabel.getStyleClass().add(
+                        "dashboard-type-meta"
+                );
+
+                Label percentageLabel = new Label(
+                        String.format("%.1f%%", percentage)
+                );
+                percentageLabel.getStyleClass().add(
+                        "dashboard-type-percentage"
+                );
+
+                ProgressBar typeProgressBar = new ProgressBar(
+                        percentage / 100.0
+                );
+
+                typeProgressBar.setPrefWidth(180);
+                typeProgressBar.getStyleClass().add(
+                        "dashboard-type-progress"
+                );
+
+                Region spacer = new Region();
+                HBox.setHgrow(spacer, Priority.ALWAYS);
+
+                HBox row = new HBox(
+                        14,
+                        typeLabel,
+                        spacer,
+                        countLabel,
+                        sizeLabel,
+                        typeProgressBar,
+                        percentageLabel
+                );
+
+                row.setAlignment(Pos.CENTER_LEFT);
+                row.getStyleClass().add(
+                        "dashboard-type-row"
+                );
+
+                typeBreakdownList.getChildren().add(row);
+        }
+
+        dashboardContent.getChildren().addAll(
+                typeBreakdownTitle,
+                typeBreakdownList
+        );
+
+        if (scanRootPath != null) {
+                Label currentScanTitle = new Label("Current Scan");
+                currentScanTitle.getStyleClass().add("section-title");
+
+                Label rootNameLabel = new Label(
+                        getPathDisplayName(scanRootPath)
+                );
+                rootNameLabel.getStyleClass().add("current-scan-name");
+
+                Label rootPathLabel = new Label(
+                        scanRootPath.toString()
+                );
+                rootPathLabel.getStyleClass().add("current-scan-path");
+
+                Label scanSummaryLabel = new Label(
+                        String.format(
+                                "%,d files · %,d folders · %s",
+                                fileCount,
+                                folderCount,
+                                formatSize(totalBytes)
+                        )
+                );
+                scanSummaryLabel.getStyleClass().add(
+                        "current-scan-summary"
+                );
+
+                VBox scanInfo = new VBox(
+                        4,
+                        rootNameLabel,
+                        rootPathLabel,
+                        scanSummaryLabel
+                );
+
+                Region spacer = new Region();
+                HBox.setHgrow(spacer, Priority.ALWAYS);
+
+                Button moreButton = 
+                        createFileActionsButton(scanRootPath);
+
+                HBox currentScanCard = new HBox(
+                        16,
+                        scanInfo,
+                        spacer,
+                        moreButton
+                );
+
+                currentScanCard.setAlignment(Pos.CENTER_LEFT);
+                currentScanCard.getStyleClass().add(
+                        "current-scan-card"
+                );
+
+                dashboardContent.getChildren().addAll(
+                        currentScanTitle,
+                        currentScanCard
+                );
+        }
+
+        Label foldersBreakdownTitle = 
+                new Label("Top-level Folders");
+        foldersBreakdownTitle.getStyleClass().add("section-title");
+
+        VBox foldersBreakdownList = new VBox(6);
+
+        Map<Path, Long> bytesByTopFolder = new HashMap<>();
+        Map<Path, Long> filesByTopFolder = new HashMap<>();
+
+        for (FileItem item : latestScanResult.getItems()) {
+                if (item.isDirectory()) {
+                        continue;
+                }
+
+                Path relativePath = scanRootPath.relativize(
+                        item.getPath()
+                );
+
+                if (relativePath.getNameCount() < 2) {
+                        continue;
+                }
+
+                Path topFolder = scanRootPath.resolve(
+                        relativePath.getName(0)
+                );
+
+                bytesByTopFolder.merge(
+                        topFolder,
+                        item.getSizeBytes(),
+                        Long::sum
+                );
+
+                filesByTopFolder.merge(
+                        topFolder,
+                        1L,
+                        Long::sum
+                );
+        }
+
+        List<Path> largestTopFolders = bytesByTopFolder.keySet()
+                .stream()
+                .sorted(
+                        Comparator.comparingLong(
+                                (Path folder) -> 
+                                        bytesByTopFolder.getOrDefault(folder, 0L)        
+                        ).reversed()
+                )
+                .limit(8)
+                .toList();
+
+        for (Path folder : largestTopFolders) {
+                long bytes = bytesByTopFolder.getOrDefault(
+                        folder,
+                        0L
+                );
+
+                long count = filesByTopFolder.getOrDefault(
+                        folder,
+                        0L
+                );
+
+                double percentage = totalBytes == 0
+                        ? 0
+                        : (double) bytes / totalBytes * 100;
+
+                Label nameLabel = new Label(
+                        getPathDisplayName(folder)
+                );
+                nameLabel.getStyleClass().add(
+                        "dashboard-folder-name"
+                );
+
+                Label countLabel = new Label(
+                        String.format("%,d files", count)
+                );
+                countLabel.getStyleClass().add("dashboard-folder-meta");
+
+                Label sizeLabel = new Label(formatSize(bytes));
+                sizeLabel.getStyleClass().add("dashboard-folder-meta");
+
+                ProgressBar progressBar = new ProgressBar(
+                        percentage / 100.0
+                );
+
+                progressBar.setPrefWidth(180);
+                progressBar.getStyleClass().add("dashboard-folder-progress");
+
+                Label percentageLabel = new Label(String.format("%.1f%%", percentage));
+
+                percentageLabel.getStyleClass().add("dashborad-folder-percentage");
+
+                Region spacer = new Region();
+                HBox.setHgrow(spacer, Priority.ALWAYS);
+
+                Button moreButton = createFileActionsButton(folder);
+
+                HBox row = new HBox(
+                        14,
+                        nameLabel,
+                        spacer,
+                        countLabel,
+                        sizeLabel,
+                        progressBar,
+                        percentageLabel,
+                        moreButton
+                );
+
+                row.setAlignment(Pos.CENTER_LEFT);
+                row.getStyleClass().add("dashboard-floder-row");
+
+                foldersBreakdownList.getChildren().add(row);
+        }
+
+        dashboardContent.getChildren().addAll(
+                foldersBreakdownTitle,
+                foldersBreakdownList
+        );
+
+        dashboardContent.getChildren().add(
+                largestFilesSection
+        );
+
+        VBox recentFilesList = new VBox(6);
+
+        List<FileItem> recentFiles =
+                latestScanResult.getItems()
+                        .stream()
+                        .filter(item -> !item.isDirectory())
+                        .sorted(
+                                Comparator.comparing(
+                                        FileItem::getLastModified
+                                ).reversed()
+                        )
+                        .limit(10)
+                        .toList();
+
+        for (FileItem item : recentFiles) {
+
+                Label nameLabel = new Label(item.getName());
+                nameLabel.getStyleClass().add("file-name");
+
+                Label pathLabel = new Label();
+
+                if (scanRootPath != null) {
+                        Path parent = item.getPath().getParent();
+
+                        if (parent != null) {
+                                Path relativeParent = 
+                                        scanRootPath.relativize(parent);
+
+                                pathLabel.setText(
+                                        relativeParent.toString().isEmpty()
+                                                ? "Scan root"
+                                                : relativeParent.toString()
+                                );
+                                }
+                        }
+
+                pathLabel.getStyleClass().add("dashboard-file-path");
+
+                VBox fileInfo = new VBox(
+                        3,
+                        nameLabel,
+                        pathLabel
+                );
+
+                Label modifiedLabel = new Label(formatModifiedTime(item.getLastModified()));
+
+                modifiedLabel.getStyleClass().add("dashboard-modified-time");
+
+                Region spacer = new Region();
+                HBox.setHgrow(spacer, Priority.ALWAYS);
+
+                Button moreButton = createFileActionsButton(item.getPath());
+
+                HBox row = new HBox(
+                        12,
+                        fileInfo,
+                        spacer,
+                        modifiedLabel,
+                        moreButton
+                );
+
+                row.setAlignment(Pos.CENTER_LEFT);
+                row.getStyleClass().add("dashboard-file-row");
+
+                recentFilesList.getChildren().add(row);
+
+        }
+
+        VBox recentFilesSection = createCollapsibleSection(
+                "Recently Modified",
+                recentFiles.size(),
+                recentFilesList
+        );
+
+        dashboardContent.getChildren().add(recentFilesSection);
+                
+        return dashboardPage;
     }
 
     private VBox createFilesContent() {
@@ -1701,8 +2173,13 @@ public class MainView {
                                 ? 0
                                 : (double) totalBytes / totalScannedBytes * 100;
 
+                        String percentageText =
+                                percentage > 0 && percentage < 0.1
+                                        ? "<0.1%"
+                                        : String.format("%.1f%%", percentage);
+
                         Label percentageLabel = new Label(
-                                String.format("%.1f%%", percentage)
+                                percentageText
                         );
 
                         percentageLabel.getStyleClass().add(
@@ -1766,5 +2243,73 @@ public class MainView {
                         case CODE -> "Code";
                         case OTHER -> "Other";
                 };
+        }
+
+        private String formatModifiedTime(
+                LocalDateTime dateTime
+        ) {
+        DateTimeFormatter formatter =
+                DateTimeFormatter.ofPattern(
+                        "dd MMM yyyy, HH:mm"
+                );
+
+        return dateTime.format(formatter);
+        }
+
+        private VBox createCollapsibleSection(
+                String title,
+                int itemCount,
+                VBox content
+        ) {
+        Label arrowLabel = new Label("›");
+
+        Label titleLabel = new Label(
+                title + " (" + itemCount + ")"
+        );
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        HBox header = new HBox(
+                8,
+                arrowLabel,
+                titleLabel,
+                spacer
+        );
+
+        header.setAlignment(Pos.CENTER_LEFT);
+        header.getStyleClass().add(
+                "collapsible-section-header"
+        );
+
+        arrowLabel.getStyleClass().add(
+                "collapsible-section-arrow"
+        );
+
+        titleLabel.getStyleClass().add(
+                "collapsible-section-title"
+        );
+
+        content.setVisible(false);
+        content.setManaged(false);
+
+        header.setOnMouseClicked(event -> {
+                boolean expanded = content.isVisible();
+
+                content.setVisible(!expanded);
+                content.setManaged(!expanded);
+
+                arrowLabel.setText(
+                        expanded ? "›" : "⌄"
+                );
+        });
+
+        VBox section = new VBox(
+                6,
+                header,
+                content
+        );
+
+        return section;
         }
 }
