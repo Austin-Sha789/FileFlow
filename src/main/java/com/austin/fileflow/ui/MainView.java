@@ -57,6 +57,8 @@ import com.austin.fileflow.model.FileType;
 import com.austin.fileflow.repository.FavouriteRepo;
 import com.austin.fileflow.repository.TagRepo;
 import com.austin.fileflow.platform.FilePlatformService;
+import com.austin.fileflow.model.DuplicateGroup;
+import com.austin.fileflow.service.DuplicateService;
 
 public class MainView {
     
@@ -66,6 +68,10 @@ public class MainView {
     private final Button scanButton;
     private final FileScanService fileScanService;
     private ScanResult latestScanResult;
+    private final DuplicateService duplicateService;
+    private List<DuplicateGroup> latestDuplicateGroups  = List.of();
+    private boolean duplicateScanning;
+    private Task<List<DuplicateGroup>> currentDuplicateTask;
     private final FavouriteRepo favouriteRepo;
     private final TagRepo tagRepo;
     private Label filesNavItem;
@@ -79,6 +85,7 @@ public class MainView {
     private Path scanRootPath;
     private Path currentFolder;
     private FilesViewMode filesViewMode = FilesViewMode.BROWSE;
+    private boolean duplicateAnalysisCompleted;
 
 
     private enum FilesViewMode {
@@ -115,6 +122,7 @@ public class MainView {
         scanButton = new Button("Scan Folder");
 
         fileScanService = new FileScanService();
+        duplicateService = new DuplicateService();
 
         root.setLeft(createSidebar());
         root.setCenter(createContent());
@@ -1538,9 +1546,326 @@ public class MainView {
     }
 
     private VBox createDuplicatesContent() {
-        VBox content = new VBox();
-        content.getChildren().add(new Label("Duplicates content"));
+        VBox content = new VBox(18);
+        content.getStyleClass().add("duplicates-content");
+
+        Label heading = new Label("Duplicate Files");
+        heading.getStyleClass().add("duplicates-heading");
+
+        Label subtitle = new Label("Find identical files and see how much storage you could reclaim.");
+        subtitle.getStyleClass().add("duplicates-subtitle");
+
+        Button analyseButton = new Button("Analyse Duplicates");
+        analyseButton.getStyleClass().add("duplicates-analyse-button");
+
+        Label statusLabel = new Label();
+        statusLabel.getStyleClass().add("duplicates-status");
+
+        HBox duplicateSummaryRow = new HBox(12);
+
+        duplicateSummaryRow.setVisible(false);
+        duplicateSummaryRow.setManaged(false);
+
+        duplicateSummaryRow.getStyleClass().add("duplicate-summary-row");
+
+        VBox resultsContainer = new VBox(12);
+
+        resultsContainer.getStyleClass().add("duplicate-results");
+
+        Label duplicateGroupsTitle =
+                new Label("Duplicate Groups");
+
+        duplicateGroupsTitle.getStyleClass().add(
+                "section-title"
+        );
+
+        duplicateGroupsTitle.setVisible(false);
+        duplicateGroupsTitle.setManaged(false);
+        
+        ScrollPane resultsScrollPane = new ScrollPane(resultsContainer);
+
+        resultsScrollPane.setFitToWidth(true);
+
+        resultsScrollPane.setHbarPolicy(
+                ScrollPane.ScrollBarPolicy.NEVER
+        );
+
+        resultsScrollPane.getStyleClass().add("duplicates-scroll");
+        
+        VBox.setVgrow(
+                resultsScrollPane,
+                Priority.ALWAYS
+        );
+
+        resultsScrollPane.setVisible(false);
+        resultsScrollPane.setManaged(false);
+
+        ProgressBar progressBar = new ProgressBar();
+        
+        progressBar.setVisible(false);
+        progressBar.setManaged(false);
+        progressBar.setPrefWidth(320);
+
+        progressBar.getStyleClass().add("duplicates-progress");
+
+        if (latestScanResult == null) {
+
+                analyseButton.setDisable(true);
+
+                statusLabel.setText(
+                        "Scan a folder before analysing duplicates."
+                );
+
+        } else if (duplicateAnalysisCompleted) {
+
+                analyseButton.setText(
+                        "Analyse Again"
+                );
+
+                if (latestDuplicateGroups.isEmpty()) {
+
+                        statusLabel.setText(
+                                "No duplicate files found."
+                        );
+
+                        statusLabel.setVisible(true);
+                        statusLabel.setManaged(true);
+
+                } else {
+
+                        statusLabel.setVisible(false);
+                        statusLabel.setManaged(false);
+                }
+
+        } else {
+
+                statusLabel.setText(
+                        "No duplicate analysis yet."
+                );
+        }
+
+        analyseButton.setOnAction(actionEvent  -> {
+                if (duplicateScanning) {
+                        if (currentDuplicateTask != null) {
+                                currentDuplicateTask.cancel();
+                        }
+
+                        return;
+                }
+
+                Task<List<DuplicateGroup>> duplicateTask = new Task<>() {
+
+                        @Override 
+                        protected List<DuplicateGroup> call() {
+                                return duplicateService.findDuplicates(
+                                        latestScanResult.getItems(),
+
+                                        this::isCancelled,
+
+                                        (processed, total) -> {
+                                                if (total > 0) {
+                                                        updateProgress(
+                                                                processed,
+                                                                total
+                                                        );
+                                                }
+
+                                                updateMessage(
+                                                        total == 0
+                                                                ? "No duplicate candidates found."
+                                                                : String.format(
+                                                                        "Hashing... %,d / %,d files",
+                                                                        processed,
+                                                                        total
+                                                                )       
+                                                );
+                                        }
+                                );
+                        }
+                };
+
+                progressBar.progressProperty().bind(
+                        duplicateTask.progressProperty()
+                );
+
+                statusLabel.textProperty().bind(
+                        duplicateTask.messageProperty()
+                );
+
+                duplicateScanning = true;
+
+                analyseButton.setText("Cancel Analysis");
+
+                progressBar.setVisible(true);
+                progressBar.setManaged(true);
+
+                duplicateTask.setOnSucceeded(event -> {
+                        progressBar.progressProperty().unbind();
+                        statusLabel.textProperty().unbind();
+
+                        duplicateScanning = false;
+                        currentDuplicateTask = null;
+
+                        latestDuplicateGroups = duplicateTask.getValue();
+
+                        duplicateAnalysisCompleted = true;
+
+                        populateDuplicateSummary(
+                                duplicateSummaryRow
+                        );
+
+                        populateDuplicateResults(
+                                resultsContainer
+                        );
+
+                        boolean hasResults =
+                                !latestDuplicateGroups.isEmpty();
+
+                        duplicateGroupsTitle.setVisible(
+                                hasResults
+                        );
+
+                        duplicateGroupsTitle.setManaged(
+                                hasResults
+                        );
+
+                        resultsScrollPane.setVisible(
+                                hasResults
+                        );
+
+                        resultsScrollPane.setManaged(
+                                hasResults
+                        );
+
+                        long reclaimableBytes = latestDuplicateGroups
+                                                        .stream()
+                                                        .mapToLong(
+                                                                DuplicateGroup::getReclaimableBytes
+                                                        )
+                                                        .sum();
+
+                        analyseButton.setText("Analyse Again");
+
+                        progressBar.setVisible(false);
+                        progressBar.setManaged(false);
+
+                        if (latestDuplicateGroups.isEmpty()) {
+
+                                statusLabel.setText(
+                                        "No duplicate files found."
+                                );
+
+                                statusLabel.setVisible(true);
+                                statusLabel.setManaged(true);
+
+                        } else {
+
+                                statusLabel.setVisible(false);
+                                statusLabel.setManaged(false);
+                        }
+                });
+
+                duplicateTask.setOnFailed(event -> {
+
+                        progressBar.progressProperty().unbind();
+                        statusLabel.textProperty().unbind();
+
+                        duplicateScanning = false;
+                        currentDuplicateTask = null;
+
+                        analyseButton.setText(
+                                duplicateAnalysisCompleted
+                                        ? "Analyse Again"
+                                        : "Analyse Duplicates"
+                        );
+
+                        progressBar.setVisible(false);
+                        progressBar.setManaged(false);
+
+                        statusLabel.setText(
+                                "Duplicate analysis failed."
+                        );
+
+                        duplicateTask
+                                .getException()
+                                .printStackTrace();
+                });
+
+                duplicateTask.setOnCancelled(event -> {
+
+                        progressBar.progressProperty().unbind();
+                        statusLabel.textProperty().unbind();
+
+                        duplicateScanning = false;
+                        currentDuplicateTask = null;
+
+                        analyseButton.setText(
+                                duplicateAnalysisCompleted
+                                        ? "Analyse Again"
+                                        : "Analyse Duplicates"
+                        );
+
+                        progressBar.setVisible(false);
+                        progressBar.setManaged(false);
+
+                        statusLabel.setText(
+                                "Analysis cancelled."
+                        );
+                });
+
+                currentDuplicateTask = duplicateTask;
+
+                Thread duplicateThread = new Thread(duplicateTask);
+
+                duplicateThread.setDaemon(true);
+                duplicateThread.start();
+        });
+
+        
+
+        content.getChildren().addAll(
+                heading,
+                subtitle,
+                analyseButton,
+                progressBar,
+                statusLabel,
+                duplicateSummaryRow,
+                duplicateGroupsTitle,
+                resultsScrollPane
+        );
+
+        if (duplicateAnalysisCompleted) {
+
+                populateDuplicateSummary(
+                        duplicateSummaryRow
+                );
+
+                populateDuplicateResults(
+                        resultsContainer
+                );
+
+                boolean hasResults =
+                        !latestDuplicateGroups.isEmpty();
+
+                duplicateGroupsTitle.setVisible(
+                        hasResults
+                );
+
+                duplicateGroupsTitle.setManaged(
+                        hasResults
+                );
+
+                resultsScrollPane.setVisible(
+                        hasResults
+                );
+
+                resultsScrollPane.setManaged(
+                        hasResults
+                );
+        }
+
         return content;
+        
     }
 
     private VBox createTagsContent() {
@@ -1877,6 +2202,8 @@ public class MainView {
                         currentScanTask = null;
 
                         latestScanResult = scanTask.getValue();
+                        latestDuplicateGroups  = List.of();
+                        duplicateAnalysisCompleted = false;
 
                         scanRootPath = selectedPath
                                 .toAbsolutePath()
@@ -2311,5 +2638,262 @@ public class MainView {
         );
 
         return section;
+        }
+        
+
+        private void populateDuplicateResults(
+                VBox resultsContainer
+        ) {
+                resultsContainer.getChildren().clear();
+
+                if (!duplicateAnalysisCompleted) {
+                        return;
+                }
+
+                if (latestDuplicateGroups.isEmpty()) {
+                        return;
+                }
+
+                List<DuplicateGroup> sortedGroups =
+                        latestDuplicateGroups
+                                .stream()
+                                .sorted(
+                                        Comparator.comparingLong(
+                                                DuplicateGroup::getReclaimableBytes
+                                        ).reversed()
+                                )
+                                .toList();
+
+                for (DuplicateGroup group : sortedGroups) {
+
+                        Label summaryLabel = new Label(
+                                String.format(
+                                        "%,d copies · %s each · %s reclaimable",
+                                        group.getFiles().size(),
+                                        formatSize(
+                                                group.getFileSizeBytes()
+                                        ),
+                                        formatSize(
+                                                group.getReclaimableBytes()
+                                        )
+                                )
+                        );
+
+                        summaryLabel.getStyleClass().add(
+                                "duplicate-group-summary"
+                        );
+
+                        VBox fileList = new VBox(6);
+
+                        fileList.setVisible(false);
+                        fileList.setManaged(false);
+
+                        Label arrowLabel = new Label("›");
+
+                        arrowLabel.getStyleClass().add("duplicate-group-arrow");
+
+                        Region headerSpacer = new Region();
+
+                        HBox.setHgrow(
+                                headerSpacer,
+                                Priority.ALWAYS
+                        );
+
+                        HBox groupHeader = new HBox(
+                                10,
+                                arrowLabel,
+                                summaryLabel,
+                                headerSpacer
+                        );
+
+                        groupHeader.setAlignment(Pos.CENTER_LEFT);
+
+                        groupHeader.getStyleClass().add("duplicate-group-header");
+
+                        groupHeader.setOnMouseClicked(event -> {
+                                boolean expanded =
+                                        fileList.isVisible();
+
+                                if (!expanded
+                                        && fileList.getChildren().isEmpty()) {
+
+                                        populateDuplicateGroupFiles(
+                                                fileList,
+                                                group
+                                        );
+                                }
+
+                                fileList.setVisible(
+                                        !expanded
+                                );
+
+                                fileList.setManaged(
+                                        !expanded
+                                );
+
+                                arrowLabel.setText(
+                                        expanded ? "›" : "⌄"
+                                );
+                        });
+
+                        VBox groupCard = new VBox(
+                                0,
+                                groupHeader,
+                                fileList
+                        );
+
+                        groupCard.getStyleClass().add("duplicate-group-card");
+
+                        resultsContainer.getChildren().add(groupCard);
+
+                }
+        }
+        
+        private void populateDuplicateSummary(
+                HBox summaryRow
+        ) {
+                summaryRow.getChildren().clear();
+
+                if (!duplicateAnalysisCompleted) {
+                        summaryRow.setVisible(false);
+                        summaryRow.setManaged(false);
+                        return;
+                }
+
+                long extraCopies =
+                        latestDuplicateGroups
+                                .stream()
+                                .mapToLong(
+                                        group ->
+                                                group.getFiles().size() - 1L
+                                )
+                                .sum();
+
+                long reclaimableBytes =
+                        latestDuplicateGroups
+                                .stream()
+                                .mapToLong(
+                                        DuplicateGroup::getReclaimableBytes
+                                )
+                                .sum();
+
+                VBox groupsCard = createSummaryCard(
+                        "Groups",
+                        String.format(
+                                "%,d",
+                                latestDuplicateGroups.size()
+                        )
+                );
+
+                VBox copiesCard = createSummaryCard(
+                        "Extra Copies",
+                        String.format(
+                                "%,d",
+                                extraCopies
+                        )
+                );
+
+                VBox reclaimableCard = createSummaryCard(
+                        "Reclaimable",
+                        formatSize(reclaimableBytes)
+                );
+
+                HBox.setHgrow(
+                        groupsCard,
+                        Priority.ALWAYS
+                );
+
+                HBox.setHgrow(
+                        copiesCard,
+                        Priority.ALWAYS
+                );
+
+                HBox.setHgrow(
+                        reclaimableCard,
+                        Priority.ALWAYS
+                );
+
+                groupsCard.setMaxWidth(
+                        Double.MAX_VALUE
+                );
+
+                copiesCard.setMaxWidth(
+                        Double.MAX_VALUE
+                );
+
+                reclaimableCard.setMaxWidth(
+                        Double.MAX_VALUE
+                );
+
+                summaryRow.getChildren().addAll(
+                        groupsCard,
+                        copiesCard,
+                        reclaimableCard
+                );
+
+                summaryRow.setVisible(true);
+                summaryRow.setManaged(true);
+        }
+
+        private void populateDuplicateGroupFiles(
+                VBox fileList,
+                DuplicateGroup group
+        ) {
+
+                for (FileItem item : group.getFiles()) {
+
+                        Label nameLabel =
+                                new Label(item.getName());
+
+                        nameLabel.getStyleClass().add(
+                                "file-name"
+                        );
+
+                        Label pathLabel =
+                                new Label(
+                                        item.getPath().toString()
+                                );
+
+                        pathLabel.getStyleClass().add(
+                                "duplicate-file-path"
+                        );
+
+                        VBox fileInfo = new VBox(
+                                3,
+                                nameLabel,
+                                pathLabel
+                        );
+
+                        Region spacer = new Region();
+
+                        HBox.setHgrow(
+                                spacer,
+                                Priority.ALWAYS
+                        );
+
+                        Button moreButton =
+                                createFileActionsButton(
+                                        item.getPath()
+                                );
+
+                        HBox fileRow = new HBox(
+                                12,
+                                fileInfo,
+                                spacer,
+                                moreButton
+                        );
+
+                        fileRow.setAlignment(
+                                Pos.CENTER_LEFT
+                        );
+
+                        fileRow.getStyleClass().add(
+                                "duplicate-file-row"
+                        );
+
+                        fileList.getChildren().add(
+                                fileRow
+                        );
+                }
         }
 }
