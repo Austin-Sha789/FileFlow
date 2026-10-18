@@ -27,6 +27,9 @@ import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.MenuItem;
+import javafx.scene.control.CheckBox;
+import javafx.scene.control.ButtonBar;
+import javafx.scene.control.SeparatorMenuItem;
 import javafx.geometry.Side;
 import javafx.concurrent.Task;
 import javafx.scene.control.Alert;
@@ -48,6 +51,8 @@ import java.util.function.Consumer;
 import java.io.File;
 import java.io.IOException;
 
+import java.nio.file.Files;
+import java.util.prefs.Preferences;
 import java.nio.file.Path;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
@@ -97,6 +102,8 @@ public class MainView {
     private Label storageRootLabel;
     private Path currentStorageRoot;
     private Path currentFolder;
+    private static final String CONFIRM_BEFORE_DELETE_KEY = "confirmBeforePermanentDelete";
+    private final Preferences preferences = Preferences.userNodeForPackage(MainView.class);
     private final Map<Path, Image> imageThumbnailCache =
         new HashMap<>();
     private FilesViewMode filesViewMode = FilesViewMode.BROWSE;
@@ -2286,8 +2293,94 @@ public class MainView {
     }
 
     private VBox createSettingsContent() {
-        VBox content = new VBox();
-        content.getChildren().add(new Label("Settings content"));
+        VBox content = new VBox(18);
+        content.getStyleClass().add(
+                "settings-content"
+        );
+
+        Label safetyTitle = new Label("Safety");
+
+        safetyTitle.getStyleClass().add("settings-section-title");
+
+        CheckBox confirmDeleteCheckBox =
+                new CheckBox(
+                        "Confirm before permanently deleting files"
+                );
+
+        boolean confirmBeforeDelete =
+                preferences.getBoolean(
+                        CONFIRM_BEFORE_DELETE_KEY,
+                        true
+                );
+
+        confirmDeleteCheckBox.setSelected(
+                confirmBeforeDelete
+        );
+
+        Label confirmDeleteDescription =
+                new Label(
+                        "When enabled, FileFlow asks for confirmation "
+                                + "before permanently deleting a file."
+                );
+
+        confirmDeleteDescription.setWrapText(
+                true
+        );
+
+        confirmDeleteDescription
+                .getStyleClass()
+                .add(
+                        "settings-description"
+        );
+
+        Label deleteWarning =
+                new Label(
+                        "Deleted files are not moved to the Recycle Bin "
+                                + "and cannot be restored by FileFlow."
+                );
+
+        deleteWarning.setWrapText(
+                true
+        );
+
+        deleteWarning
+                .getStyleClass()
+                .add(
+                        "settings-warning"
+        );
+        confirmDeleteCheckBox
+                .selectedProperty()
+                .addListener(
+                        (
+                                observable,
+                                oldValue,
+                                newValue
+                        ) -> {
+
+                        preferences.putBoolean(
+                                CONFIRM_BEFORE_DELETE_KEY,
+                                newValue
+                        );
+                        }
+                );
+
+        VBox safetyCard =
+                new VBox(
+                        10,
+                        confirmDeleteCheckBox,
+                        confirmDeleteDescription,
+                        deleteWarning
+                );
+
+        safetyCard.getStyleClass().add(
+                "settings-card"
+        );
+
+        content.getChildren().addAll(
+                safetyTitle,
+                safetyCard
+        );
+        
         return content;
     }
 
@@ -2701,6 +2794,31 @@ public class MainView {
                         copyPathItem
                 );
 
+                if (!Files.isDirectory(filePath)) {
+
+                        MenuItem deleteItem =
+                                new MenuItem(
+                                        "Delete"
+                                );
+
+                        deleteItem.getStyleClass().add(
+                                "danger-menu-item"
+                        );
+
+
+                        deleteItem.setOnAction(event ->
+                                handleDeleteFile(
+                                        filePath
+                                )
+                        );
+
+
+                        fileMenu.getItems().addAll(
+                                new SeparatorMenuItem(),
+                                deleteItem
+                        );
+                }
+
                 openItem.setOnAction(event -> {
                         try {
                         filePlatformService.open(filePath);
@@ -2735,6 +2853,327 @@ public class MainView {
                 );
 
                 return moreButton;
+        }
+
+        private boolean confirmPermanentDelete(Path filePath) {
+                boolean confirmBeforeDelete = preferences.getBoolean(CONFIRM_BEFORE_DELETE_KEY, true);
+
+                if (!confirmBeforeDelete) {
+                        return true;
+                }
+
+                Alert confirmation = new Alert(
+                        Alert.AlertType.WARNING
+                );
+
+                confirmation.setTitle("Delete File");
+
+                confirmation.setHeaderText("Delete this file permanently?");
+
+                ButtonType deleteButtonType = new ButtonType(
+                        "Delete Permanently",
+                        ButtonBar.ButtonData.OK_DONE
+                );
+
+                ButtonType cancelButtonType =
+                        new ButtonType(
+                                "Cancel",
+                                ButtonBar.ButtonData.CANCEL_CLOSE
+                );
+
+                confirmation.getButtonTypes().setAll(
+                        cancelButtonType,
+                        deleteButtonType
+                );
+
+                Label warningLabel = new Label(
+                        filePath.getFileName()
+                            + "\n\n"
+                            + "This action cannot be undone. "
+                            + "FileFlow will permanently delete "
+                            + "this file instead of moving it "
+                            + "to the Recycle Bin."
+                );
+
+                warningLabel.setWrapText(true);
+
+                CheckBox dontAskAgain = new CheckBox("Don't ask me again");
+
+                VBox confirmationContent = new VBox(
+                        12,
+                        warningLabel,
+                        dontAskAgain
+                );
+
+                confirmation.getDialogPane()
+                        .setContent(
+                                confirmationContent
+                        );
+
+                Button deleteButton = (Button) confirmation
+                                                .getDialogPane()
+                                                .lookupButton(deleteButtonType);
+
+                deleteButton
+                        .getStyleClass()
+                        .add("danger-button");
+
+                ButtonType result = confirmation
+                                        .showAndWait()
+                                        .orElse(cancelButtonType);
+
+                if (result != deleteButtonType) {
+                        return false;
+                }
+
+                if (dontAskAgain.isSelected()) {
+                        preferences.putBoolean(
+                                CONFIRM_BEFORE_DELETE_KEY,
+                                false
+                        );
+                }
+
+                return true;
+        }
+
+        private void handleDeleteFile(Path filePath) {
+                if (!confirmPermanentDelete(filePath)) {
+                        return;
+                }
+
+                try {
+                        filePlatformService.deleteFile(filePath);
+
+                        imageThumbnailCache.remove(filePath);
+
+                        cleanupDeletedFileReferences(
+                                filePath
+                        );
+
+                        refreshAfterDelete();
+                        
+                } catch (IOException exception) {
+                        Alert errorAlert = new Alert(Alert.AlertType.ERROR);
+
+                        errorAlert.setTitle("Delete Failed");
+
+                        errorAlert.setHeaderText("Unable to delete the file.");
+
+                        errorAlert.setContentText(exception.getMessage());
+
+                        errorAlert.showAndWait();
+                }
+        }
+
+        private void cleanupDeletedFileReferences(
+                        Path filePath
+                ) {
+
+                try {
+
+                        favouriteRepo.remove(
+                                filePath
+                        );
+
+                        List<String> tags =
+                                tagRepo.getTagsForFile(
+                                        filePath
+                                );
+
+                        for (String tag : tags) {
+
+                        tagRepo.removeTagFromFile(
+                                filePath,
+                                tag
+                        );
+                        }
+
+                } catch (SQLException exception) {
+
+                        exception.printStackTrace();
+                }
+        }
+
+        private void refreshAfterDelete() {
+
+                if (scanRootPath == null) {
+
+                        refreshCurrentPage();
+                        return;
+                }
+
+
+                boolean refreshDuplicates =
+                        duplicateAnalysisCompleted;
+
+
+                scanStatusLabel.setText(
+                        "Refreshing..."
+                );
+
+                scanStatusLabel.setVisible(
+                        true
+                );
+
+                scanStatusLabel.setManaged(
+                        true
+                );
+
+
+                Task<ScanResult> refreshTask =
+                        new Task<>() {
+
+                                @Override
+                                protected ScanResult call()
+                                        throws Exception {
+
+                                return fileScanService.scan(
+                                        scanRootPath,
+                                        this::isCancelled
+                                );
+                                }
+                        };
+
+
+                refreshTask.setOnSucceeded(event -> {
+
+                        latestScanResult =
+                                refreshTask.getValue();
+
+                        if (refreshDuplicates) {
+
+                        refreshDuplicatesAfterDelete();
+
+                        } else {
+
+                        hideRefreshStatus();
+
+                        refreshCurrentPage();
+                        }
+                });
+
+
+                refreshTask.setOnFailed(event -> {
+
+                        hideRefreshStatus();
+
+                        refreshTask
+                                .getException()
+                                .printStackTrace();
+
+                        refreshCurrentPage();
+                });
+
+
+                Thread refreshThread =
+                        new Thread(
+                                refreshTask
+                        );
+
+                refreshThread.setDaemon(
+                        true
+                );
+
+                refreshThread.start();
+        }
+
+        private void refreshDuplicatesAfterDelete() {
+
+                Task<List<DuplicateGroup>> duplicateRefreshTask =
+                        new Task<>() {
+
+                                @Override
+                                protected List<DuplicateGroup> call() {
+
+                                return duplicateService.findDuplicates(
+                                        latestScanResult.getItems(),
+                                        this::isCancelled
+                                );
+                                }
+                        };
+
+
+                duplicateRefreshTask.setOnSucceeded(
+                        event -> {
+
+                                latestDuplicateGroups =
+                                        duplicateRefreshTask
+                                                .getValue();
+
+                                duplicateAnalysisCompleted =
+                                        true;
+
+                                hideRefreshStatus();
+
+                                refreshCurrentPage();
+                        }
+                );
+
+
+                duplicateRefreshTask.setOnFailed(
+                        event -> {
+
+                                hideRefreshStatus();
+
+                                duplicateRefreshTask
+                                        .getException()
+                                        .printStackTrace();
+
+                                duplicateAnalysisCompleted =
+                                        false;
+
+                                latestDuplicateGroups =
+                                        List.of();
+
+                                refreshCurrentPage();
+                        }
+                );
+
+
+                Thread duplicateRefreshThread =
+                        new Thread(
+                                duplicateRefreshTask
+                        );
+
+                duplicateRefreshThread.setDaemon(
+                        true
+                );
+
+                duplicateRefreshThread.start();
+        }
+
+        private void refreshCurrentPage() {
+
+                String currentTitle =
+                        pageTitle.getText();
+
+                navItems.stream()
+                        .filter(navItem ->
+                                navItem.getText()
+                                        .equals(
+                                                currentTitle
+                                        )
+                        )
+                        .findFirst()
+                        .ifPresent(navItem ->
+                                selectNavItem(
+                                        navItem,
+                                        currentTitle
+                                )
+                        );
+        }
+
+        private void hideRefreshStatus() {
+
+                scanStatusLabel.setVisible(
+                        false
+                );
+
+                scanStatusLabel.setManaged(
+                        false
+                );
+
+                scanStatusLabel.setText("");
         }
 
         private Node createFilePreview(FileItem item) {
@@ -2794,8 +3233,52 @@ public class MainView {
                                         )
                                 );
 
+                        if (image.isError()) {
+
+                                Label formatLabel =
+                                        new Label(
+                                                item.getExtension()
+                                                        .toUpperCase()
+                                        );
+
+                                formatLabel.getStyleClass().add(
+                                        "file-preview-placeholder"
+                                );
+
+                                preview.getChildren().add(
+                                        formatLabel
+                                );
+
+                                return preview;
+                        }
+
                         ImageView imageView =
                                 new ImageView(image);
+
+                        image.errorProperty().addListener(
+                                (observable, oldValue, hasError) -> {
+
+                                        if (!hasError) {
+                                                return;
+                                        }
+
+                                        preview.getChildren().clear();
+
+                                        Label formatLabel =
+                                                new Label(
+                                                        item.getExtension()
+                                                                .toUpperCase()
+                                                );
+
+                                        formatLabel.getStyleClass().add(
+                                                "file-preview-placeholder"
+                                        );
+
+                                        preview.getChildren().add(
+                                                formatLabel
+                                        );
+                                }
+                        );
 
                         imageView.setFitWidth(56);
                         imageView.setFitHeight(42);

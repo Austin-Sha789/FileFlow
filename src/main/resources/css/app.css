@@ -716,3 +716,41 @@
     -fx-font-size: 9px;
     -fx-text-fill: #888888;
 }
+
+.danger-menu-item > .label {
+    -fx-text-fill: #c0392b;
+}
+
+.danger-button {
+    -fx-background-color: #d9534f;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+}
+
+.settings-content {
+    -fx-padding: 4 0 0 0;
+}
+
+.settings-section-title {
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #333333;
+}
+
+.settings-card {
+    -fx-padding: 18;
+    -fx-background-color: white;
+    -fx-background-radius: 12;
+    -fx-border-color: #e6e6e6;
+    -fx-border-radius: 12;
+}
+
+.settings-description {
+    -fx-font-size: 12px;
+    -fx-text-fill: #777777;
+}
+
+.settings-warning {
+    -fx-font-size: 11px;
+    -fx-text-fill: #a75b52;
+}

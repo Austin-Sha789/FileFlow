@@ -85,5 +85,16 @@ public class FilePlatformService {
             );
         }
     }
+
+    public void deleteFile(Path path) throws IOException {
+
+        if (Files.isDirectory(path)) {
+            throw new IOException(
+                    "Folder deletion is not supported."
+            );
+        }
+
+        Files.delete(path);
+    }
     
 }
