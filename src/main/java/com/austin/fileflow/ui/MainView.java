@@ -1,5 +1,9 @@
 package com.austin.fileflow.ui;
 
+import javafx.scene.Node;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.scene.layout.StackPane;
 import javafx.scene.Parent;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.VBox;
@@ -51,14 +55,16 @@ import java.time.format.DateTimeFormatter;
 
 import com.austin.fileflow.model.FileItem;
 import com.austin.fileflow.model.ScanResult;
-
+import com.austin.fileflow.model.StorageVolume;
 import com.austin.fileflow.service.FileScanService;
+import com.austin.fileflow.service.StorageService;
 import com.austin.fileflow.model.FileType;
 import com.austin.fileflow.repository.FavouriteRepo;
 import com.austin.fileflow.repository.TagRepo;
 import com.austin.fileflow.platform.FilePlatformService;
 import com.austin.fileflow.model.DuplicateGroup;
 import com.austin.fileflow.service.DuplicateService;
+import com.austin.fileflow.service.StorageService;
 
 public class MainView {
     
@@ -69,6 +75,7 @@ public class MainView {
     private final FileScanService fileScanService;
     private ScanResult latestScanResult;
     private final DuplicateService duplicateService;
+    private final StorageService storageService;
     private List<DuplicateGroup> latestDuplicateGroups  = List.of();
     private boolean duplicateScanning;
     private Task<List<DuplicateGroup>> currentDuplicateTask;
@@ -83,7 +90,15 @@ public class MainView {
     private final Label scanStatusLabel;
     private final FilePlatformService filePlatformService;
     private Path scanRootPath;
+    private Label storageNameLabel;
+    private ProgressBar storageUsageBar;
+    private Label storageUsedLabel;
+    private Label storageFreeLabel;
+    private Label storageRootLabel;
+    private Path currentStorageRoot;
     private Path currentFolder;
+    private final Map<Path, Image> imageThumbnailCache =
+        new HashMap<>();
     private FilesViewMode filesViewMode = FilesViewMode.BROWSE;
     private boolean duplicateAnalysisCompleted;
 
@@ -123,6 +138,10 @@ public class MainView {
 
         fileScanService = new FileScanService();
         duplicateService = new DuplicateService();
+        storageService = new StorageService();
+
+        root.setLeft(createSidebar());
+        root.setCenter(createContent());
 
         root.setLeft(createSidebar());
         root.setCenter(createContent());
@@ -210,6 +229,14 @@ public class MainView {
 
         selectNavItem(home, "Home");
 
+        Region sidebarSpacer = new Region();
+        VBox.setVgrow(
+                sidebarSpacer,
+                Priority.ALWAYS
+        );
+
+        VBox storageCard = createStorageCard();
+
         sidebar.getChildren().addAll(
                 logo,
                 home,
@@ -219,10 +246,351 @@ public class MainView {
                 duplicates,
                 tags,
                 history,
-                settings
+                settings,
+                sidebarSpacer,
+                storageCard
         );
 
         return sidebar;
+    }
+
+    private VBox createStorageCard() {
+
+        storageNameLabel = new Label();
+        storageNameLabel.getStyleClass().add("sidebar-storage-name");
+        storageNameLabel.setMaxWidth(Double.MAX_VALUE);
+
+        HBox.setHgrow(
+                storageNameLabel,
+                Priority.ALWAYS
+        );
+
+        storageRootLabel = new Label();
+
+        storageRootLabel.getStyleClass().add("sidebar-storage-root");
+
+        Button storageVolumesButton = new Button("›");
+        storageVolumesButton.getStyleClass().add("sidebar-storage-volumes-button");
+
+        HBox storageHeader = new HBox(
+                8,
+                storageNameLabel,
+                storageRootLabel,
+                storageVolumesButton
+        );
+
+        storageHeader.setAlignment(Pos.CENTER_LEFT);
+
+        storageUsageBar = new ProgressBar(0);
+        storageUsageBar.setMaxWidth(Double.MAX_VALUE);
+        storageUsageBar.getStyleClass().add("sidebar-storage-progress");
+
+        storageUsedLabel = new Label();
+        
+        storageUsedLabel.getStyleClass().add("sidebar-storage-root");
+
+        storageRootLabel.setMinWidth(Region.USE_PREF_SIZE);
+
+        storageFreeLabel = new Label();
+
+        storageFreeLabel.getStyleClass().add("sidebar-storage-detail");
+
+        storageUsedLabel.setWrapText(true);
+        storageFreeLabel.setWrapText(true);
+
+        VBox storageDetails = new VBox(
+                2,
+                storageUsedLabel,
+                storageFreeLabel
+        );
+
+        VBox storageCard =
+                new VBox(
+                        8,
+                        storageHeader,
+                        storageUsageBar,
+                        storageDetails
+                );
+
+        storageCard.getStyleClass().add(
+                "sidebar-storage-card"
+        );
+
+        VBox storageVolumesBox = new VBox(8);
+
+        storageVolumesBox.getStyleClass().add("sidebar-storage-volumes");
+
+        ScrollPane storageVolumesScroll =
+                new ScrollPane(
+                        storageVolumesBox
+                );
+
+        storageVolumesScroll.setFitToWidth(
+                true
+        );
+
+        storageVolumesScroll.setHbarPolicy(
+                ScrollPane.ScrollBarPolicy.NEVER
+        );
+
+        storageVolumesScroll.setVbarPolicy(
+                ScrollPane.ScrollBarPolicy.AS_NEEDED
+        );
+
+        storageVolumesScroll.setMaxHeight(
+                240
+        );
+
+        storageVolumesScroll.setPrefViewportHeight(
+                240
+        );
+
+        storageVolumesScroll.setVisible(
+                false
+        );
+
+        storageVolumesScroll.setManaged(
+                false
+        );
+
+        storageVolumesScroll.getStyleClass().add(
+                "sidebar-storage-scroll"
+        );
+
+        storageVolumesBox.setFillWidth(
+                true
+        );
+
+        storageVolumesButton.setOnAction(event -> {
+
+                boolean expanding =
+                        !storageVolumesScroll.isVisible();
+
+                if (expanding) {
+
+                        storageVolumesBox
+                                .getChildren()
+                                .clear();
+
+                        for (StorageVolume volume
+                                : storageService.getAvailableVolumes()) {
+
+                        if (currentStorageRoot != null
+                                && volume.getRootPath().equals(currentStorageRoot)
+                        ) {
+                                continue;
+                        }
+
+                        VBox volumeCard =
+                                createStorageVolumeCard(
+                                        volume
+                                );
+
+                        volumeCard.setOnMouseClicked(
+                                mouseEvent -> {
+
+                                        updateStorageCard(
+                                                volume.getRootPath()
+                                        );
+
+                                        storageVolumesScroll.setVisible(
+                                                false
+                                        );
+
+                                        storageVolumesScroll.setManaged(
+                                                false
+                                        );
+
+                                        storageVolumesButton.setText(
+                                                "›"
+                                        );
+                                }
+                        );
+
+                        storageVolumesBox
+                                .getChildren()
+                                .add(
+                                        volumeCard
+                                );
+                        }
+                }
+
+                storageVolumesScroll.setVisible(
+                        expanding
+                );
+
+                storageVolumesScroll.setManaged(
+                        expanding
+                );
+
+                storageVolumesButton.setText(
+                        expanding ? "⌄" : "›"
+                );
+        });
+
+        Path initialPath = 
+                Path.of(
+                        System.getProperty("user.home")
+                );
+
+        updateStorageCard(initialPath);
+
+        VBox storageSection = new VBox(
+                8,
+                storageCard,
+                storageVolumesScroll
+        );
+
+        return storageSection;
+    }
+
+    private void updateStorageCard(Path path) {
+
+        StorageVolume volume =
+                storageService.getVolumeForPath(path);
+
+        if (volume == null) {
+
+                currentStorageRoot = null;
+
+                storageNameLabel.setText("Storage");
+                storageRootLabel.setText("");
+                storageUsageBar.setProgress(0);
+                storageUsedLabel.setText("Unavailable");
+                storageFreeLabel.setText("");
+
+                return;
+        }
+
+        currentStorageRoot = volume.getRootPath();
+
+        String fullName = volume.getName();
+
+        String rootText = volume.getRootPath().toString().replace("\\", "");
+
+        String rootLabel =  "(" + rootText + ")";
+
+        String displayName = fullName;
+
+        if (fullName.endsWith(rootLabel)) {
+
+                displayName =
+                        fullName.substring(
+                                0,
+                                fullName.length()
+                                        - rootLabel.length()
+                        ).trim();
+        }
+
+        storageNameLabel.setText(displayName);
+
+        storageRootLabel.setText(rootLabel);
+
+        storageUsageBar.setProgress(
+                volume.getUsageRatio()
+        );
+
+        storageUsedLabel.setText(
+                formatSize(volume.getUsedBytes())
+                        + " used · "
+                        + formatSize(volume.getTotalBytes())
+                        + " total"
+        );
+
+        storageFreeLabel.setText(
+                formatSize(volume.getFreeBytes())
+                        + " free"
+        );
+
+        storageUsedLabel.setWrapText(true);
+        storageFreeLabel.setWrapText(true);
+    }
+
+    private VBox createStorageVolumeCard(StorageVolume volume) {
+
+        Label nameLabel =
+                new Label(
+                        volume.getName()
+                );
+
+        nameLabel.getStyleClass().add(
+                "sidebar-storage-name"
+        );
+
+        nameLabel.setWrapText(true);
+
+
+        ProgressBar usageBar =
+                new ProgressBar(
+                        volume.getUsageRatio()
+                );
+
+        usageBar.setMaxWidth(
+                Double.MAX_VALUE
+        );
+
+        usageBar.getStyleClass().add(
+                "sidebar-storage-progress"
+        );
+
+
+        Label usedLabel =
+                new Label(
+                        formatSize(
+                                volume.getUsedBytes()
+                        )
+                                + " used · "
+                                + formatSize(
+                                        volume.getTotalBytes()
+                                )
+                                + " total"
+                );
+
+        usedLabel.getStyleClass().add(
+                "sidebar-storage-detail"
+        );
+
+        usedLabel.setWrapText(true);
+
+
+        Label freeLabel =
+                new Label(
+                        formatSize(
+                                volume.getFreeBytes()
+                        )
+                                + " free"
+                );
+
+        freeLabel.getStyleClass().add(
+                "sidebar-storage-detail"
+        );
+
+
+        VBox details =
+                new VBox(
+                        2,
+                        usedLabel,
+                        freeLabel
+                );
+
+
+        VBox volumeCard =
+                new VBox(
+                        8,
+                        nameLabel,
+                        usageBar,
+                        details
+                );
+
+        volumeCard.getStyleClass().add(
+                "sidebar-storage-volume-card"
+        );
+
+        volumeCard.setMaxWidth(
+                Double.MAX_VALUE
+        );
+
+        return volumeCard;
     }
 
     private VBox createContent() {
@@ -304,8 +672,20 @@ public class MainView {
             case "Dashboard" ->
                     pageContent.getChildren().add(createDashboardContent());
 
-            case "Files" ->
-                    pageContent.getChildren().add(createFilesContent());
+            case "Files" -> {
+
+                VBox filesContent =
+                        createFilesContent();
+
+                pageContent.getChildren().add(
+                        filesContent
+                );
+
+                VBox.setVgrow(
+                        filesContent,
+                        Priority.ALWAYS
+                );
+        }
 
             case "Favourites" ->
                     pageContent.getChildren().add(createFavouritesContent());
@@ -492,6 +872,9 @@ public class MainView {
                         pathLabel
                 );
 
+                Node filePreview =
+                        createFilePreview(item);
+
                 Label sizeLabel = new Label(formatSize(item.getSizeBytes()));
                 sizeLabel.getStyleClass().add("file-size");
 
@@ -503,6 +886,7 @@ public class MainView {
 
                 HBox row = new HBox(
                         12,
+                        filePreview,
                         fileInfo,
                         spacer,
                         sizeLabel,
@@ -861,6 +1245,9 @@ public class MainView {
                         pathLabel
                 );
 
+                Node filePreview =
+                        createFilePreview(item);
+
                 Label modifiedLabel = new Label(formatModifiedTime(item.getLastModified()));
 
                 modifiedLabel.getStyleClass().add("dashboard-modified-time");
@@ -872,6 +1259,7 @@ public class MainView {
 
                 HBox row = new HBox(
                         12,
+                        filePreview,
                         fileInfo,
                         spacer,
                         modifiedLabel,
@@ -898,6 +1286,10 @@ public class MainView {
 
     private VBox createFilesContent() {
         VBox filesContent = new VBox();
+
+        filesContent.setMaxHeight(
+                Double.MAX_VALUE
+        );
 
         if (latestScanResult == null) {
             Label emptyLabel = new Label("No folder has been scanned yet.");
@@ -1243,6 +1635,9 @@ public class MainView {
                                 relativePathLabel
                         );
 
+                        Node filePreview =
+                                createFilePreview(item);
+
                         Button favouriteButton = new Button(
                                 favouritePaths.contains(item.getPath())
                                         ? "★"
@@ -1395,8 +1790,8 @@ public class MainView {
 
                         HBox fileRow = new HBox(
                                 12,
-                                fileNameLabel,
-                                fileSizeLabel,
+                                filePreview,
+                                fileInfo,
                                 tagContainer,
                                 spacer,
                                 tagButton,
@@ -1505,6 +1900,9 @@ public class MainView {
                                 filePathLabel
                         );
 
+                        Node filePreview =
+                                createFilePreview(filePath);
+
                         Region spacer = new Region();
                         HBox.setHgrow(spacer, Priority.ALWAYS);
 
@@ -1517,6 +1915,7 @@ public class MainView {
 
                         HBox row = new HBox(
                                 12,
+                                filePreview,
                                 fileInfo,
                                 spacer,
                                 favouriteButton,
@@ -1896,6 +2295,14 @@ public class MainView {
         double kilobytes = bytes / 1024.0;
         double megabytes = kilobytes / 1024.0;
         double gigabytes = megabytes / 1024.0;
+        double terabytes = gigabytes / 1024.0;
+
+        if (terabytes >= 1) {
+                return String.format(
+                        "%.1f TB",
+                        terabytes
+                );
+        }
 
         if (gigabytes >= 1) {
             return String.format("%.1f GB", gigabytes);
@@ -2069,6 +2476,9 @@ public class MainView {
                                                 filePathLabel
                                         );
 
+                                        Node filePreview =
+                                                createFilePreview(filePath);
+
                                         Region spacer1 = new Region();
                                         HBox.setHgrow(spacer1, Priority.ALWAYS);
 
@@ -2088,6 +2498,7 @@ public class MainView {
 
                                         HBox fileRow = new HBox(
                                                 10,
+                                                filePreview,
                                                 fileInfo,
                                                 spacer1,
                                                 removeButton,
@@ -2211,6 +2622,10 @@ public class MainView {
 
                         currentFolder = scanRootPath;
 
+                        updateStorageCard(
+                                scanRootPath
+                        );
+
                         selectNavItem(filesNavItem, "Files");
                 });
 
@@ -2320,6 +2735,188 @@ public class MainView {
                 );
 
                 return moreButton;
+        }
+
+        private Node createFilePreview(FileItem item) {
+
+                StackPane preview =
+                        new StackPane();
+
+                preview.setPrefSize(
+                        56,
+                        42
+                );
+
+                preview.setMinSize(
+                        56,
+                        42
+                );
+
+                preview.setMaxSize(
+                        56,
+                        42
+                );
+
+                preview.getStyleClass().add(
+                        "file-preview"
+                );
+
+
+                if (item.isDirectory()) {
+
+                        Label folderLabel =
+                                new Label("Folder");
+
+                        folderLabel.getStyleClass().add(
+                                "file-preview-placeholder"
+                        );
+
+                        preview.getChildren().add(
+                                folderLabel
+                        );
+
+                        return preview;
+                }
+
+
+                if (item.getType() == FileType.IMAGE) {
+
+                        Image image =
+                                imageThumbnailCache.computeIfAbsent(
+                                        item.getPath(),
+                                        path -> new Image(
+                                                path.toUri().toString(),
+                                                112,
+                                                84,
+                                                true,
+                                                true,
+                                                true
+                                        )
+                                );
+
+                        ImageView imageView =
+                                new ImageView(image);
+
+                        imageView.setFitWidth(56);
+                        imageView.setFitHeight(42);
+
+                        imageView.setPreserveRatio(true);
+
+                        preview.getChildren().add(
+                                imageView
+                        );
+
+                        preview.getStyleClass().add(
+                                "file-preview-image"
+                        );
+
+                        return preview;
+                }
+
+
+                if (item.getType() == FileType.VIDEO) {
+
+                        Label playLabel =
+                                new Label("▶");
+
+                        playLabel.getStyleClass().add(
+                                "file-preview-play"
+                        );
+
+                        preview.getChildren().add(
+                                playLabel
+                        );
+
+                        preview.getStyleClass().add(
+                                "file-preview-video"
+                        );
+
+                        return preview;
+                }
+
+
+                Label placeholder =
+                        new Label(
+                                item.getExtension()
+                                        .toUpperCase()
+                        );
+
+                placeholder.getStyleClass().add(
+                        "file-preview-placeholder"
+                );
+
+                preview.getChildren().add(
+                        placeholder
+                );
+
+                return preview;
+        }
+
+        private FileItem findScannedFileItem(Path path) {
+
+                if (latestScanResult == null) {
+                        return null;
+                }
+
+                Path normalisedPath =
+                        path.toAbsolutePath()
+                                .normalize();
+
+                return latestScanResult.getItems()
+                        .stream()
+                        .filter(item ->
+                                item.getPath()
+                                        .toAbsolutePath()
+                                        .normalize()
+                                        .equals(normalisedPath)
+                        )
+                        .findFirst()
+                        .orElse(null);
+        }
+
+        private Node createFilePreview(Path path) {
+
+                FileItem item =
+                        findScannedFileItem(path);
+
+                if (item != null) {
+                        return createFilePreview(item);
+                }
+
+                StackPane preview =
+                        new StackPane();
+
+                preview.setPrefSize(
+                        56,
+                        42
+                );
+
+                preview.setMinSize(
+                        56,
+                        42
+                );
+
+                preview.setMaxSize(
+                        56,
+                        42
+                );
+
+                preview.getStyleClass().add(
+                        "file-preview"
+                );
+
+                Label placeholder =
+                        new Label("FILE");
+
+                placeholder.getStyleClass().add(
+                        "file-preview-placeholder"
+                );
+
+                preview.getChildren().add(
+                        placeholder
+                );
+
+                return preview;
         }
 
         private void updateBrowseHeader(
@@ -2864,6 +3461,9 @@ public class MainView {
                                 pathLabel
                         );
 
+                        Node filePreview =
+                                createFilePreview(item);
+
                         Region spacer = new Region();
 
                         HBox.setHgrow(
@@ -2878,6 +3478,7 @@ public class MainView {
 
                         HBox fileRow = new HBox(
                                 12,
+                                filePreview,
                                 fileInfo,
                                 spacer,
                                 moreButton

@@ -614,3 +614,105 @@
 .duplicates-scroll > .viewport {
     -fx-background-color: transparent;
 }
+
+.sidebar-storage-card {
+    -fx-padding: 14;
+    -fx-background-color: rgba(255, 255, 255, 0.55);
+    -fx-background-radius: 12;
+    -fx-border-color: rgba(0, 0, 0, 0.08);
+    -fx-border-radius: 12;
+}
+
+.sidebar-storage-name {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #333333;
+}
+
+.sidebar-storage-detail {
+    -fx-font-size: 10px;
+    -fx-text-fill: #777777;
+}
+
+.sidebar-storage-progress {
+    -fx-pref-height: 6px;
+    -fx-accent: #4a90e2;
+}
+
+.sidebar-storage-progress > .track {
+    -fx-background-color: #e5e5e5;
+    -fx-background-radius: 999;
+}
+
+.sidebar-storage-progress > .bar {
+    -fx-background-radius: 999;
+    -fx-background-insets: 0;
+}
+
+.sidebar-storage-volumes-button {
+    -fx-background-color: transparent;
+    -fx-padding: 2 5;
+    -fx-font-size: 16px;
+    -fx-text-fill: #777777;
+    -fx-cursor: hand;
+}
+
+.sidebar-storage-volumes-button:hover {
+    -fx-background-color: rgba(0, 0, 0, 0.05);
+    -fx-background-radius: 6;
+}
+
+.sidebar-storage-volume-card {
+    -fx-padding: 12;
+    -fx-background-color: rgba(255, 255, 255, 0.42);
+    -fx-background-radius: 10;
+    -fx-border-color: rgba(0, 0, 0, 0.06);
+    -fx-border-radius: 10;
+    -fx-cursor: hand;
+}
+
+.sidebar-storage-volume-card:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.72);
+}
+
+.sidebar-storage-root {
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #666666;
+}
+
+.sidebar-storage-scroll {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+}
+
+.sidebar-storage-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+.file-preview {
+    -fx-background-color: #f3f3f3;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-border-color: #e4e4e4;
+    -fx-alignment: center;
+}
+
+.file-preview-image {
+    -fx-background-color: #eeeeee;
+}
+
+.file-preview-video {
+    -fx-background-color: #e9edf3;
+}
+
+.file-preview-play {
+    -fx-font-size: 15px;
+    -fx-text-fill: #555555;
+}
+
+.file-preview-placeholder {
+    -fx-font-size: 9px;
+    -fx-text-fill: #888888;
+}
