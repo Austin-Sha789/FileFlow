@@ -37,6 +37,11 @@ import javafx.scene.control.Dialog;
 import javafx.scene.control.ButtonType;
 import javafx.stage.DirectoryChooser;
 import javafx.geometry.Pos;
+import javafx.event.EventHandler;
+import javafx.scene.Scene;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyCodeCombination;
+import javafx.scene.input.KeyCombination;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -46,6 +51,7 @@ import java.util.Set;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.Locale;
 
 
 import java.io.File;
@@ -60,16 +66,21 @@ import java.time.format.DateTimeFormatter;
 
 import com.austin.fileflow.model.FileItem;
 import com.austin.fileflow.model.ScanResult;
+import com.austin.fileflow.model.ScanHistoryEntry;
 import com.austin.fileflow.model.StorageVolume;
 import com.austin.fileflow.service.FileScanService;
 import com.austin.fileflow.service.StorageService;
 import com.austin.fileflow.model.FileType;
 import com.austin.fileflow.repository.FavouriteRepo;
 import com.austin.fileflow.repository.TagRepo;
+import com.austin.fileflow.repository.ScanHistoryRepo;
 import com.austin.fileflow.platform.FilePlatformService;
 import com.austin.fileflow.model.DuplicateGroup;
 import com.austin.fileflow.service.DuplicateService;
 import com.austin.fileflow.service.StorageService;
+import com.austin.fileflow.model.ShortcutAction;
+import com.austin.fileflow.service.ShortcutManager;
+import javafx.scene.input.KeyEvent;
 
 public class MainView {
     
@@ -86,7 +97,16 @@ public class MainView {
     private Task<List<DuplicateGroup>> currentDuplicateTask;
     private final FavouriteRepo favouriteRepo;
     private final TagRepo tagRepo;
+    private final ScanHistoryRepo scanHistoryRepo;
+    private final ShortcutManager shortcutManager;
+    private TextField searchField;
     private Label filesNavItem;
+    private EventHandler<KeyEvent> activeShortcutCaptureHandler;
+    private Scene activeShortcutCaptureScene;
+    private Label activeShortcutCaptureLabel;
+    private Button activeShortcutCaptureButton;
+    private ShortcutAction activeShortcutCaptureAction;
+    private String activeShortcutOriginalText;
     private final List<Label> navItems = new ArrayList<>();
     private Button homeScanButton;
     private boolean scanning;
@@ -119,10 +139,14 @@ public class MainView {
     public MainView(
                 FavouriteRepo favouriteRepo, 
                 TagRepo tagRepo, 
+                ScanHistoryRepo scanHistoryRepo,
+                ShortcutManager shortcutManager,
                 FilePlatformService filePlatformService
         ) {
         this.favouriteRepo = favouriteRepo;
         this.tagRepo = tagRepo;
+        this.scanHistoryRepo = scanHistoryRepo;
+        this.shortcutManager = shortcutManager;
         this.filePlatformService = filePlatformService;
 
         scanProgressBar = new ProgressBar();
@@ -152,6 +176,59 @@ public class MainView {
 
         root.setLeft(createSidebar());
         root.setCenter(createContent());
+
+        root.addEventFilter(
+                KeyEvent.KEY_PRESSED,
+                event -> {
+
+                if (shortcutManager.matches(
+                        ShortcutAction.REFRESH_SCAN,
+                        event
+                )) {
+
+                        if (scanRootPath != null
+                                && !scanning) {
+
+                        startScan(
+                                scanRootPath
+                        );
+                        }
+
+                        event.consume();
+                        return;
+                }
+
+                if (shortcutManager.matches(
+                        ShortcutAction.FOCUS_SEARCH,
+                        event
+                )) {
+
+                        selectNavItem(
+                                filesNavItem,
+                                "Files"
+                        );
+
+                        if (searchField != null) {
+                                searchField.requestFocus();
+                        }
+
+                        event.consume();
+                        return;
+                }
+
+                if (shortcutManager.matches(
+                        ShortcutAction.SCAN_FOLDER,
+                        event
+                )) {
+
+                        if (!scanning) {
+                        handleScan();
+                        }
+
+                        event.consume();
+                }
+                }
+        );
     }
 
     public Parent getView() {
@@ -1341,7 +1418,7 @@ public class MainView {
 
         updateFilesViewControls(browseHeader);
 
-        TextField searchField = new TextField();
+        searchField = new TextField();
         searchField.setPromptText("Search files...");
         searchField.getStyleClass().add("search-field");
 
@@ -2287,10 +2364,244 @@ public class MainView {
     }
 
     private VBox createHistoryContent() {
-        VBox content = new VBox();
-        content.getChildren().add(new Label("History content"));
-        return content;
-    }
+        VBox content = new VBox(10);
+        content.getStyleClass().add("history-content");
+        DateTimeFormatter historyDateFormatter =
+                DateTimeFormatter.ofPattern(
+                        "dd MMM yyyy, h:mm a",
+                        Locale.ENGLISH
+                );
+
+        try {
+
+                List<ScanHistoryEntry> historyEntries =
+                        scanHistoryRepo.getAll();
+
+                if (historyEntries.isEmpty()) {
+
+                        Label emptyLabel =
+                                new Label(
+                                        "No scan history yet."
+                                );
+
+                        emptyLabel.getStyleClass().add(
+                                "history-empty"
+                        );
+
+                        content.getChildren().add(
+                                emptyLabel
+                        );
+
+                        return content;
+                }
+
+                for (ScanHistoryEntry entry : historyEntries) {
+
+                        Label folderNameLabel =
+                                new Label(
+                                        getPathDisplayName(
+                                                entry.getFolderPath()
+                                        )
+                                );
+
+                        folderNameLabel.getStyleClass().add(
+                                "history-folder-name"
+                        );
+
+
+                        Label pathLabel =
+                                new Label(
+                                        entry.getFolderPath()
+                                                .toString()
+                                );
+
+                        pathLabel.getStyleClass().add(
+                                "history-path"
+                        );
+
+
+                        String scannedTime =
+                                entry.getScannedAt()
+                                        .format(
+                                                historyDateFormatter
+                                        );
+
+                        Label detailsLabel =
+                                new Label(
+                                        String.format(
+                                                "Scanned %s · %,d files · %s",
+                                                scannedTime,
+                                                entry.getFileCount(),
+                                                formatSize(
+                                                        entry.getTotalBytes()
+                                                )
+                                        )
+                                );
+
+                        detailsLabel.getStyleClass().add(
+                                "history-details"
+                        );
+
+
+                        VBox fileInfo =
+                                new VBox(
+                                        4,
+                                        folderNameLabel,
+                                        pathLabel,
+                                        detailsLabel
+                                );
+
+                        Button scanAgainButton = new Button("Scan Again");
+
+                        scanAgainButton.getStyleClass().add("history-scan-again-button");
+
+                        scanAgainButton.setOnAction(event -> 
+                                startScan(
+                                        entry.getFolderPath()
+                                )
+                        );
+
+                        Button moreButton =
+                                new Button(
+                                        "⋯"
+                                );
+
+                        moreButton.getStyleClass().add(
+                                "more-button"
+                        );
+
+                        MenuItem openFolderItem =
+
+                                new MenuItem(
+                                                "Open Folder"
+                                );
+
+                        MenuItem copyPathItem =
+                                new MenuItem(
+                                        "Copy Path"
+                                );
+
+                        MenuItem removeHistoryItem =
+                                new MenuItem(
+                                        "Remove from History"
+                                );
+
+                        ContextMenu historyMenu =
+                                new ContextMenu(
+                                        openFolderItem,
+                                        copyPathItem,
+                                        new SeparatorMenuItem(),
+                                        removeHistoryItem
+                                );
+
+                        openFolderItem.setOnAction(event -> {
+
+                                try {
+
+                                        filePlatformService.open(
+                                                entry.getFolderPath()
+                                        );
+
+                                } catch (IOException exception) {
+
+                                        exception.printStackTrace();
+                                }
+                        });
+
+                        copyPathItem.setOnAction(event -> {
+
+                                try {
+
+                                        filePlatformService.copyPath(
+                                                entry.getFolderPath()
+                                        );
+
+                                } catch (IOException exception) {
+
+                                        exception.printStackTrace();
+                                }
+                        });
+
+                        removeHistoryItem.setOnAction(event -> {
+
+                                try {
+
+                                        scanHistoryRepo.remove(
+                                                entry.getId()
+                                        );
+
+                                        refreshCurrentPage();
+
+                                } catch (SQLException exception) {
+
+                                        exception.printStackTrace();
+                                }
+                        });
+
+                        moreButton.setOnAction(event ->
+                                historyMenu.show(
+                                        moreButton,
+                                        Side.BOTTOM,
+                                        0,
+                                        0
+                                )
+                        );
+
+                        Region spacer =
+                                new Region();
+
+                        HBox.setHgrow(
+                                spacer,
+                                Priority.ALWAYS
+                        );
+
+                        HBox actionsRow =
+                                new HBox(
+                                        10,
+                                        spacer,
+                                        scanAgainButton,
+                                        moreButton
+                                );
+
+                        actionsRow.setAlignment(
+                                Pos.CENTER_RIGHT
+                        );
+
+                        VBox historyCard =
+                                new VBox(
+                                        8,
+                                        fileInfo,
+                                        actionsRow
+                                );
+
+                        historyCard.getStyleClass().add(
+                                "history-card"
+                        );
+
+                        content.getChildren().add(
+                                historyCard
+                        );
+                }
+
+        } catch (SQLException exception) {
+
+                Label errorLabel =
+                        new Label(
+                                "Unable to load scan history.\n" + exception.getMessage()
+                        );
+
+                errorLabel.getStyleClass().add(
+                        "history-error"
+                );
+
+                content.getChildren().add(
+                        errorLabel
+                );
+
+                exception.printStackTrace();
+                }
+                return content;
+        }
 
     private VBox createSettingsContent() {
         VBox content = new VBox(18);
@@ -2378,11 +2689,380 @@ public class MainView {
 
         content.getChildren().addAll(
                 safetyTitle,
-                safetyCard
+                safetyCard,
+                createKeyboardShortcutsSettingsCard()
         );
-        
+
         return content;
     }
+
+    private VBox createKeyboardShortcutsSettingsCard() {
+
+                Label titleLabel =
+                        new Label(
+                                "Keyboard Shortcuts"
+                        );
+                titleLabel.getStyleClass().add(
+                        "settings-card-title"
+                );
+
+                Label descriptionLabel =
+                        new Label(
+                                "Customise shortcuts for common FileFlow actions."
+                        );
+                descriptionLabel.getStyleClass().add(
+                        "settings-card-description"
+                );
+
+                VBox shortcuts =
+                        new VBox(
+                                8,
+                                createShortcutSettingRow(
+                                        "Refresh current scan",
+                                        ShortcutAction.REFRESH_SCAN
+                                ),
+                                createShortcutSettingRow(
+                                        "Focus file search",
+                                        ShortcutAction.FOCUS_SEARCH
+                                ),
+                                createShortcutSettingRow(
+                                        "Scan a new folder",
+                                        ShortcutAction.SCAN_FOLDER
+                                )
+                        );
+
+                Button resetButton =
+                        new Button(
+                                "Reset to Defaults"
+                        );
+
+                resetButton.getStyleClass().add(
+                        "shortcut-reset-button"
+                );
+
+                resetButton.setOnAction(event -> {
+
+                        cancelActiveShortcutCapture();
+
+                        shortcutManager.resetToDefaults();
+
+                        refreshCurrentPage();
+                });
+
+                VBox card =
+                        new VBox(
+                                12,
+                                titleLabel,
+                                descriptionLabel,
+                                shortcuts,
+                                resetButton
+                        );
+
+                card.getStyleClass().add(
+                        "settings-card"
+                );
+
+                return card;
+        }
+
+        private HBox createShortcutSettingRow(
+                String actionName,
+                ShortcutAction action
+        ) {
+
+                Label actionLabel =
+                        new Label(
+                                actionName
+                        );
+
+                actionLabel.getStyleClass().add(
+                        "shortcut-action-label"
+                );
+
+                Region spacer =
+                        new Region();
+
+                HBox.setHgrow(
+                        spacer,
+                        Priority.ALWAYS
+                );
+
+                Label shortcutLabel =
+                        new Label(
+                                shortcutManager
+                                        .getShortcut(action)
+                                        .getDisplayText()
+                        );
+
+                shortcutLabel.getStyleClass().add(
+                        "shortcut-key-label"
+                );
+
+                Button changeButton =
+                        new Button(
+                                "Change"
+                        );
+
+                changeButton.getStyleClass().add(
+                        "shortcut-change-button"
+                );
+
+                changeButton.setOnAction(event ->
+                        beginShortcutCapture(
+                                action,
+                                shortcutLabel,
+                                changeButton
+                        )
+                );
+
+                HBox row =
+                        new HBox(
+                                12,
+                                actionLabel,
+                                spacer,
+                                shortcutLabel,
+                                changeButton
+                        );
+
+                row.setAlignment(
+                        Pos.CENTER_LEFT
+                );
+
+                row.getStyleClass().add(
+                        "shortcut-setting-row"
+                );
+
+                return row;
+        }
+
+        private void beginShortcutCapture(
+                ShortcutAction action,
+                Label shortcutLabel,
+                Button changeButton
+        ) {
+
+                cancelActiveShortcutCapture();
+
+                Scene scene =
+                        root.getScene();
+
+                if (scene == null) {
+                        return;
+                }
+
+                activeShortcutCaptureScene =
+                        scene;
+
+                activeShortcutCaptureAction =
+                        action;
+
+                activeShortcutCaptureLabel =
+                        shortcutLabel;
+
+                activeShortcutCaptureButton =
+                        changeButton;
+
+                activeShortcutOriginalText =
+                        shortcutLabel.getText();
+
+                shortcutLabel.setText(
+                        "Press a shortcut..."
+                );
+
+                changeButton.setText(
+                        "Cancel"
+                );
+
+                activeShortcutCaptureHandler =
+                        event -> {
+
+                                event.consume();
+
+                                if (event.getCode()
+                                        == KeyCode.ESCAPE) {
+
+                                cancelActiveShortcutCapture();
+                                return;
+                                }
+
+                                if (event.getCode()
+                                                == KeyCode.SHIFT
+                                        || event.getCode()
+                                                == KeyCode.CONTROL
+                                        || event.getCode()
+                                                == KeyCode.ALT
+                                        || event.getCode()
+                                                == KeyCode.META) {
+
+                                return;
+                                }
+
+                                if (!hasShortcutModifier(event)) {
+
+                                shortcutLabel.setText(
+                                        "Use a modifier key"
+                                );
+
+                                return;
+                                }
+
+                                KeyCombination newShortcut =
+                                        createShortcutCombination(
+                                                event
+                                        );
+
+                                ShortcutAction conflict =
+                                        shortcutManager.findConflict(
+                                                action,
+                                                newShortcut
+                                        );
+
+                                if (conflict != null) {
+
+                                shortcutLabel.setText(
+                                        "Already in use"
+                                );
+
+                                return;
+                                }
+
+                                shortcutManager.setShortcut(
+                                        action,
+                                        newShortcut
+                                );
+
+                                shortcutLabel.setText(
+                                        newShortcut.getDisplayText()
+                                );
+
+                                finishShortcutCapture();
+                        };
+
+                scene.addEventFilter(
+                        KeyEvent.KEY_PRESSED,
+                        activeShortcutCaptureHandler
+                );
+
+                changeButton.setOnAction(event ->
+                        cancelActiveShortcutCapture()
+                );
+        }
+
+        private boolean hasShortcutModifier(
+                KeyEvent event
+        ) {
+
+                return event.isShortcutDown()
+                        || event.isControlDown()
+                        || event.isAltDown()
+                        || event.isMetaDown();
+        }
+
+        private KeyCombination createShortcutCombination(
+                KeyEvent event
+        ) {
+
+                List<KeyCombination.Modifier> modifiers =
+                        new ArrayList<>();
+
+                if (event.isShortcutDown()) {
+
+                        modifiers.add(
+                                KeyCombination.SHORTCUT_DOWN
+                        );
+
+                } else {
+
+                        if (event.isControlDown()) {
+                        modifiers.add(
+                                KeyCombination.CONTROL_DOWN
+                        );
+                        }
+
+                        if (event.isMetaDown()) {
+                        modifiers.add(
+                                KeyCombination.META_DOWN
+                        );
+                        }
+                }
+
+                if (event.isShiftDown()) {
+                        modifiers.add(
+                                KeyCombination.SHIFT_DOWN
+                        );
+                }
+
+                if (event.isAltDown()) {
+                        modifiers.add(
+                                KeyCombination.ALT_DOWN
+                        );
+                }
+
+                return new KeyCodeCombination(
+                        event.getCode(),
+                        modifiers.toArray(
+                                KeyCombination.Modifier[]::new
+                        )
+                );
+        }
+
+        private void cancelActiveShortcutCapture() {
+
+                if (activeShortcutCaptureLabel != null
+                        && activeShortcutOriginalText != null) {
+
+                        activeShortcutCaptureLabel.setText(
+                                activeShortcutOriginalText
+                        );
+                }
+
+                finishShortcutCapture();
+        }
+
+        private void finishShortcutCapture() {
+
+                if (activeShortcutCaptureScene != null
+                        && activeShortcutCaptureHandler != null) {
+
+                        activeShortcutCaptureScene.removeEventFilter(
+                                KeyEvent.KEY_PRESSED,
+                                activeShortcutCaptureHandler
+                        );
+                }
+
+                if (activeShortcutCaptureButton != null
+                        && activeShortcutCaptureLabel != null
+                        && activeShortcutCaptureAction != null) {
+
+                        Button changeButton =
+                                activeShortcutCaptureButton;
+
+                        Label shortcutLabel =
+                                activeShortcutCaptureLabel;
+
+                        ShortcutAction action =
+                                activeShortcutCaptureAction;
+
+                        changeButton.setText(
+                                "Change"
+                        );
+
+                        changeButton.setOnAction(event ->
+                                beginShortcutCapture(
+                                        action,
+                                        shortcutLabel,
+                                        changeButton
+                                )
+                        );
+                }
+
+                activeShortcutCaptureHandler = null;
+                activeShortcutCaptureScene = null;
+                activeShortcutCaptureAction = null;
+                activeShortcutCaptureLabel = null;
+                activeShortcutCaptureButton = null;
+                activeShortcutOriginalText = null;
+        }
 
     private String formatSize(long bytes) {
         double kilobytes = bytes / 1024.0;
@@ -2679,6 +3359,17 @@ public class MainView {
 
                 Path selectedPath = selectedFolder.toPath();
 
+                startScan(
+                        selectedPath
+                );
+
+        }
+
+        private void startScan(Path selectedPath) {
+                if (scanning) {
+                        return;
+                }
+
                 Task<ScanResult> scanTask = new Task<>() {
                         @Override 
                         protected ScanResult call() throws Exception {
@@ -2714,6 +3405,30 @@ public class MainView {
                                 .normalize();
 
                         currentFolder = scanRootPath;
+
+                        long fileCount =
+                                latestScanResult.getItems()
+                                        .stream()
+                                        .filter(item -> !item.isDirectory())
+                                        .count();
+
+                        long totalBytes =
+                                latestScanResult.getItems()
+                                        .stream()
+                                        .filter(item -> !item.isDirectory())
+                                        .mapToLong(FileItem::getSizeBytes)
+                                        .sum();
+
+                        try {
+                                scanHistoryRepo.add(
+                                        scanRootPath,
+                                        LocalDateTime.now(),
+                                        fileCount,
+                                        totalBytes
+                                );
+                        } catch (SQLException exception) {
+                                exception.printStackTrace();
+                        } 
 
                         updateStorageCard(
                                 scanRootPath

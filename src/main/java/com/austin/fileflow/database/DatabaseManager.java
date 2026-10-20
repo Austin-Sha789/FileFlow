@@ -4,6 +4,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.ResultSet;
 
 public class DatabaseManager {
     
@@ -49,7 +50,7 @@ public class DatabaseManager {
 
         String createFileTagsTable = """
                 CREATE TABLE IF NOT EXISTS file_tags (
-                    file_path TEXT NOE NULL,
+                    file_path TEXT NOT NULL,
                     tag_id INTEGER NOT NULL,
                     PRIMARY KEY (file_path, tag_id),
                     FOREIGN KEY (tag_id) REFERENCES tags(id)
@@ -63,6 +64,62 @@ public class DatabaseManager {
             statement.execute(createFavouritesTable);
             statement.execute(createTagsTable);
             statement.execute(createFileTagsTable);
+
+            if (!columnExists(
+                    connection,
+                    "scan_history",
+                    "file_count"
+            )) {
+                statement.execute(
+                        """
+                        ALTER TABLE scan_history
+                        ADD COLUMN file_count INTEGER NOT NULL DEFAULT 0
+                        """
+                );
+            }
+
+            if (!columnExists(
+                    connection,
+                    "scan_history",
+                    "total_bytes"
+            )) {
+                statement.execute(
+                        """
+                        ALTER TABLE scan_history
+                        ADD COLUMN total_bytes INTEGER NOT NULL DEFAULT 0
+                        """
+                );
+            }
         }
+    }
+
+    private boolean columnExists(
+            Connection connection,
+            String tableName,
+            String columnName
+    ) throws SQLException {
+
+        String sql =
+                "PRAGMA table_info(" + tableName + ")";
+
+        try (
+                Statement statement =
+                        connection.createStatement();
+
+                ResultSet resultSet =
+                        statement.executeQuery(sql)
+        ) {
+
+            while (resultSet.next()) {
+
+                if (columnName.equals(
+                        resultSet.getString("name")
+                )) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }   

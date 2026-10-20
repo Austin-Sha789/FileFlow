@@ -7,9 +7,11 @@ import javafx.scene.Scene;
 
 import com.austin.fileflow.database.DatabaseManager;
 import com.austin.fileflow.repository.FavouriteRepo;
+import com.austin.fileflow.repository.ScanHistoryRepo;
 import com.austin.fileflow.repository.TagRepo;
 import com.austin.fileflow.ui.MainView;
 import com.austin.fileflow.platform.FilePlatformService;
+import com.austin.fileflow.service.ShortcutManager;
 
 public class App extends Application
 {
@@ -26,10 +28,12 @@ public class App extends Application
 
         FavouriteRepo favouriteRepo = new FavouriteRepo(databaseManager);
         TagRepo tagRepo = new TagRepo(databaseManager);
+        ScanHistoryRepo scanHistoryRepo = new ScanHistoryRepo(databaseManager);
+        ShortcutManager shortcutManager = new ShortcutManager();
         FilePlatformService filePlatformService = new FilePlatformService();
         
 
-        MainView mainView = new MainView(favouriteRepo, tagRepo, filePlatformService);
+        MainView mainView = new MainView(favouriteRepo, tagRepo, scanHistoryRepo, shortcutManager, filePlatformService);
 
         Scene scene = new Scene(mainView.getView(), 1200, 760);
         scene.getStylesheets().add(getClass().getResource("/css/app.css").toExternalForm());

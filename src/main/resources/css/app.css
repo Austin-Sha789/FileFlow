@@ -754,3 +754,90 @@
     -fx-font-size: 11px;
     -fx-text-fill: #a75b52;
 }
+
+.history-content {
+    -fx-padding: 4 0 0 0;
+}
+
+.history-card {
+    -fx-padding: 16;
+    -fx-background-color: white;
+    -fx-background-radius: 12;
+    -fx-border-color: #e7e7e7;
+    -fx-border-radius: 12;
+}
+
+.history-folder-name {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #2f2f2f;
+}
+
+.history-path {
+    -fx-font-size: 12px;
+    -fx-text-fill: #858585;
+}
+
+.history-details {
+    -fx-font-size: 12px;
+    -fx-text-fill: #666666;
+}
+
+.history-empty,
+.history-error {
+    -fx-text-fill: #777777;
+}
+
+.history-scan-again-button {
+    -fx-background-color: #f4f4f4;
+    -fx-text-fill: #333333;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-border-color: #dddddd;
+    -fx-padding: 7 12 7 12;
+}
+
+.shortcut-setting-row {
+    -fx-padding: 10 0 10 0;
+}
+
+.shortcut-action-label {
+    -fx-font-size: 13px;
+    -fx-text-fill: #333333;
+}
+
+.shortcut-key-label {
+    -fx-padding: 5 10 5 10;
+    -fx-background-color: #f3f3f3;
+    -fx-background-radius: 7;
+    -fx-border-color: #dddddd;
+    -fx-border-radius: 7;
+    -fx-font-size: 12px;
+    -fx-text-fill: #444444;
+}
+
+.shortcut-change-button {
+    -fx-background-color: transparent;
+    -fx-border-color: #d8d8d8;
+    -fx-border-radius: 7;
+    -fx-background-radius: 7;
+    -fx-padding: 5 10 5 10;
+    -fx-text-fill: #444444;
+}
+
+.shortcut-change-button:hover {
+    -fx-background-color: #f5f5f5;
+}
+
+.shortcut-reset-button {
+    -fx-background-color: transparent;
+    -fx-border-color: #d8d8d8;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-padding: 7 12 7 12;
+    -fx-text-fill: #444444;
+}
+
+.shortcut-reset-button:hover {
+    -fx-background-color: #f5f5f5;
+}
