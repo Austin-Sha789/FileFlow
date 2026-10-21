@@ -58,6 +58,66 @@ public class TagRepo {
         return tags;
     }
 
+    public void assignTagToFile(
+            Path filePath,
+            String tagName
+    ) throws SQLException {
+
+        String addTagSql = """
+                INSERT OR IGNORE INTO tags(name)
+                VALUES (?)
+                """;
+
+        String addFileTagSql = """
+                INSERT OR IGNORE INTO file_tags(file_path, tag_id)
+                SELECT ?, id
+                FROM tags
+                WHERE name = ?
+                """;
+
+        try (Connection connection =
+                databaseManager.getConnection()) {
+
+            connection.setAutoCommit(false);
+
+            try (
+                    PreparedStatement addTagStatement =
+                            connection.prepareStatement(addTagSql);
+
+                    PreparedStatement addFileTagStatement =
+                            connection.prepareStatement(addFileTagSql)
+            ) {
+
+                addTagStatement.setString(
+                        1,
+                        tagName
+                );
+
+                addTagStatement.executeUpdate();
+
+                addFileTagStatement.setString(
+                        1,
+                        filePath.toString()
+                );
+
+                addFileTagStatement.setString(
+                        2,
+                        tagName
+                );
+
+                addFileTagStatement.executeUpdate();
+
+                connection.commit();
+
+            } catch (SQLException exception) {
+
+                connection.rollback();
+
+                throw exception;
+            }
+        }
+    }
+
     public void addTagToFile(Path filePath, String tagName) throws SQLException {
         String findTagsSql = """
                 SELECT id
@@ -160,7 +220,7 @@ public class TagRepo {
         try (Connection connection = databaseManager.getConnection()) {
             connection.setAutoCommit(false);
 
-            try (PreparedStatement deleteFileTagsStatement = connection.prepareStatement(deleteTagSql);
+            try (PreparedStatement deleteFileTagsStatement = connection.prepareStatement(deleteFileTagsSql);
                 PreparedStatement deleteTagStatement = connection.prepareStatement(deleteTagSql)) {
 
                 deleteFileTagsStatement.setString(1, tagName);

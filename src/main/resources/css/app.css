@@ -841,3 +841,22 @@
 .shortcut-reset-button:hover {
     -fx-background-color: #f5f5f5;
 }
+
+.database-error-state {
+    -fx-padding: 18;
+    -fx-background-color: #fafafa;
+    -fx-background-radius: 12;
+    -fx-border-color: #e6e6e6;
+    -fx-border-radius: 12;
+}
+
+.database-error-title {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #333333;
+}
+
+.database-error-message {
+    -fx-font-size: 12px;
+    -fx-text-fill: #777777;
+}

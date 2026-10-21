@@ -43,6 +43,8 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyCodeCombination;
 import javafx.scene.input.KeyCombination;
 
+import javafx.animation.PauseTransition;
+import javafx.util.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -58,6 +60,8 @@ import java.io.File;
 import java.io.IOException;
 
 import java.nio.file.Files;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.NoSuchFileException;
 import java.util.prefs.Preferences;
 import java.nio.file.Path;
 import java.sql.SQLException;
@@ -1493,11 +1497,15 @@ public class MainView {
             filesContent.getChildren().add(issueLabel);
         }
 
+        boolean metadataLoadFailed = false;
+
         Set<Path> favouritePaths = new HashSet<>();
 
         try {
                 favouritePaths.addAll(favouriteRepo.getAll());
         } catch (SQLException e) {
+                metadataLoadFailed = true;
+
                 e.printStackTrace();
         }
 
@@ -1506,6 +1514,7 @@ public class MainView {
         try {
                 fileTags.putAll(tagRepo.getAllFileTags());
         } catch (SQLException e) {
+                metadataLoadFailed = true;
                 e.printStackTrace();
         }
 
@@ -1514,7 +1523,14 @@ public class MainView {
         try {
                 existingTags.addAll(tagRepo.getAll());
         } catch (SQLException e) {
+                metadataLoadFailed = true;
                 e.printStackTrace();
+        }
+
+        if (metadataLoadFailed) {
+                showStatusWarning(
+                        "Files loaded, but some saved metadata could not be loaded."
+                );
         }
 
         ListView<FileItem> fileList = new ListView<>();
@@ -1745,6 +1761,11 @@ public class MainView {
                                                 favouriteButton.setText("★");
                                         }
                                 } catch (SQLException e) {
+                                        showDatabaseError(
+                                                "Unable to Update Favourite",
+                                                "FileFlow could not save this favourite change."
+                                        );
+
                                         e.printStackTrace();
                                 }
                         });
@@ -1806,15 +1827,14 @@ public class MainView {
 
                                 dialog.showAndWait().ifPresent(selectedTag -> {
                                         try {
-                                                if (!existingTags.contains(selectedTag)) {
-                                                        tagRepo.add(selectedTag);
-                                                        existingTags.add(selectedTag);
-                                                }
-
-                                                tagRepo.addTagToFile(
+                                                tagRepo.assignTagToFile(
                                                         item.getPath(),
                                                         selectedTag
                                                 );
+
+                                                if (!existingTags.contains(selectedTag)) {
+                                                        existingTags.add(selectedTag);
+                                                }
 
                                                 List<String> itemTags = fileTags.computeIfAbsent(
                                                         item.getPath(),
@@ -1827,6 +1847,11 @@ public class MainView {
 
                                                 getListView().refresh();
                                         } catch (SQLException e) {
+                                                showDatabaseError(
+                                                        "Unable to Add Tag",
+                                                        "FileFlow could not save this tag change."
+                                                );
+
                                                 e.printStackTrace();
                                         }
                                 });
@@ -1862,7 +1887,13 @@ public class MainView {
 
                                                 getListView().refresh();
                                         } catch (SQLException e) {
+                                                showDatabaseError(
+                                                        "Unable to Remove Tag",
+                                                        "FileFlow could not remove this tag from the file."
+                                                );
+
                                                 e.printStackTrace();
+
                                         }
                                 });
 
@@ -2014,6 +2045,12 @@ public class MainView {
                                         favouriteRepo.remove(filePath);
                                         content.getChildren().remove(row);
                                 } catch (SQLException e) {
+                                        
+                                        showDatabaseError(
+                                                "Unable to Update Favourite",
+                                                "FileFlow could not remove this file from your favourites."
+                                        );
+
                                         e.printStackTrace();
                                 }
                         });
@@ -2022,6 +2059,14 @@ public class MainView {
                 }
 
         } catch(SQLException e) {
+                content.getChildren().add(
+                        createDatabaseErrorState(
+                                "Favourites are temporarily unavailable",
+                                "FileFlow could not load your favourites.",
+                                this::refreshCurrentPage
+                        )
+                );
+
                 e.printStackTrace();
         }
         
@@ -2584,22 +2629,16 @@ public class MainView {
                 }
 
         } catch (SQLException exception) {
-
-                Label errorLabel =
-                        new Label(
-                                "Unable to load scan history.\n" + exception.getMessage()
-                        );
-
-                errorLabel.getStyleClass().add(
-                        "history-error"
-                );
-
                 content.getChildren().add(
-                        errorLabel
+                        createDatabaseErrorState(
+                                "History is temporarily unavailable",
+                                "FileFlow could not load your scan history.",
+                                this::refreshCurrentPage
+                        )
                 );
 
                 exception.printStackTrace();
-                }
+        }
                 return content;
         }
 
@@ -3204,6 +3243,11 @@ public class MainView {
                                                         tagRepo.deleteTag(tag);
                                                         populateTagList(tagList);
                                                 } catch (SQLException e) {
+                                                        showDatabaseError(
+                                                                "Unable to Delete Tag",
+                                                                "FileFlow could not delete this tag."
+                                                        );
+
                                                         e.printStackTrace();
                                                 }
                                         }
@@ -3263,6 +3307,12 @@ public class MainView {
                                                         tagRepo.removeTagFromFile(filePath, tag);
                                                         populateTagList(tagList);
                                                 } catch (SQLException e) {
+
+
+                                                        showDatabaseError(
+                                                                "Unable to Remove Tag",
+                                                                "FileFlow could not remove this tag from the file."
+                                                        );
                                                         e.printStackTrace();
                                                 }
                                         });
@@ -3303,43 +3353,19 @@ public class MainView {
                         }
 
                 } catch (SQLException e) {
+                        tagList.getChildren().clear();
+
                         tagList.getChildren().add(
-                                new Label("Unable to load tags.")
+                                createDatabaseErrorState(
+                                        "Tags are temporarily unavailable",
+                                        "FileFlow could not load your tags.",
+                                        () -> populateTagList(tagList)
+                                )
                         );
+
                         e.printStackTrace();
                 }
     }
-
-    private void populateFileTags(HBox tagContainer, Path filePath) {
-        tagContainer.getChildren().clear();
-
-        try {
-                List<String> tags = tagRepo.getTagsForFile(filePath);
-
-                for (String tag : tags) {
-                        Button removeTagButton = new Button(tag + " ×");
-                        removeTagButton.getStyleClass().add("file-tag-chip");
-                        removeTagButton.setOnAction(event -> {
-                        try {
-                                tagRepo.removeTagFromFile(filePath, tag);
-
-                                populateFileTags(
-                                        tagContainer,
-                                        filePath
-                                );
-
-                                } catch (SQLException e) {
-                                e.printStackTrace();
-                                }
-                        });
-
-                        tagContainer.getChildren().add(removeTagButton);
-                }
-
-                } catch (SQLException e) {
-                        e.printStackTrace();
-                }
-        }
         
         private void handleScan() {
                 if (scanning) {
@@ -3367,6 +3393,39 @@ public class MainView {
 
         private void startScan(Path selectedPath) {
                 if (scanning) {
+                        return;
+                }
+
+                if (!Files.exists(selectedPath)) {
+
+                        showScanError(
+                                "Folder Not Found",
+                                "This folder no longer exists.",
+                                selectedPath.toString()
+                        );
+
+                        return;
+                }
+
+                if (!Files.isDirectory(selectedPath)) {
+
+                        showScanError(
+                                "Invalid Folder",
+                                "The selected path is not a folder.",
+                                selectedPath.toString()
+                        );
+
+                        return;
+                }
+
+                if (!Files.isReadable(selectedPath)) {
+
+                        showScanError(
+                                "Folder Cannot Be Read",
+                                "FileFlow does not have permission to read this folder.",
+                                selectedPath.toString()
+                        );
+
                         return;
                 }
 
@@ -3427,6 +3486,10 @@ public class MainView {
                                         totalBytes
                                 );
                         } catch (SQLException exception) {
+                                showStatusWarning(
+                                        "Scan completed, but history could not be saved."
+                                );
+
                                 exception.printStackTrace();
                         } 
 
@@ -3443,7 +3506,13 @@ public class MainView {
                         setScanningState(false);
                         currentScanTask = null;
 
-                        scanTask.getException().printStackTrace();
+                        Throwable exception =
+                                scanTask.getException();
+
+                        handleScanFailure(
+                                exception,
+                                selectedPath
+                        );
                 });
 
                 scanTask.setOnCancelled(event -> {
@@ -3460,6 +3529,215 @@ public class MainView {
                 Thread scanThread = new Thread(scanTask);
                 scanThread.setDaemon(true);
                 scanThread.start();
+        }
+
+        private VBox createDatabaseErrorState(
+                String title,
+                String message,
+                Runnable retryAction
+        ) {
+
+                Label errorTitle =
+                        new Label(
+                                title
+                        );
+
+                errorTitle.getStyleClass().add(
+                        "database-error-title"
+                );
+
+                Label errorMessage =
+                        new Label(
+                                message
+                        );
+
+                errorMessage.setWrapText(
+                        true
+                );
+
+                errorMessage.getStyleClass().add(
+                        "database-error-message"
+                );
+
+                Button retryButton =
+                        new Button(
+                                "Try Again"
+                        );
+
+                retryButton.getStyleClass().add(
+                        "secondary-button"
+                );
+
+                retryButton.setOnAction(event ->
+                        retryAction.run()
+                );
+
+                VBox errorState =
+                        new VBox(
+                                8,
+                                errorTitle,
+                                errorMessage,
+                                retryButton
+                        );
+
+                errorState.getStyleClass().add(
+                        "database-error-state"
+                );
+
+                return errorState;
+        }
+
+        private void showScanError(
+                String title,
+                String message,
+                String details
+        ) {
+
+                Alert alert =
+                        new Alert(
+                                Alert.AlertType.ERROR
+                        );
+
+                alert.setTitle(
+                        title
+                );
+
+                alert.setHeaderText(
+                        message
+                );
+
+                alert.setContentText(
+                        details
+                );
+
+                alert.showAndWait();
+        }
+
+        private void showDatabaseError(
+                String title,
+                String message
+        ) {
+
+                Alert alert =
+                        new Alert(
+                                Alert.AlertType.ERROR
+                        );
+
+                alert.setTitle(
+                        title
+                );
+
+                alert.setHeaderText(
+                        message
+                );
+
+                alert.setContentText(
+                        "Your files have not been changed."
+                );
+
+                alert.showAndWait();
+        }
+
+        private void showStatusWarning(
+                String message
+        ) {
+
+                scanStatusLabel.textProperty().unbind();
+
+                scanStatusLabel.setText(
+                        message
+                );
+
+                scanStatusLabel.setVisible(true);
+                scanStatusLabel.setManaged(true);
+
+                PauseTransition delay =
+                        new PauseTransition(
+                                Duration.seconds(5)
+                        );
+
+                delay.setOnFinished(event -> {
+
+                        if (!scanning) {
+                        scanStatusLabel.setVisible(false);
+                        scanStatusLabel.setManaged(false);
+                        }
+                });
+
+                delay.play();
+        }
+
+        private void showFileActionError(
+                String title,
+                String message,
+                String details
+        ) {
+
+                Alert alert =
+                        new Alert(
+                                Alert.AlertType.ERROR
+                        );
+
+                alert.setTitle(
+                        title
+                );
+
+                alert.setHeaderText(
+                        message
+                );
+
+                alert.setContentText(
+                        details
+                );
+
+                alert.showAndWait();
+        }
+
+        private void handleScanFailure(
+                Throwable exception,
+                Path selectedPath
+        ) {
+
+                if (exception instanceof AccessDeniedException) {
+
+                        showScanError(
+                                "Permission Denied",
+                                "FileFlow could not access part of this folder.",
+                                exception.getMessage()
+                        );
+
+                        return;
+                }
+
+                if (exception instanceof NoSuchFileException) {
+
+                        showScanError(
+                                "Folder Changed During Scan",
+                                "A file or folder disappeared while FileFlow was scanning.",
+                                exception.getMessage()
+                        );
+
+                        return;
+                }
+
+                if (exception instanceof IOException) {
+
+                        showScanError(
+                                "Scan Failed",
+                                "FileFlow could not finish scanning this folder.",
+                                selectedPath.toString()
+                        );
+
+                        return;
+                }
+
+                showScanError(
+                        "Unexpected Scan Error",
+                        "Something unexpected happened while scanning this folder.",
+                        selectedPath.toString()
+                );
+
+                exception.printStackTrace();
         }
 
         private void setScanningState(boolean scanning) {
@@ -3535,26 +3813,92 @@ public class MainView {
                 }
 
                 openItem.setOnAction(event -> {
+
+                        if (!Files.exists(filePath)) {
+
+                                showFileActionError(
+                                        "File No Longer Exists",
+                                        "This file has been moved or deleted.",
+                                        filePath.toString()
+                                );
+
+                                imageThumbnailCache.remove(
+                                        filePath
+                                );
+
+                                cleanupDeletedFileReferences(
+                                        filePath
+                                );
+
+                                refreshAfterDelete();
+
+                                return;
+                        }
+
                         try {
-                        filePlatformService.open(filePath);
-                        } catch (IOException e) {
-                        e.printStackTrace();
+
+                                filePlatformService.open(
+                                        filePath
+                                );
+
+                        } catch (IOException exception) {
+
+                                showFileActionError(
+                                        "Unable to Open File",
+                                        "FileFlow could not open this file.",
+                                        filePath.toString()
+                                );
+
+                                exception.printStackTrace();
                         }
                 });
 
                 showInFolderItem.setOnAction(event -> {
+
+                        if (!Files.exists(filePath)) {
+
+                                showFileActionError(
+                                        "File No Longer Exists",
+                                        "This file has been moved or deleted.",
+                                        filePath.toString()
+                                );
+
+                                imageThumbnailCache.remove(
+                                        filePath
+                                );
+
+                                cleanupDeletedFileReferences(
+                                        filePath
+                                );
+
+                                refreshAfterDelete();
+
+                                return;
+                        }
+
                         try {
-                        filePlatformService.showInFolder(filePath);
-                        } catch (IOException e) {
-                        e.printStackTrace();
+
+                                filePlatformService.showInFolder(
+                                        filePath
+                                );
+
+                        } catch (IOException exception) {
+
+                                showFileActionError(
+                                        "Unable to Show File",
+                                        "FileFlow could not show this file in its folder.",
+                                        filePath.toString()
+                                );
+
+                                exception.printStackTrace();
                         }
                 });
 
                 copyPathItem.setOnAction(event -> {
                         try {
-                        filePlatformService.copyPath(filePath);
+                                filePlatformService.copyPath(filePath);
                         } catch (IOException e) {
-                        e.printStackTrace();
+                                e.printStackTrace();
                         }
                 });
 
@@ -3652,6 +3996,28 @@ public class MainView {
         }
 
         private void handleDeleteFile(Path filePath) {
+
+                if (!Files.exists(filePath)) {
+
+                        showFileActionError(
+                                "File No Longer Exists",
+                                "This file has already been moved or deleted.",
+                                filePath.toString()
+                        );
+
+                        imageThumbnailCache.remove(
+                                filePath
+                        );
+
+                        cleanupDeletedFileReferences(
+                                filePath
+                        );
+
+                        refreshAfterDelete();
+
+                        return;
+                }
+
                 if (!confirmPermanentDelete(filePath)) {
                         return;
                 }
