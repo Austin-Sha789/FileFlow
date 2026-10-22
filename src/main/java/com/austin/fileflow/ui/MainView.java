@@ -1,9 +1,6 @@
 package com.austin.fileflow.ui;
 
 import javafx.scene.Node;
-import javafx.scene.image.Image;
-import javafx.scene.image.ImageView;
-import javafx.scene.layout.StackPane;
 import javafx.scene.Parent;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.VBox;
@@ -15,14 +12,10 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
 import javafx.scene.control.ComboBox;
-import javafx.scene.control.ChoiceDialog;
-import javafx.scene.control.TextInputDialog;
 import javafx.scene.control.ListView;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.ListCell;
-import javafx.scene.control.ProgressBar;
-import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.ContextMenu;
@@ -74,6 +67,8 @@ import com.austin.fileflow.model.ScanHistoryEntry;
 import com.austin.fileflow.model.StorageVolume;
 import com.austin.fileflow.service.FileScanService;
 import com.austin.fileflow.service.StorageService;
+import com.austin.fileflow.ui.component.FilePreviewFactory;
+import com.austin.fileflow.util.FileSizeFormatter;
 import com.austin.fileflow.model.FileType;
 import com.austin.fileflow.repository.FavouriteRepo;
 import com.austin.fileflow.repository.TagRepo;
@@ -81,7 +76,6 @@ import com.austin.fileflow.repository.ScanHistoryRepo;
 import com.austin.fileflow.platform.FilePlatformService;
 import com.austin.fileflow.model.DuplicateGroup;
 import com.austin.fileflow.service.DuplicateService;
-import com.austin.fileflow.service.StorageService;
 import com.austin.fileflow.model.ShortcutAction;
 import com.austin.fileflow.service.ShortcutManager;
 import javafx.scene.input.KeyEvent;
@@ -96,6 +90,7 @@ public class MainView {
     private ScanResult latestScanResult;
     private final DuplicateService duplicateService;
     private final StorageService storageService;
+    private final FilePreviewFactory filePreviewFactory;
     private List<DuplicateGroup> latestDuplicateGroups  = List.of();
     private boolean duplicateScanning;
     private Task<List<DuplicateGroup>> currentDuplicateTask;
@@ -128,8 +123,6 @@ public class MainView {
     private Path currentFolder;
     private static final String CONFIRM_BEFORE_DELETE_KEY = "confirmBeforePermanentDelete";
     private final Preferences preferences = Preferences.userNodeForPackage(MainView.class);
-    private final Map<Path, Image> imageThumbnailCache =
-        new HashMap<>();
     private FilesViewMode filesViewMode = FilesViewMode.BROWSE;
     private boolean duplicateAnalysisCompleted;
 
@@ -145,13 +138,21 @@ public class MainView {
                 TagRepo tagRepo, 
                 ScanHistoryRepo scanHistoryRepo,
                 ShortcutManager shortcutManager,
-                FilePlatformService filePlatformService
+                FilePlatformService filePlatformService,
+                FileScanService fileScanService,
+                DuplicateService duplicateService,
+                StorageService storageService,
+                FilePreviewFactory filePreviewFactory
         ) {
         this.favouriteRepo = favouriteRepo;
         this.tagRepo = tagRepo;
         this.scanHistoryRepo = scanHistoryRepo;
         this.shortcutManager = shortcutManager;
         this.filePlatformService = filePlatformService;
+        this.fileScanService = fileScanService;
+        this.duplicateService = duplicateService;
+        this.storageService = storageService;
+        this.filePreviewFactory = filePreviewFactory;
 
         scanProgressBar = new ProgressBar();
 
@@ -170,13 +171,6 @@ public class MainView {
         pageTitle = new Label("Home");
         pageContent = new VBox();
         scanButton = new Button("Scan Folder");
-
-        fileScanService = new FileScanService();
-        duplicateService = new DuplicateService();
-        storageService = new StorageService();
-
-        root.setLeft(createSidebar());
-        root.setCenter(createContent());
 
         root.setLeft(createSidebar());
         root.setCenter(createContent());
@@ -579,14 +573,14 @@ public class MainView {
         );
 
         storageUsedLabel.setText(
-                formatSize(volume.getUsedBytes())
+                FileSizeFormatter.format(volume.getUsedBytes())
                         + " used · "
-                        + formatSize(volume.getTotalBytes())
+                        + FileSizeFormatter.format(volume.getTotalBytes())
                         + " total"
         );
 
         storageFreeLabel.setText(
-                formatSize(volume.getFreeBytes())
+                FileSizeFormatter.format(volume.getFreeBytes())
                         + " free"
         );
 
@@ -624,11 +618,11 @@ public class MainView {
 
         Label usedLabel =
                 new Label(
-                        formatSize(
+                        FileSizeFormatter.format(
                                 volume.getUsedBytes()
                         )
                                 + " used · "
-                                + formatSize(
+                                + FileSizeFormatter.format(
                                         volume.getTotalBytes()
                                 )
                                 + " total"
@@ -643,7 +637,7 @@ public class MainView {
 
         Label freeLabel =
                 new Label(
-                        formatSize(
+                        FileSizeFormatter.format(
                                 volume.getFreeBytes()
                         )
                                 + " free"
@@ -741,12 +735,6 @@ public class MainView {
         selectedItem.getStyleClass().add("nav-item-selected");
 
         pageTitle.setText(title);
-
-        for (Label item : navItems) {
-            item.getStyleClass().remove("nav-item-selected");
-        }
-
-        selectedItem.getStyleClass().add("nav-item-selected");
 
         pageContent.getChildren().clear();
 
@@ -893,7 +881,7 @@ public class MainView {
         summaryRow.getStyleClass().add("summary-grid");
 
         VBox filesCard = createSummaryCard("Files", String.valueOf(fileCount));
-        VBox storageCard = createSummaryCard("Storage", formatSize(totalBytes));
+        VBox storageCard = createSummaryCard("Storage", FileSizeFormatter.format(totalBytes));
         VBox foldersCard = createSummaryCard("Folders", String.valueOf(folderCount));
         VBox issuesCard =
                 createSummaryCard(
@@ -961,9 +949,9 @@ public class MainView {
                 );
 
                 Node filePreview =
-                        createFilePreview(item);
+                        filePreviewFactory.create(item);
 
-                Label sizeLabel = new Label(formatSize(item.getSizeBytes()));
+                Label sizeLabel = new Label(FileSizeFormatter.format(item.getSizeBytes()));
                 sizeLabel.getStyleClass().add("file-size");
 
                 Region spacer = new Region();
@@ -1062,7 +1050,7 @@ public class MainView {
                 );
 
                 Label sizeLabel = new Label(
-                        formatSize(bytes)
+                        FileSizeFormatter.format(bytes)
                 );
                 sizeLabel.getStyleClass().add(
                         "dashboard-type-meta"
@@ -1129,7 +1117,7 @@ public class MainView {
                                 "%,d files · %,d folders · %s",
                                 fileCount,
                                 folderCount,
-                                formatSize(totalBytes)
+                                FileSizeFormatter.format(totalBytes)
                         )
                 );
                 scanSummaryLabel.getStyleClass().add(
@@ -1244,7 +1232,7 @@ public class MainView {
                 );
                 countLabel.getStyleClass().add("dashboard-folder-meta");
 
-                Label sizeLabel = new Label(formatSize(bytes));
+                Label sizeLabel = new Label(FileSizeFormatter.format(bytes));
                 sizeLabel.getStyleClass().add("dashboard-folder-meta");
 
                 ProgressBar progressBar = new ProgressBar(
@@ -1334,7 +1322,7 @@ public class MainView {
                 );
 
                 Node filePreview =
-                        createFilePreview(item);
+                        filePreviewFactory.create(item);
 
                 Label modifiedLabel = new Label(formatModifiedTime(item.getLastModified()));
 
@@ -1698,7 +1686,7 @@ public class MainView {
                         Label fileSizeLabel = new Label(
                                 item.isDirectory()
                                         ? "——"
-                                        : formatSize(item.getSizeBytes())
+                                        : FileSizeFormatter.format(item.getSizeBytes())
                         );
                         fileSizeLabel.getStyleClass().add("file-size");
 
@@ -1736,7 +1724,7 @@ public class MainView {
                         );
 
                         Node filePreview =
-                                createFilePreview(item);
+                                filePreviewFactory.create(item);
 
                         Button favouriteButton = new Button(
                                 favouritePaths.contains(item.getPath())
@@ -2015,8 +2003,13 @@ public class MainView {
                                 filePathLabel
                         );
 
+                        FileItem scannedItem =
+                                findScannedFileItem(filePath);
+
                         Node filePreview =
-                                createFilePreview(filePath);
+                                scannedItem != null
+                                        ? filePreviewFactory.create(scannedItem)
+                                        : filePreviewFactory.createFallback();
 
                         Region spacer = new Region();
                         HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -2265,13 +2258,6 @@ public class MainView {
                                 hasResults
                         );
 
-                        long reclaimableBytes = latestDuplicateGroups
-                                                        .stream()
-                                                        .mapToLong(
-                                                                DuplicateGroup::getReclaimableBytes
-                                                        )
-                                                        .sum();
-
                         analyseButton.setText("Analyse Again");
 
                         progressBar.setVisible(false);
@@ -2477,7 +2463,7 @@ public class MainView {
                                                 "Scanned %s · %,d files · %s",
                                                 scannedTime,
                                                 entry.getFileCount(),
-                                                formatSize(
+                                                FileSizeFormatter.format(
                                                         entry.getTotalBytes()
                                                 )
                                         )
@@ -3103,34 +3089,6 @@ public class MainView {
                 activeShortcutOriginalText = null;
         }
 
-    private String formatSize(long bytes) {
-        double kilobytes = bytes / 1024.0;
-        double megabytes = kilobytes / 1024.0;
-        double gigabytes = megabytes / 1024.0;
-        double terabytes = gigabytes / 1024.0;
-
-        if (terabytes >= 1) {
-                return String.format(
-                        "%.1f TB",
-                        terabytes
-                );
-        }
-
-        if (gigabytes >= 1) {
-            return String.format("%.1f GB", gigabytes);
-        }
-
-        if (megabytes >= 1) {
-            return String.format("%.1f MB", megabytes);
-        }
-
-        if (kilobytes >= 1) {
-            return String.format("%.1f KB", kilobytes);
-        }
-
-        return bytes + " B";
-    }
-
     private void populateFileList(
             ListView<FileItem> fileList, 
             String searchText, 
@@ -3293,8 +3251,13 @@ public class MainView {
                                                 filePathLabel
                                         );
 
+                                        FileItem scannedItem =
+                                                findScannedFileItem(filePath);
+
                                         Node filePreview =
-                                                createFilePreview(filePath);
+                                                scannedItem != null
+                                                        ? filePreviewFactory.create(scannedItem)
+                                                        : filePreviewFactory.createFallback();
 
                                         Region spacer1 = new Region();
                                         HBox.setHgrow(spacer1, Priority.ALWAYS);
@@ -3822,9 +3785,7 @@ public class MainView {
                                         filePath.toString()
                                 );
 
-                                imageThumbnailCache.remove(
-                                        filePath
-                                );
+                                filePreviewFactory.invalidate(filePath);
 
                                 cleanupDeletedFileReferences(
                                         filePath
@@ -3863,9 +3824,7 @@ public class MainView {
                                         filePath.toString()
                                 );
 
-                                imageThumbnailCache.remove(
-                                        filePath
-                                );
+                                filePreviewFactory.invalidate(filePath);
 
                                 cleanupDeletedFileReferences(
                                         filePath
@@ -4005,9 +3964,7 @@ public class MainView {
                                 filePath.toString()
                         );
 
-                        imageThumbnailCache.remove(
-                                filePath
-                        );
+                        filePreviewFactory.invalidate(filePath);
 
                         cleanupDeletedFileReferences(
                                 filePath
@@ -4025,7 +3982,7 @@ public class MainView {
                 try {
                         filePlatformService.deleteFile(filePath);
 
-                        imageThumbnailCache.remove(filePath);
+                        filePreviewFactory.invalidate(filePath);
 
                         cleanupDeletedFileReferences(
                                 filePath
@@ -4257,165 +4214,6 @@ public class MainView {
                 scanStatusLabel.setText("");
         }
 
-        private Node createFilePreview(FileItem item) {
-
-                StackPane preview =
-                        new StackPane();
-
-                preview.setPrefSize(
-                        56,
-                        42
-                );
-
-                preview.setMinSize(
-                        56,
-                        42
-                );
-
-                preview.setMaxSize(
-                        56,
-                        42
-                );
-
-                preview.getStyleClass().add(
-                        "file-preview"
-                );
-
-
-                if (item.isDirectory()) {
-
-                        Label folderLabel =
-                                new Label("Folder");
-
-                        folderLabel.getStyleClass().add(
-                                "file-preview-placeholder"
-                        );
-
-                        preview.getChildren().add(
-                                folderLabel
-                        );
-
-                        return preview;
-                }
-
-
-                if (item.getType() == FileType.IMAGE) {
-
-                        Image image =
-                                imageThumbnailCache.computeIfAbsent(
-                                        item.getPath(),
-                                        path -> new Image(
-                                                path.toUri().toString(),
-                                                112,
-                                                84,
-                                                true,
-                                                true,
-                                                true
-                                        )
-                                );
-
-                        if (image.isError()) {
-
-                                Label formatLabel =
-                                        new Label(
-                                                item.getExtension()
-                                                        .toUpperCase()
-                                        );
-
-                                formatLabel.getStyleClass().add(
-                                        "file-preview-placeholder"
-                                );
-
-                                preview.getChildren().add(
-                                        formatLabel
-                                );
-
-                                return preview;
-                        }
-
-                        ImageView imageView =
-                                new ImageView(image);
-
-                        image.errorProperty().addListener(
-                                (observable, oldValue, hasError) -> {
-
-                                        if (!hasError) {
-                                                return;
-                                        }
-
-                                        preview.getChildren().clear();
-
-                                        Label formatLabel =
-                                                new Label(
-                                                        item.getExtension()
-                                                                .toUpperCase()
-                                                );
-
-                                        formatLabel.getStyleClass().add(
-                                                "file-preview-placeholder"
-                                        );
-
-                                        preview.getChildren().add(
-                                                formatLabel
-                                        );
-                                }
-                        );
-
-                        imageView.setFitWidth(56);
-                        imageView.setFitHeight(42);
-
-                        imageView.setPreserveRatio(true);
-
-                        preview.getChildren().add(
-                                imageView
-                        );
-
-                        preview.getStyleClass().add(
-                                "file-preview-image"
-                        );
-
-                        return preview;
-                }
-
-
-                if (item.getType() == FileType.VIDEO) {
-
-                        Label playLabel =
-                                new Label("▶");
-
-                        playLabel.getStyleClass().add(
-                                "file-preview-play"
-                        );
-
-                        preview.getChildren().add(
-                                playLabel
-                        );
-
-                        preview.getStyleClass().add(
-                                "file-preview-video"
-                        );
-
-                        return preview;
-                }
-
-
-                Label placeholder =
-                        new Label(
-                                item.getExtension()
-                                        .toUpperCase()
-                        );
-
-                placeholder.getStyleClass().add(
-                        "file-preview-placeholder"
-                );
-
-                preview.getChildren().add(
-                        placeholder
-                );
-
-                return preview;
-        }
-
         private FileItem findScannedFileItem(Path path) {
 
                 if (latestScanResult == null) {
@@ -4436,51 +4234,6 @@ public class MainView {
                         )
                         .findFirst()
                         .orElse(null);
-        }
-
-        private Node createFilePreview(Path path) {
-
-                FileItem item =
-                        findScannedFileItem(path);
-
-                if (item != null) {
-                        return createFilePreview(item);
-                }
-
-                StackPane preview =
-                        new StackPane();
-
-                preview.setPrefSize(
-                        56,
-                        42
-                );
-
-                preview.setMinSize(
-                        56,
-                        42
-                );
-
-                preview.setMaxSize(
-                        56,
-                        42
-                );
-
-                preview.getStyleClass().add(
-                        "file-preview"
-                );
-
-                Label placeholder =
-                        new Label("FILE");
-
-                placeholder.getStyleClass().add(
-                        "file-preview-placeholder"
-                );
-
-                preview.getChildren().add(
-                        placeholder
-                );
-
-                return preview;
         }
 
         private void updateBrowseHeader(
@@ -4689,7 +4442,7 @@ public class MainView {
                         countLabel.getStyleClass().add("category-count");
 
                         Label sizeLabel = new Label(
-                                formatSize(totalBytes)
+                                FileSizeFormatter.format(totalBytes)
                         );
                         sizeLabel.getStyleClass().add("category-size");
 
@@ -4831,10 +4584,10 @@ public class MainView {
                                 String.format(
                                         "%,d copies · %s each · %s reclaimable",
                                         group.getFiles().size(),
-                                        formatSize(
+                                        FileSizeFormatter.format(
                                                 group.getFileSizeBytes()
                                         ),
-                                        formatSize(
+                                        FileSizeFormatter.format(
                                                 group.getReclaimableBytes()
                                         )
                                 )
@@ -4956,7 +4709,7 @@ public class MainView {
 
                 VBox reclaimableCard = createSummaryCard(
                         "Reclaimable",
-                        formatSize(reclaimableBytes)
+                        FileSizeFormatter.format(reclaimableBytes)
                 );
 
                 HBox.setHgrow(
@@ -5026,7 +4779,7 @@ public class MainView {
                         );
 
                         Node filePreview =
-                                createFilePreview(item);
+                                filePreviewFactory.create(item);
 
                         Region spacer = new Region();
 

@@ -12,6 +12,10 @@ import com.austin.fileflow.repository.TagRepo;
 import com.austin.fileflow.ui.MainView;
 import com.austin.fileflow.platform.FilePlatformService;
 import com.austin.fileflow.service.ShortcutManager;
+import com.austin.fileflow.service.FileScanService;
+import com.austin.fileflow.service.DuplicateService;
+import com.austin.fileflow.service.StorageService;
+import com.austin.fileflow.ui.component.FilePreviewFactory;
 
 public class App extends Application
 {
@@ -31,9 +35,22 @@ public class App extends Application
         ScanHistoryRepo scanHistoryRepo = new ScanHistoryRepo(databaseManager);
         ShortcutManager shortcutManager = new ShortcutManager();
         FilePlatformService filePlatformService = new FilePlatformService();
-        
+        FileScanService fileScanService = new FileScanService();
+        DuplicateService duplicateService = new DuplicateService();
+        StorageService storageService = new StorageService();
+        FilePreviewFactory filePreviewFactory = new FilePreviewFactory();
 
-        MainView mainView = new MainView(favouriteRepo, tagRepo, scanHistoryRepo, shortcutManager, filePlatformService);
+        MainView mainView = new MainView(
+            favouriteRepo, 
+            tagRepo, 
+            scanHistoryRepo, 
+            shortcutManager, 
+            filePlatformService,
+            fileScanService,
+            duplicateService,
+            storageService,
+            filePreviewFactory
+        );
 
         Scene scene = new Scene(mainView.getView(), 1200, 760);
         scene.getStylesheets().add(getClass().getResource("/css/app.css").toExternalForm());

@@ -8,8 +8,6 @@ import org.junit.jupiter.api.io.TempDir;
 import java.util.List;
 import java.util.Map;
 
-import javax.swing.text.html.HTML.Tag;
-
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
