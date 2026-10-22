@@ -2432,9 +2432,28 @@ public class MainView {
         return tagsContent;
     }
 
-    private VBox createHistoryContent() {
+    private ScrollPane createHistoryContent() {
         VBox content = new VBox(10);
         content.getStyleClass().add("history-content");
+
+        ScrollPane scrollPane =
+                new ScrollPane(content);
+
+        scrollPane.setFitToWidth(true);
+
+        scrollPane.setHbarPolicy(
+                ScrollPane.ScrollBarPolicy.NEVER
+        );
+
+        scrollPane.getStyleClass().add(
+                "history-scroll"
+        );
+
+        VBox.setVgrow(
+                scrollPane,
+                Priority.ALWAYS
+        );
+
         DateTimeFormatter historyDateFormatter =
                 DateTimeFormatter.ofPattern(
                         "dd MMM yyyy, h:mm a",
@@ -2461,7 +2480,7 @@ public class MainView {
                                 emptyLabel
                         );
 
-                        return content;
+                        return scrollPane;
                 }
 
                 for (ScanHistoryEntry entry : historyEntries) {
@@ -2663,7 +2682,7 @@ public class MainView {
 
                 exception.printStackTrace();
         }
-                return content;
+                return scrollPane;
         }
 
     private VBox createSettingsContent() {

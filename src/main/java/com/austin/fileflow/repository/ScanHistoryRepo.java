@@ -27,6 +27,10 @@ public class ScanHistoryRepo {
         long totalBytes
     ) throws SQLException {
 
+        String deleteSql =
+                "DELETE FROM scan_history "
+                + "WHERE folder_path = ?";
+
         String sql = """
                 INSERT INTO scan_history (
                     folder_path,
@@ -37,19 +41,59 @@ public class ScanHistoryRepo {
                 VALUES(?, ?, ?, ?)
                 """;
 
-        try (Connection connection = databaseManager.getConnection();
-            PreparedStatement statement  = connection.prepareStatement(sql)) {
+        try (Connection connection =
+            databaseManager.getConnection()) {
 
-                statement.setString(1, folderPath.toString());
+            connection.setAutoCommit(false);
 
-                statement.setString(2, scannedAt.toString());
+            try {
 
-                statement.setLong(3, fileCount);
+                try (PreparedStatement deleteStatement =
+                        connection.prepareStatement(deleteSql)) {
 
-                statement.setLong(4, totalBytes);
+                    deleteStatement.setString(
+                            1,
+                            folderPath.toString()
+                    );
 
-                statement.executeUpdate();
+                    deleteStatement.executeUpdate();
+                }
+
+                try (PreparedStatement statement =
+                        connection.prepareStatement(sql)) {
+
+                    statement.setString(
+                            1,
+                            folderPath.toString()
+                    );
+
+                    statement.setString(
+                            2,
+                            scannedAt.toString()
+                    );
+
+                    statement.setLong(
+                            3,
+                            fileCount
+                    );
+
+                    statement.setLong(
+                            4,
+                            totalBytes
+                    );
+
+                    statement.executeUpdate();
+                }
+
+                connection.commit();
+
+            } catch (SQLException exception) {
+                
+                connection.rollback();
+
+                throw exception;
             }
+        }
     }
 
     public List<ScanHistoryEntry> getAll() throws SQLException {
