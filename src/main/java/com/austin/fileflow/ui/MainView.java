@@ -37,6 +37,7 @@ import javafx.scene.input.KeyCodeCombination;
 import javafx.scene.input.KeyCombination;
 
 import javafx.animation.PauseTransition;
+
 import javafx.util.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -125,6 +126,8 @@ public class MainView {
     private final Preferences preferences = Preferences.userNodeForPackage(MainView.class);
     private FilesViewMode filesViewMode = FilesViewMode.BROWSE;
     private boolean duplicateAnalysisCompleted;
+    private final Map<Path, FileItem> scannedItemsByPath =
+        new HashMap<>();
 
 
     private enum FilesViewMode {
@@ -1938,11 +1941,33 @@ public class MainView {
 
         VBox.setVgrow(fileList, Priority.ALWAYS);
 
-        populateFileList(fileList, "", typeFilter.getValue(), sortBy.getValue());
+        populateFileList(
+                fileList, 
+                "", 
+                typeFilter.getValue(), 
+                sortBy.getValue()
+        );
+
+        PauseTransition searchDebounce =
+                new PauseTransition(
+                        Duration.millis(180)
+                );
 
         searchField.textProperty().addListener(
                 (observable, oldValue, newValue) -> {
-                    populateFileList(fileList, newValue, typeFilter.getValue(), sortBy.getValue());
+
+                searchDebounce.stop();
+
+                searchDebounce.setOnFinished(event ->
+                        populateFileList(
+                                fileList,
+                                newValue,
+                                typeFilter.getValue(),
+                                sortBy.getValue()
+                        )
+                );
+
+                searchDebounce.playFromStart();
                 }
         );
 
@@ -3419,6 +3444,9 @@ public class MainView {
                         currentScanTask = null;
 
                         latestScanResult = scanTask.getValue();
+
+                        rebuildScannedItemIndex();
+
                         latestDuplicateGroups  = List.of();
                         duplicateAnalysisCompleted = false;
 
@@ -4078,6 +4106,8 @@ public class MainView {
                         latestScanResult =
                                 refreshTask.getValue();
 
+                        rebuildScannedItemIndex();
+
                         if (refreshDuplicates) {
 
                         refreshDuplicatesAfterDelete();
@@ -4224,16 +4254,31 @@ public class MainView {
                         path.toAbsolutePath()
                                 .normalize();
 
-                return latestScanResult.getItems()
-                        .stream()
-                        .filter(item ->
+                return scannedItemsByPath.get(
+                        normalisedPath
+                );
+        }
+
+        private void rebuildScannedItemIndex() {
+
+                scannedItemsByPath.clear();
+
+                if (latestScanResult == null) {
+                        return;
+                }
+
+                for (FileItem item : latestScanResult.getItems()) {
+
+                        Path normalisedPath =
                                 item.getPath()
                                         .toAbsolutePath()
-                                        .normalize()
-                                        .equals(normalisedPath)
-                        )
-                        .findFirst()
-                        .orElse(null);
+                                        .normalize();
+
+                        scannedItemsByPath.put(
+                                normalisedPath,
+                                item
+                        );
+                }
         }
 
         private void updateBrowseHeader(
