@@ -87,6 +87,7 @@ public class MainView {
     private final Label pageTitle;
     private final VBox pageContent;
     private final Button scanButton;
+    private final Button refreshButton;
     private final FileScanService fileScanService;
     private ScanResult latestScanResult;
     private final DuplicateService duplicateService;
@@ -174,6 +175,8 @@ public class MainView {
         pageTitle = new Label("Home");
         pageContent = new VBox();
         scanButton = new Button("Scan Folder");
+        refreshButton = new Button("Refresh");
+        refreshButton.setDisable(true);
 
         root.setLeft(createSidebar());
         root.setCenter(createContent());
@@ -190,9 +193,7 @@ public class MainView {
                         if (scanRootPath != null
                                 && !scanning) {
 
-                        startScan(
-                                scanRootPath
-                        );
+                                refreshCurrentScan();
                         }
 
                         event.consume();
@@ -223,7 +224,7 @@ public class MainView {
                 )) {
 
                         if (!scanning) {
-                        handleScan();
+                                handleScan();
                         }
 
                         event.consume();
@@ -688,6 +689,14 @@ public class MainView {
 
         scanButton.getStyleClass().add("primary-button");
 
+        refreshButton.setOnAction(
+                event -> refreshCurrentScan()
+        );
+
+        refreshButton.getStyleClass().add(
+                "secondary-button"
+        );
+
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
@@ -697,6 +706,7 @@ public class MainView {
                 spacer,
                 scanStatusLabel,
                 scanProgressBar,
+                refreshButton,
                 scanButton
         );
         topBar.getStyleClass().add("top-bar");
@@ -743,6 +753,9 @@ public class MainView {
 
         scanButton.setVisible(!title.equals("Home"));
         scanButton.setManaged(!title.equals("Home"));
+
+        refreshButton.setVisible(!title.equals("Home"));
+        refreshButton.setManaged(!title.equals("Home"));
 
         switch (title) {
             case "Home" ->
@@ -3440,9 +3453,6 @@ public class MainView {
                 scanTask.setOnSucceeded(event -> {
                         scanStatusLabel.textProperty().unbind();
 
-                        setScanningState(false);
-                        currentScanTask = null;
-
                         latestScanResult = scanTask.getValue();
 
                         rebuildScannedItemIndex();
@@ -3455,6 +3465,9 @@ public class MainView {
                                 .normalize();
 
                         currentFolder = scanRootPath;
+
+                        setScanningState(false);
+                        currentScanTask = null;
 
                         long fileCount =
                                 latestScanResult.getItems()
@@ -3520,6 +3533,99 @@ public class MainView {
                 Thread scanThread = new Thread(scanTask);
                 scanThread.setDaemon(true);
                 scanThread.start();
+        }
+
+        private void refreshCurrentScan() {
+
+                if (scanRootPath == null || scanning) {
+                        return;
+                }
+
+                setScanningState(true);
+
+                scanStatusLabel.setText(
+                        "Refreshing..."
+                );
+
+                scanStatusLabel.setVisible(true);
+                scanStatusLabel.setManaged(true);
+
+                Task<ScanResult> refreshTask =
+                        new Task<>() {
+
+                                @Override
+                                protected ScanResult call()
+                                        throws Exception {
+
+                                return fileScanService.scan(
+                                        scanRootPath,
+                                        this::isCancelled
+                                );
+                                }
+                        };
+
+                currentScanTask = refreshTask;
+
+                refreshTask.setOnSucceeded(event -> {
+
+                        setScanningState(false);
+                        currentScanTask = null;
+
+                        latestScanResult =
+                                refreshTask.getValue();
+
+                        rebuildScannedItemIndex();
+
+                        filePreviewFactory.clearCache();
+
+                        if (currentFolder == null
+                                || !Files.isDirectory(currentFolder)) {
+
+                                currentFolder = scanRootPath;
+                        }
+
+                        latestDuplicateGroups =
+                                List.of();
+
+                        duplicateAnalysisCompleted =
+                                false;
+
+                        hideRefreshStatus();
+
+                        refreshCurrentPage();
+                });
+
+                refreshTask.setOnFailed(event -> {
+
+                        setScanningState(false);
+                        currentScanTask = null;
+
+                        hideRefreshStatus();
+
+                        Throwable exception =
+                                refreshTask.getException();
+
+                        handleScanFailure(
+                                exception,
+                                scanRootPath
+                        );
+                });
+
+                refreshTask.setOnCancelled(event -> {
+
+                        setScanningState(false);
+                        currentScanTask = null;
+
+                        hideRefreshStatus();
+                });
+
+                Thread refreshThread =
+                        new Thread(
+                                refreshTask
+                        );
+
+                refreshThread.setDaemon(true);
+                refreshThread.start();
         }
 
         private VBox createDatabaseErrorState(
@@ -3743,6 +3849,10 @@ public class MainView {
 
                 scanStatusLabel.setVisible(scanning);
                 scanStatusLabel.setManaged(scanning);
+
+                refreshButton.setDisable(
+                        scanning || scanRootPath == null
+                );
 
                 if (homeScanButton != null) {
                         homeScanButton.setDisable(scanning);
@@ -4099,6 +4209,8 @@ public class MainView {
                                 );
                                 }
                         };
+
+                currentScanTask = refreshTask;
 
 
                 refreshTask.setOnSucceeded(event -> {

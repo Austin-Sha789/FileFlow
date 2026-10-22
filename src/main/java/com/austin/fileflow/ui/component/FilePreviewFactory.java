@@ -22,6 +22,10 @@ public class FilePreviewFactory {
         imageThumbnailCache.remove(path);
     }
 
+    public void clearCache() {
+        imageThumbnailCache.clear();
+    }
+
     public Node create(FileItem item) {
 
         StackPane preview =
