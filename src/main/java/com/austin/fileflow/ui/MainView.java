@@ -22,6 +22,7 @@ import javafx.scene.control.ContextMenu;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ButtonBar;
+import javafx.scene.control.ChoiceDialog;
 import javafx.scene.control.SeparatorMenuItem;
 import javafx.geometry.Side;
 import javafx.concurrent.Task;
@@ -2483,6 +2484,103 @@ public class MainView {
                         return scrollPane;
                 }
 
+                Button clearHistoryButton =
+                        new Button("Clear History");
+
+                clearHistoryButton.getStyleClass().add(
+                        "secondary-button"
+                );
+
+                clearHistoryButton.setOnAction(event -> {
+
+                        Alert confirmation =
+                                new Alert(
+                                        Alert.AlertType.CONFIRMATION
+                                );
+
+                        confirmation.setTitle(
+                                "Clear History"
+                        );
+
+                        confirmation.setHeaderText(
+                                "Clear all scan history?"
+                        );
+
+                        confirmation.setContentText(
+                                "This will remove all scan history from FileFlow. "
+                                        + "Your files will not be affected."
+                        );
+
+                        ButtonType clearButtonType =
+                                new ButtonType(
+                                        "Clear History",
+                                        ButtonBar.ButtonData.OK_DONE
+                                );
+
+                        ButtonType cancelButtonType =
+                                new ButtonType(
+                                        "Cancel",
+                                        ButtonBar.ButtonData.CANCEL_CLOSE
+                                );
+
+                        confirmation
+                                .getButtonTypes()
+                                .setAll(
+                                        cancelButtonType,
+                                        clearButtonType
+                                );
+
+                        ButtonType result =
+                                confirmation
+                                        .showAndWait()
+                                        .orElse(
+                                                cancelButtonType
+                                        );
+
+                        if (result != clearButtonType) {
+                                return;
+                        }
+
+                        try {
+
+                                scanHistoryRepo.clearAll();
+
+                                refreshCurrentPage();
+
+                        } catch (SQLException exception) {
+
+                                showDatabaseError(
+                                        "Unable to Clear History",
+                                        "FileFlow could not clear your scan history."
+                                );
+
+                                exception.printStackTrace();
+                        }
+                });
+
+                Region historySpacer =
+                        new Region();
+
+                HBox.setHgrow(
+                        historySpacer,
+                        Priority.ALWAYS
+                );
+
+                HBox historyActions =
+                        new HBox(
+                                10,
+                                historySpacer,
+                                clearHistoryButton
+                        );
+
+                historyActions.setAlignment(
+                        Pos.CENTER_RIGHT
+                );
+
+                content.getChildren().add(
+                        historyActions
+                );
+
                 for (ScanHistoryEntry entry : historyEntries) {
 
                         Label folderNameLabel =
@@ -4789,11 +4887,154 @@ public class MainView {
                                 Priority.ALWAYS
                         );
 
+                        Button resolveButton =
+                                new Button("Resolve");
+
+                        resolveButton.getStyleClass().add(
+                                "secondary-button"
+                        );
+                        
+                        resolveButton.setOnMouseClicked(
+                                event -> event.consume()
+                        );
+
+                        resolveButton.setOnAction(event -> {
+
+                        List<Path> duplicatePaths =
+                                group.getFiles()
+                                        .stream()
+                                        .map(FileItem::getPath)
+                                        .toList();
+
+                        ChoiceDialog<Path> dialog =
+                                new ChoiceDialog<>(
+                                        duplicatePaths.get(0),
+                                        duplicatePaths
+                                );
+
+                        dialog.setTitle(
+                                "Resolve Duplicates"
+                        );
+
+                        dialog.setHeaderText(
+                                "Choose the copy you want to keep"
+                        );
+
+                        dialog.setContentText(
+                                "Keep:"
+                        );
+
+                        dialog.showAndWait()
+                                .ifPresent(pathToKeep -> {
+
+                                long copiesToDelete =
+                                        duplicatePaths.size() - 1L;
+
+                                long reclaimableBytes =
+                                        group.getReclaimableBytes();
+
+                                Alert confirmation =
+                                        new Alert(
+                                                Alert.AlertType.WARNING
+                                        );
+
+                                confirmation.setTitle(
+                                        "Resolve Duplicates"
+                                );
+
+                                confirmation.setHeaderText(
+                                        "Keep this copy and delete the others?"
+                                );
+
+                                confirmation.setContentText(
+                                        String.format(
+                                                "FileFlow will keep:%n%n%s%n%n"
+                                                        + "and permanently delete %,d duplicate copy/copies.%n"
+                                                        + "About %s will be reclaimed.",
+                                                pathToKeep,
+                                                copiesToDelete,
+                                                FileSizeFormatter.format(
+                                                        reclaimableBytes
+                                                )
+                                        )
+                                );
+
+                                ButtonType resolveButtonType =
+                                        new ButtonType(
+                                                "Delete Duplicates",
+                                                ButtonBar.ButtonData.OK_DONE
+                                        );
+
+                                ButtonType cancelButtonType =
+                                        new ButtonType(
+                                                "Cancel",
+                                                ButtonBar.ButtonData.CANCEL_CLOSE
+                                        );
+
+                                confirmation
+                                        .getButtonTypes()
+                                        .setAll(
+                                                cancelButtonType,
+                                                resolveButtonType
+                                        );
+
+                                ButtonType result =
+                                        confirmation
+                                                .showAndWait()
+                                                .orElse(
+                                                        cancelButtonType
+                                                );
+
+                                if (result != resolveButtonType) {
+                                        return;
+                                }
+
+                                for (Path duplicatePath : duplicatePaths) {
+
+                                        if (duplicatePath.equals(pathToKeep)) {
+                                                continue;
+                                        }
+
+                                        try {
+
+                                                filePlatformService.deleteFile(
+                                                        duplicatePath
+                                                );
+
+                                                filePreviewFactory.invalidate(
+                                                        duplicatePath
+                                                );
+
+                                                cleanupDeletedFileReferences(
+                                                        duplicatePath
+                                                );
+
+                                        } catch (IOException exception) {
+
+                                                showFileActionError(
+                                                        "Unable to Resolve Duplicates",
+                                                        "FileFlow could not delete one of the duplicate files.",
+                                                        duplicatePath.toString()
+                                                );
+
+                                                exception.printStackTrace();
+
+                                                refreshAfterDelete();
+
+                                                return;
+                                        }
+                                }
+
+                                refreshAfterDelete();
+                                });
+                        }); 
+
                         HBox groupHeader = new HBox(
                                 10,
                                 arrowLabel,
                                 summaryLabel,
-                                headerSpacer
+                                headerSpacer,
+                                resolveButton
                         );
 
                         groupHeader.setAlignment(Pos.CENTER_LEFT);

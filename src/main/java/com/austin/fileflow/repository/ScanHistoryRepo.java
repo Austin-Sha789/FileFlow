@@ -157,5 +157,20 @@ public class ScanHistoryRepo {
             statement.executeUpdate();
         }
     }
+
+    public void clearAll() throws SQLException {
+
+        String sql =
+                "DELETE FROM scan_history";
+
+        try (Connection connection =
+                databaseManager.getConnection();
+
+            PreparedStatement statement =
+                connection.prepareStatement(sql)) {
+
+            statement.executeUpdate();
+        }
+    }
     
 }
