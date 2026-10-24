@@ -91,6 +91,8 @@ import javafx.scene.input.MouseButton;
 public class MainView {
     
     private final BorderPane root;
+    private final PauseTransition dashboardClickDelay =
+        new PauseTransition(Duration.millis(280));
     private final Label pageTitle;
     private final VBox pageContent;
     private final Button scanButton;
@@ -1013,15 +1015,12 @@ public class MainView {
                         event.consume();
                 });
 
-                row.setOnMouseClicked(event -> {
+                configureDashboardFileRow(row, item.getPath());
 
-                        if (event.getClickCount() == 2) {
-
-                                openFile(
-                                        item.getPath()
-                                );
-                        }
-                });
+                moreButton.addEventFilter(
+                        MouseEvent.MOUSE_CLICKED,
+                        event -> event.consume()
+                );
 
                 largestFilesList.getChildren().add(row);
         }
@@ -1361,8 +1360,8 @@ public class MainView {
                                                 ? "Scan root"
                                                 : relativeParent.toString()
                                 );
-                                }
                         }
+                }
 
                 pathLabel.getStyleClass().add("dashboard-file-path");
 
@@ -1411,16 +1410,13 @@ public class MainView {
 
                         event.consume();
                 });
-                
-                row.setOnMouseClicked(event -> {
 
-                        if (event.getClickCount() == 2) {
+                configureDashboardFileRow(row, item.getPath());
 
-                                openFile(
-                                        item.getPath()
-                                );
-                        }
-                });
+                moreButton.addEventFilter(
+                        MouseEvent.MOUSE_CLICKED,
+                        event -> event.consume()
+                );
 
                 recentFilesList.getChildren().add(row);
 
@@ -5484,6 +5480,51 @@ public class MainView {
                                 fileRow
                         );
                 }
+        }
+
+        private void configureDashboardFileRow(HBox row, Path filePath) {
+
+                row.setOnMouseClicked(event -> {
+
+                        if (event.getButton() != MouseButton.PRIMARY) {
+                        return;
+                        }
+
+                        // Ignore buttons inside the file row
+                        Node target = event.getPickResult().getIntersectedNode();
+
+                        while (target != null && target != row) {
+
+                        if (target instanceof Button) {
+                                dashboardClickDelay.stop();
+                                return;
+                        }
+
+                        target = target.getParent();
+                        }
+
+                        if (event.getClickCount() == 2) {
+
+                        dashboardClickDelay.stop();
+                        openFile(filePath);
+                        event.consume();
+
+                        } else if (event.getClickCount() == 1) {
+
+                        dashboardClickDelay.stop();
+
+                        dashboardClickDelay.setOnFinished(done -> {
+
+                                if (row.getScene() != null
+                                        && "Dashboard".equals(pageTitle.getText())) {
+
+                                showQuickInfo(filePath);
+                                }
+                        });
+
+                        dashboardClickDelay.playFromStart();
+                        }
+                });
         }
 
         private void showQuickInfo(Path filePath) {
