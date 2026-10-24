@@ -7,6 +7,7 @@ import javafx.scene.layout.VBox;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.control.Label;
 import javafx.scene.control.Button;
 import javafx.scene.control.ScrollPane;
@@ -18,6 +19,8 @@ import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.CheckBox;
@@ -36,6 +39,8 @@ import javafx.scene.Scene;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyCodeCombination;
 import javafx.scene.input.KeyCombination;
+import javafx.scene.input.MouseButton;
+import javafx.scene.input.MouseEvent;
 
 import javafx.animation.PauseTransition;
 
@@ -81,6 +86,7 @@ import com.austin.fileflow.service.DuplicateService;
 import com.austin.fileflow.model.ShortcutAction;
 import com.austin.fileflow.service.ShortcutManager;
 import javafx.scene.input.KeyEvent;
+import javafx.scene.input.MouseButton;
 
 public class MainView {
     
@@ -752,6 +758,8 @@ public class MainView {
 
         pageContent.getChildren().clear();
 
+        root.setRight(null);
+
         scanButton.setVisible(!title.equals("Home"));
         scanButton.setManaged(!title.equals("Home"));
 
@@ -988,6 +996,32 @@ public class MainView {
 
                 row.setAlignment(Pos.CENTER_LEFT);
                 row.getStyleClass().add("dashboard-file-row");
+
+                row.setOnContextMenuRequested(event -> {
+
+                        ContextMenu fileMenu =
+                                createFileContextMenu(
+                                        item.getPath()
+                                );
+
+                        fileMenu.show(
+                                row,
+                                event.getScreenX(),
+                                event.getScreenY()
+                        );
+
+                        event.consume();
+                });
+
+                row.setOnMouseClicked(event -> {
+
+                        if (event.getClickCount() == 2) {
+
+                                openFile(
+                                        item.getPath()
+                                );
+                        }
+                });
 
                 largestFilesList.getChildren().add(row);
         }
@@ -1362,6 +1396,32 @@ public class MainView {
                 row.setAlignment(Pos.CENTER_LEFT);
                 row.getStyleClass().add("dashboard-file-row");
 
+                row.setOnContextMenuRequested(event -> {
+
+                        ContextMenu fileMenu =
+                                createFileContextMenu(
+                                        item.getPath()
+                                );
+
+                        fileMenu.show(
+                                row,
+                                event.getScreenX(),
+                                event.getScreenY()
+                        );
+
+                        event.consume();
+                });
+                
+                row.setOnMouseClicked(event -> {
+
+                        if (event.getClickCount() == 2) {
+
+                                openFile(
+                                        item.getPath()
+                                );
+                        }
+                });
+
                 recentFilesList.getChildren().add(row);
 
         }
@@ -1470,24 +1530,26 @@ public class MainView {
         typeFilter.setPrefWidth(140);
         sortBy.setPrefWidth(170);
 
-        Region toolbarSpacer = new Region();
-        HBox.setHgrow(toolbarSpacer, Priority.ALWAYS);
-
         HBox viewBar = new HBox(
                 10,
                 browseButton,
                 allFilesButton,
-                categoriesButton,
-                toolbarSpacer,
-                controlsRow
+                categoriesButton
         );
 
         viewBar.setAlignment(Pos.CENTER_LEFT);
-        viewBar.setMaxWidth(Double.MAX_VALUE);  
 
-        controlsRow.setAlignment(Pos.CENTER_RIGHT);
+        controlsRow.setAlignment(Pos.CENTER_LEFT);
 
-        filesContent.getChildren().add(viewBar);
+        VBox toolbar = new VBox(
+                10,
+                viewBar,
+                controlsRow
+        );
+
+        toolbar.setMaxWidth(Double.MAX_VALUE);
+
+        filesContent.getChildren().add(toolbar);
         filesContent.getChildren().add(browseHeader);
         filesContent.getChildren().add(categoriesContent);
 
@@ -1539,6 +1601,32 @@ public class MainView {
         }
 
         ListView<FileItem> fileList = new ListView<>();
+
+        PauseTransition quickInfoDelay =
+                new PauseTransition(Duration.millis(280));
+
+        fileList.getSelectionModel()
+                .selectedItemProperty()
+                .addListener((observable, oldItem, newItem) -> {
+
+                quickInfoDelay.stop();
+
+                if (newItem == null) {
+                        return;
+                }
+
+                quickInfoDelay.setOnFinished(event -> {
+
+                        if ("Files".equals(pageTitle.getText())
+                                && fileList.getSelectionModel()
+                                        .getSelectedItem() == newItem) {
+
+                        showQuickInfo(newItem.getPath());
+                        }
+                });
+
+                quickInfoDelay.playFromStart();
+        });
 
         updateBrowseHeader(
                         backButton,
@@ -1919,31 +2007,76 @@ public class MainView {
                                 moreButton
                         );
 
-                        fileRow.setOnMouseClicked(event -> {
-                                if (filesViewMode == FilesViewMode.BROWSE
-                                        && item.isDirectory()
-                                        && event.getClickCount() == 2) {
-                                        currentFolder = item.getPath()
-                                                .toAbsolutePath()
-                                                .normalize();
+                        fileRow.setOnContextMenuRequested(event -> {
 
-                                        updateBrowseHeader(
-                                                backButton,
-                                                breadcrumbBar,
-                                                getListView(),
-                                                searchField,
-                                                typeFilter,
-                                                sortBy
+                                ContextMenu fileMenu =
+                                        createFileContextMenu(
+                                                item.getPath()
                                         );
 
-                                        populateFileList(
-                                                getListView(),
-                                                searchField.getText(), 
-                                                typeFilter.getValue(), 
-                                                sortBy.getValue()
-                                        );
-                                }
+                                fileMenu.show(
+                                        fileRow,
+                                        event.getScreenX(),
+                                        event.getScreenY()
+                                );
+
+                                event.consume();
                         });
+
+                        fileRow.setOnMouseClicked(event -> {
+
+                        if (event.getButton() != MouseButton.PRIMARY) {
+                                return;
+                        }
+
+                        Node clickedNode =
+                                event.getPickResult().getIntersectedNode();
+
+                        while (clickedNode != null && clickedNode != fileRow) {
+
+                                if (clickedNode instanceof Button) {
+                                return;
+                                }
+
+                                clickedNode = clickedNode.getParent();
+                        }
+
+                        if (event.getClickCount() == 2) {
+
+                                quickInfoDelay.stop();
+
+                                if (filesViewMode == FilesViewMode.BROWSE
+                                        && item.isDirectory()) {
+
+                                currentFolder = item.getPath()
+                                        .toAbsolutePath()
+                                        .normalize();
+
+                                updateBrowseHeader(
+                                        backButton,
+                                        breadcrumbBar,
+                                        getListView(),
+                                        searchField,
+                                        typeFilter,
+                                        sortBy
+                                );
+
+                                populateFileList(
+                                        getListView(),
+                                        searchField.getText(),
+                                        typeFilter.getValue(),
+                                        sortBy.getValue()
+                                );
+
+                                } else if (!item.isDirectory()) {
+
+                                openFile(item.getPath());
+                                }
+
+                                event.consume();
+
+                        }
+                });
 
                         fileRow.setAlignment(Pos.CENTER_LEFT);
                         fileRow.getStyleClass().add("file-row");
@@ -2042,13 +2175,7 @@ public class MainView {
                                 filePathLabel
                         );
 
-                        FileItem scannedItem =
-                                findScannedFileItem(filePath);
-
-                        Node filePreview =
-                                scannedItem != null
-                                        ? filePreviewFactory.create(scannedItem)
-                                        : filePreviewFactory.createFallback();
+                        Node filePreview = createStoredFilePreview(filePath);
 
                         Region spacer = new Region();
                         HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -2072,10 +2199,67 @@ public class MainView {
                         row.setAlignment(Pos.CENTER_LEFT);
                         row.getStyleClass().add("file-row");
 
+                        PauseTransition clickDelay =
+                        new PauseTransition(Duration.millis(280));
+
+                        clickDelay.setOnFinished(event -> {
+                                showQuickInfo(filePath);
+                                });
+
+                                row.setOnMouseClicked(event -> {
+
+                                if (event.getButton() != MouseButton.PRIMARY) {
+                                        return;
+                                }
+
+                                if (event.getClickCount() == 2) {
+
+                                        clickDelay.stop();
+
+                                        openFile(filePath);
+
+                                        event.consume();
+
+                                } else if (event.getClickCount() == 1) {
+
+                                        clickDelay.playFromStart();
+                                }
+                                });
+
+                                row.setOnContextMenuRequested(event -> {
+
+                                ContextMenu menu =
+                                        createFileContextMenu(filePath);
+
+                                menu.show(
+                                        row,
+                                        event.getScreenX(),
+                                        event.getScreenY()
+                                );
+
+                                event.consume();
+                        });
+
+                        favouriteButton.addEventFilter(
+                                MouseEvent.MOUSE_CLICKED,
+                                event -> event.consume()
+                        );
+
+                        moreButton.addEventFilter(
+                                MouseEvent.MOUSE_CLICKED,
+                                event -> event.consume()
+                        );
+
                         favouriteButton.setOnAction(event -> {
                                 try {
                                         favouriteRepo.remove(filePath);
+
+                                        clickDelay.stop();
+                                        
                                         content.getChildren().remove(row);
+
+                                        root.setRight(null);
+
                                 } catch (SQLException e) {
                                         
                                         showDatabaseError(
@@ -3406,13 +3590,7 @@ public class MainView {
                                                 filePathLabel
                                         );
 
-                                        FileItem scannedItem =
-                                                findScannedFileItem(filePath);
-
-                                        Node filePreview =
-                                                scannedItem != null
-                                                        ? filePreviewFactory.create(scannedItem)
-                                                        : filePreviewFactory.createFallback();
+                                        Node filePreview = createStoredFilePreview(filePath);
 
                                         Region spacer1 = new Region();
                                         HBox.setHgrow(spacer1, Priority.ALWAYS);
@@ -3448,6 +3626,57 @@ public class MainView {
 
                                         fileRow.setAlignment(Pos.CENTER_LEFT);
                                         fileRow.setMaxWidth(Double.MAX_VALUE);
+
+                                        PauseTransition clickDelay =
+                                                new PauseTransition(Duration.millis(280));
+
+                                        clickDelay.setOnFinished(event -> {
+                                                showQuickInfo(filePath);
+                                        });
+
+                                        fileRow.setOnMouseClicked(event -> {
+
+                                                if (event.getButton() != MouseButton.PRIMARY) {
+                                                        return;
+                                                }
+
+                                                if (event.getClickCount() == 2) {
+
+                                                        clickDelay.stop();
+
+                                                        openFile(filePath);
+
+                                                        event.consume();
+
+                                                } else if (event.getClickCount() == 1) {
+
+                                                        clickDelay.playFromStart();
+                                                }
+                                        });
+
+                                        fileRow.setOnContextMenuRequested(event -> {
+
+                                                ContextMenu menu =
+                                                        createFileContextMenu(filePath);
+
+                                                menu.show(
+                                                        fileRow,
+                                                        event.getScreenX(),
+                                                        event.getScreenY()
+                                                );
+
+                                                event.consume();
+                                        });
+
+                                        removeButton.addEventFilter(
+                                                MouseEvent.MOUSE_CLICKED,
+                                                event -> event.consume()
+                                        );
+
+                                        moreButton.addEventFilter(
+                                                MouseEvent.MOUSE_CLICKED,
+                                                event -> event.consume()
+                                        );
                                         
                                         fileList.getChildren().add(fileRow );
                                 }
@@ -3995,126 +4224,10 @@ public class MainView {
                 Button moreButton = new Button("⋯");
                 moreButton.getStyleClass().add("more-button");
 
-                MenuItem openItem = new MenuItem("Open");
-                MenuItem showInFolderItem = new MenuItem("Show in Folder");
-                MenuItem copyPathItem = new MenuItem("Copy Path");
-
-                ContextMenu fileMenu = new ContextMenu(
-                        openItem,
-                        showInFolderItem,
-                        copyPathItem
-                );
-
-                if (!Files.isDirectory(filePath)) {
-
-                        MenuItem deleteItem =
-                                new MenuItem(
-                                        "Delete"
-                                );
-
-                        deleteItem.getStyleClass().add(
-                                "danger-menu-item"
+                ContextMenu fileMenu =
+                        createFileContextMenu(
+                                filePath
                         );
-
-
-                        deleteItem.setOnAction(event ->
-                                handleDeleteFile(
-                                        filePath
-                                )
-                        );
-
-
-                        fileMenu.getItems().addAll(
-                                new SeparatorMenuItem(),
-                                deleteItem
-                        );
-                }
-
-                openItem.setOnAction(event -> {
-
-                        if (!Files.exists(filePath)) {
-
-                                showFileActionError(
-                                        "File No Longer Exists",
-                                        "This file has been moved or deleted.",
-                                        filePath.toString()
-                                );
-
-                                filePreviewFactory.invalidate(filePath);
-
-                                cleanupDeletedFileReferences(
-                                        filePath
-                                );
-
-                                refreshAfterDelete();
-
-                                return;
-                        }
-
-                        try {
-
-                                filePlatformService.open(
-                                        filePath
-                                );
-
-                        } catch (IOException exception) {
-
-                                showFileActionError(
-                                        "Unable to Open File",
-                                        "FileFlow could not open this file.",
-                                        filePath.toString()
-                                );
-
-                                exception.printStackTrace();
-                        }
-                });
-
-                showInFolderItem.setOnAction(event -> {
-
-                        if (!Files.exists(filePath)) {
-
-                                showFileActionError(
-                                        "File No Longer Exists",
-                                        "This file has been moved or deleted.",
-                                        filePath.toString()
-                                );
-
-                                filePreviewFactory.invalidate(filePath);
-
-                                cleanupDeletedFileReferences(
-                                        filePath
-                                );
-
-                                refreshAfterDelete();
-
-                                return;
-                        }
-
-                        try {
-
-                                filePlatformService.showInFolder(
-                                        filePath
-                                );
-
-                        } catch (IOException exception) {
-
-                                showFileActionError(
-                                        "Unable to Show File",
-                                        "FileFlow could not show this file in its folder.",
-                                        filePath.toString()
-                                );
-
-                                exception.printStackTrace();
-                        }
-                });
-
-                copyPathItem.setOnAction(event -> {
-                        try {
-                                filePlatformService.copyPath(filePath);
-                        } catch (IOException e) {
-                                e.printStackTrace();
-                        }
-                });
 
                 moreButton.setOnAction(event ->
                         fileMenu.show(
@@ -4126,6 +4239,134 @@ public class MainView {
                 );
 
                 return moreButton;
+        }
+
+        private void openFile(
+                Path filePath
+        ) {
+
+                if (!Files.exists(filePath)) {
+
+                        showFileActionError(
+                                "File No Longer Exists",
+                                "This file has been moved or deleted.",
+                                filePath.toString()
+                        );
+
+                        filePreviewFactory.invalidate(
+                                filePath
+                        );
+
+                        cleanupDeletedFileReferences(
+                                filePath
+                        );
+
+                        refreshAfterDelete();
+
+                        return;
+                }
+
+                try {
+
+                        filePlatformService.open(
+                                filePath
+                        );
+
+                } catch (IOException exception) {
+
+                        showFileActionError(
+                                "Unable to Open File",
+                                "FileFlow could not open this file.",
+                                filePath.toString()
+                        );
+
+                        exception.printStackTrace();
+                }
+        }
+
+        private ContextMenu createFileContextMenu(
+                Path filePath
+        ) {
+
+                MenuItem openItem =
+                        new MenuItem("Open");
+
+                MenuItem showInFolderItem =
+                        new MenuItem("Show in Folder");
+
+                MenuItem copyPathItem =
+                        new MenuItem("Copy Path");
+
+                ContextMenu fileMenu =
+                        new ContextMenu(
+                                openItem,
+                                showInFolderItem,
+                                copyPathItem
+                        );
+
+                if (!Files.isDirectory(filePath)) {
+
+                        MenuItem deleteItem =
+                                new MenuItem("Delete");
+
+                        deleteItem.getStyleClass().add(
+                                "danger-menu-item"
+                        );
+
+                        deleteItem.setOnAction(event ->
+                                handleDeleteFile(filePath)
+                        );
+
+                        fileMenu.getItems().addAll(
+                                new SeparatorMenuItem(),
+                                deleteItem
+                        );
+                }
+
+                openItem.setOnAction(event ->
+                        openFile(filePath)
+                );
+
+                showInFolderItem.setOnAction(event -> {
+
+                        if (!Files.exists(filePath)) {
+                                showFileActionError(
+                                        "File Not Found",
+                                        "This file no longer exists.",
+                                        filePath.toString()
+                                );
+                                return;
+                        }
+
+                        try {
+                                filePlatformService.showInFolder(filePath);
+
+                        } catch (IOException exception) {
+                                showFileActionError(
+                                        "Unable to Show File",
+                                        "Could not open the containing folder.",
+                                        filePath.toString()
+                                );
+
+                                exception.printStackTrace();
+                        }
+                });
+
+                copyPathItem.setOnAction(event -> {
+
+                        try {
+
+                        filePlatformService.copyPath(
+                                filePath
+                        );
+
+                        } catch (IOException exception) {
+
+                        exception.printStackTrace();
+                        }
+                });
+
+                return fileMenu;
         }
 
         private boolean confirmPermanentDelete(Path filePath) {
@@ -4288,6 +4529,10 @@ public class MainView {
         }
 
         private void refreshAfterDelete() {
+                refreshAfterDelete(true);
+        }
+
+        private void refreshAfterDelete(boolean reanalyseDuplicates) {
 
                 if (scanRootPath == null) {
 
@@ -4297,7 +4542,7 @@ public class MainView {
 
 
                 boolean refreshDuplicates =
-                        duplicateAnalysisCompleted;
+                        duplicateAnalysisCompleted && reanalyseDuplicates;
 
 
                 scanStatusLabel.setText(
@@ -5025,7 +5270,16 @@ public class MainView {
                                         }
                                 }
 
-                                refreshAfterDelete();
+                                latestDuplicateGroups = latestDuplicateGroups
+                                        .stream()
+                                        .filter(existingGroup -> existingGroup != group)
+                                        .toList();
+
+                                duplicateAnalysisCompleted = true;
+
+                                refreshCurrentPage();
+
+                                refreshAfterDelete(false);
                                 });
                         }); 
 
@@ -5230,5 +5484,298 @@ public class MainView {
                                 fileRow
                         );
                 }
+        }
+
+        private void showQuickInfo(Path filePath) {
+
+                Path path = filePath.toAbsolutePath().normalize();
+
+                Label title = new Label("Quick Info");
+                title.setStyle("-fx-font-size: 17px; -fx-font-weight: bold;");
+
+                Button closeButton = new Button("×");
+                closeButton.setOnAction(event -> root.setRight(null));
+
+                Region spacer = new Region();
+                HBox.setHgrow(spacer, Priority.ALWAYS);
+
+                HBox header = new HBox(10, title, spacer, closeButton);
+                header.setAlignment(Pos.CENTER_LEFT);
+
+                String fileName = path.getFileName() == null
+                        ? path.toString()
+                        : path.getFileName().toString();
+
+                Label nameLabel = new Label(fileName);
+                nameLabel.setWrapText(true);
+                nameLabel.setStyle("-fx-font-size: 15px; -fx-font-weight: bold;");
+
+                String type;
+
+                if (Files.isDirectory(path)) {
+
+                        type = "Folder";
+
+                        } else {
+
+                        FileItem scannedItem = findScannedFileItem(path);
+
+                        if (scannedItem != null) {
+
+                                type = switch (scannedItem.getType()) {
+                                case IMAGE -> "Image";
+                                case VIDEO -> "Video";
+                                case AUDIO -> "Audio";
+                                case DOCUMENT -> "Document";
+                                case ARCHIVE -> "Archive";
+                                case CODE -> "Code";
+                                default -> "File";
+                                };
+
+                        } else {
+
+                                type = "File";
+
+                                try {
+                                String mimeType = Files.probeContentType(path);
+
+                                if (mimeType != null) {
+                                        if (mimeType.startsWith("image/")) {
+                                        type = "Image";
+                                        } else if (mimeType.startsWith("video/")) {
+                                        type = "Video";
+                                        } else if (mimeType.startsWith("audio/")) {
+                                        type = "Audio";
+                                        }
+                                }
+
+                                } catch (IOException exception) {
+                                }
+                        }
+                }
+                String size = "Unavailable";
+                String modified = "Unavailable";
+
+                if (Files.exists(path)) {
+                        try {
+                        size = Files.isDirectory(path)
+                                ? "—"
+                                : FileSizeFormatter.format(Files.size(path));
+
+                        modified = Files.getLastModifiedTime(path)
+                                .toInstant()
+                                .atZone(java.time.ZoneId.systemDefault())
+                                .format(DateTimeFormatter.ofPattern(
+                                        "dd MMM yyyy, HH:mm"
+                                ));
+
+                        } catch (IOException | SecurityException exception) {
+                        }
+                }
+
+                Label typeLabel = new Label("Type: " + type);
+                Label sizeLabel = new Label("Size: " + size);
+                Label modifiedLabel = new Label("Modified: " + modified);
+
+                Label pathLabel = new Label("Location:\n" + path);
+                pathLabel.setWrapText(true);
+
+                Node preview = createQuickInfoPreview(path, type);
+
+                VBox inspector = new VBox(
+                        14,
+                        header,
+                        preview,
+                        nameLabel,
+                        new javafx.scene.control.Separator(),
+                        typeLabel,
+                        sizeLabel,
+                        modifiedLabel,
+                        pathLabel
+                );
+
+                inspector.setPrefWidth(290);
+                inspector.setMinWidth(260);
+
+                inspector.setStyle(
+                        "-fx-padding: 20;" +
+                        "-fx-background-color: -fx-control-inner-background;" +
+                        "-fx-border-color: -fx-box-border;" +
+                        "-fx-border-width: 0 0 0 1;"
+                );
+
+                root.setRight(inspector);
+        }
+
+        private Node createQuickInfoPreview(Path path, String type) {
+
+                StackPane previewBox = new StackPane();
+
+                previewBox.setPrefSize(250, 180);
+                previewBox.setMinHeight(180);
+                previewBox.setMaxHeight(180);
+
+                previewBox.setStyle(
+                        "-fx-background-color: #f3f4f6;" +
+                        "-fx-background-radius: 12;" +
+                        "-fx-border-radius: 12;" +
+                        "-fx-border-color: #e5e7eb;"
+                );
+
+                boolean isImage =
+                        type.equalsIgnoreCase("Image")
+                        || type.endsWith(" Image");
+
+                if (isImage && Files.isRegularFile(path)) {
+
+                        Label loadingLabel =
+                                new Label("Loading preview...");
+
+                        previewBox.getChildren().add(loadingLabel);
+
+                        Image image = new Image(
+                                path.toUri().toString(),
+                                250,
+                                180,
+                                true,
+                                true,
+                                true
+                        );
+
+                        ImageView imageView = new ImageView(image);
+
+                        imageView.setFitWidth(250);
+                        imageView.setFitHeight(180);
+                        imageView.setPreserveRatio(true);
+                        imageView.setSmooth(true);
+
+                        Runnable updatePreview = () -> {
+
+                        if (image.isError()) {
+
+                                previewBox.getChildren().setAll(
+                                        new Label("Preview unavailable")
+                                );
+
+                        } else if (image.getProgress() >= 1.0) {
+
+                                previewBox.getChildren().setAll(imageView);
+                        }
+                        };
+
+                        image.progressProperty().addListener(
+                                (observable, oldValue, newValue) ->
+                                        updatePreview.run()
+                        );
+
+                        image.errorProperty().addListener(
+                                (observable, oldValue, newValue) ->
+                                        updatePreview.run()
+                        );
+
+                        updatePreview.run();
+
+                } else {
+
+                        String placeholder = switch (type) {
+                        case "Folder" -> "FOLDER";
+                        case "Document" -> "DOCUMENT";
+                        case "Video" -> "VIDEO";
+                        case "Audio" -> "AUDIO";
+                        case "Archive" -> "ARCHIVE";
+                        case "Code" -> "CODE";
+                        default -> "FILE";
+                        };
+
+                        Label placeholderLabel = new Label(placeholder);
+
+                        placeholderLabel.setStyle(
+                                "-fx-font-size: 20px;" +
+                                "-fx-font-weight: bold;" +
+                                "-fx-text-fill: #64748b;"
+                        );
+
+                        previewBox.getChildren().add(placeholderLabel);
+                }
+
+                return previewBox;
+        }
+
+        private Node createStoredFilePreview(Path filePath) {
+
+                FileItem scannedItem = findScannedFileItem(filePath);
+
+                if (scannedItem != null) {
+                        return filePreviewFactory.create(scannedItem);
+                }
+
+                String fileName = filePath.getFileName().toString()
+                        .toLowerCase(Locale.ROOT);
+
+                boolean isImage = fileName.matches(
+                        ".*\\.(jpg|jpeg|png|gif|bmp)"
+                );
+
+                if (!isImage || !Files.isRegularFile(filePath)) {
+                        return filePreviewFactory.createFallback();
+                }
+
+                StackPane preview = new StackPane();
+
+                preview.setPrefSize(56, 42);
+                preview.setMinSize(56, 42);
+                preview.setMaxSize(56, 42);
+
+                preview.getStyleClass().addAll(
+                        "file-preview",
+                        "file-preview-image"
+                );
+
+                Label fallback = new Label("IMAGE");
+                fallback.getStyleClass().add(
+                        "file-preview-placeholder"
+                );
+
+                preview.getChildren().add(fallback);
+
+                Image image = new Image(
+                        filePath.toUri().toString(),
+                        112,
+                        84,
+                        true,
+                        true,
+                        true
+                );
+
+                ImageView imageView = new ImageView(image);
+
+                imageView.setFitWidth(56);
+                imageView.setFitHeight(42);
+                imageView.setPreserveRatio(true);
+                imageView.setSmooth(true);
+
+                Runnable updatePreview = () -> {
+
+                        if (image.isError()) {
+                        preview.getChildren().setAll(fallback);
+
+                        } else if (image.getProgress() >= 1.0) {
+                        preview.getChildren().setAll(imageView);
+                        }
+                };
+
+                image.progressProperty().addListener(
+                        (observable, oldValue, newValue) ->
+                                updatePreview.run()
+                );
+
+                image.errorProperty().addListener(
+                        (observable, oldValue, newValue) ->
+                                updatePreview.run()
+                );
+
+                updatePreview.run();
+
+                return preview;
         }
 }
