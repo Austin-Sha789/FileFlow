@@ -33,6 +33,7 @@ import javafx.scene.control.Alert;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.ButtonType;
 import javafx.stage.DirectoryChooser;
+import javafx.stage.WindowEvent;
 import javafx.geometry.Pos;
 import javafx.event.EventHandler;
 import javafx.scene.Scene;
@@ -73,6 +74,8 @@ import com.austin.fileflow.model.ScanResult;
 import com.austin.fileflow.model.ScanHistoryEntry;
 import com.austin.fileflow.model.StorageVolume;
 import com.austin.fileflow.service.FileScanService;
+import com.austin.fileflow.service.FolderWatcher;
+import javafx.application.Platform;
 import com.austin.fileflow.service.StorageService;
 import com.austin.fileflow.ui.component.FilePreviewFactory;
 import com.austin.fileflow.util.FileSizeFormatter;
@@ -125,6 +128,9 @@ public class MainView {
     private final Label scanStatusLabel;
     private final FilePlatformService filePlatformService;
     private Path scanRootPath;
+    private final FolderWatcher folderWatcher = new FolderWatcher();
+    private boolean autoRefreshPending = false;
+    private final PauseTransition autoRefreshDelay = new PauseTransition(Duration.millis(1000));
     private Label storageNameLabel;
     private ProgressBar storageUsageBar;
     private Label storageUsedLabel;
@@ -186,58 +192,106 @@ public class MainView {
         scanButton = new Button("Scan Folder");
         refreshButton = new Button("Refresh");
         refreshButton.setDisable(true);
+        
+        autoRefreshDelay.setOnFinished(event -> {
+
+                if (scanRootPath == null) {
+                        return;
+                }
+
+                if (scanning) {
+                        autoRefreshPending = true;
+                        return;
+                }
+
+                autoRefreshPending = false;
+                refreshCurrentScan();
+        });
 
         root.setLeft(createSidebar());
         root.setCenter(createContent());
+
+        root.sceneProperty().addListener(
+                (observable, oldScene, newScene) -> {
+
+                        if (newScene == null) {
+                                return;
+                        }
+
+                        newScene.windowProperty().addListener(
+                                (windowObs, oldWindow, newWindow) -> {
+
+                                        if (newWindow == null) {
+                                                return;
+                                        }
+
+                                        newWindow.addEventHandler(
+                                                WindowEvent.WINDOW_HIDDEN,
+                                                event -> {
+
+                                                        autoRefreshDelay.stop();
+                                                        autoRefreshPending = false;
+
+                                                        try {
+                                                                folderWatcher.close();
+                                                        } catch (IOException exception) {
+                                                                exception.printStackTrace();
+                                                        }
+                                                }
+                                        );
+                                }
+                        );
+                }
+        );
 
         root.addEventFilter(
                 KeyEvent.KEY_PRESSED,
                 event -> {
 
-                if (shortcutManager.matches(
-                        ShortcutAction.REFRESH_SCAN,
-                        event
-                )) {
+                        if (shortcutManager.matches(
+                                ShortcutAction.REFRESH_SCAN,
+                                event
+                        )) {
 
-                        if (scanRootPath != null
-                                && !scanning) {
+                                if (scanRootPath != null
+                                        && !scanning) {
 
-                                refreshCurrentScan();
+                                        refreshCurrentScan();
+                                }
+
+                                event.consume();
+                                return;
                         }
 
-                        event.consume();
-                        return;
-                }
+                        if (shortcutManager.matches(
+                                ShortcutAction.FOCUS_SEARCH,
+                                event
+                        )) {
 
-                if (shortcutManager.matches(
-                        ShortcutAction.FOCUS_SEARCH,
-                        event
-                )) {
+                                selectNavItem(
+                                        filesNavItem,
+                                        "Files"
+                                );
 
-                        selectNavItem(
-                                filesNavItem,
-                                "Files"
-                        );
+                                if (searchField != null) {
+                                        searchField.requestFocus();
+                                }
 
-                        if (searchField != null) {
-                                searchField.requestFocus();
+                                event.consume();
+                                return;
                         }
 
-                        event.consume();
-                        return;
-                }
+                        if (shortcutManager.matches(
+                                ShortcutAction.SCAN_FOLDER,
+                                event
+                        )) {
 
-                if (shortcutManager.matches(
-                        ShortcutAction.SCAN_FOLDER,
-                        event
-                )) {
+                                if (!scanning) {
+                                        handleScan();
+                                }
 
-                        if (!scanning) {
-                                handleScan();
+                                event.consume();
                         }
-
-                        event.consume();
-                }
                 }
         );
     }
@@ -3808,6 +3862,8 @@ public class MainView {
 
                         currentFolder = scanRootPath;
 
+                        startWatchingScanRoot();
+
                         setScanningState(false);
                         currentScanTask = null;
 
@@ -3875,6 +3931,35 @@ public class MainView {
                 Thread scanThread = new Thread(scanTask);
                 scanThread.setDaemon(true);
                 scanThread.start();
+        }
+
+        private void startWatchingScanRoot() {
+
+                if (scanRootPath == null) {
+                        return;
+                }
+
+                Path watchedPath = scanRootPath;
+
+                try {
+                        folderWatcher.start(watchedPath, () -> {
+
+                        Platform.runLater(() -> {
+
+                                if (watchedPath.equals(scanRootPath)) {
+                                autoRefreshDelay.playFromStart();
+                                }
+                        });
+                        });
+
+                } catch (IOException exception) {
+
+                        showStatusWarning(
+                                "Automatic folder monitoring is unavailable."
+                        );
+
+                        exception.printStackTrace();
+                }
         }
 
         private void refreshCurrentScan() {
@@ -4201,6 +4286,13 @@ public class MainView {
                         homeScanButton.setText(
                                 scanning ? "Cancel Scan" : "Scan Folder"
                         );
+                }
+
+                if (!scanning && autoRefreshPending) {
+
+                        autoRefreshPending = false;
+
+                        autoRefreshDelay.playFromStart();
                 }
         }
 
@@ -4536,6 +4628,13 @@ public class MainView {
                         return;
                 }
 
+                if (scanning) {
+
+                        autoRefreshPending = true;
+                        return;
+                }
+
+                setScanningState(true);
 
                 boolean refreshDuplicates =
                         duplicateAnalysisCompleted && reanalyseDuplicates;
@@ -4577,21 +4676,27 @@ public class MainView {
                                 refreshTask.getValue();
 
                         rebuildScannedItemIndex();
+                        
+                        currentScanTask = null;
 
                         if (refreshDuplicates) {
 
-                        refreshDuplicatesAfterDelete();
+                                refreshDuplicatesAfterDelete();
 
                         } else {
 
-                        hideRefreshStatus();
+                                hideRefreshStatus();
 
-                        refreshCurrentPage();
+                                refreshCurrentPage();
+
+                                setScanningState(false);
                         }
                 });
 
 
                 refreshTask.setOnFailed(event -> {
+
+                        currentScanTask = null;
 
                         hideRefreshStatus();
 
@@ -4600,8 +4705,18 @@ public class MainView {
                                 .printStackTrace();
 
                         refreshCurrentPage();
+
+                        setScanningState(false);
                 });
 
+                refreshTask.setOnCancelled(event -> {
+
+                        currentScanTask = null;
+
+                        hideRefreshStatus();
+
+                        setScanningState(false);
+                });
 
                 Thread refreshThread =
                         new Thread(
@@ -4644,6 +4759,8 @@ public class MainView {
                                 hideRefreshStatus();
 
                                 refreshCurrentPage();
+
+                                setScanningState(false);
                         }
                 );
 
@@ -4664,6 +4781,8 @@ public class MainView {
                                         List.of();
 
                                 refreshCurrentPage();
+
+                                setScanningState(false);
                         }
                 );
 
