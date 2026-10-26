@@ -5,10 +5,15 @@ import javafx.scene.Parent;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
+import javafx.scene.layout.FlowPane;
+import javafx.scene.layout.ColumnConstraints;
+import javafx.geometry.HPos;
 import javafx.scene.control.Label;
+import javafx.scene.control.TextArea;
 import javafx.scene.control.Button;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
@@ -42,6 +47,12 @@ import javafx.scene.input.KeyCodeCombination;
 import javafx.scene.input.KeyCombination;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
+
+import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
+import java.util.Iterator;
+import java.util.concurrent.CompletableFuture;
 
 import javafx.animation.PauseTransition;
 
@@ -86,10 +97,12 @@ import com.austin.fileflow.repository.ScanHistoryRepo;
 import com.austin.fileflow.platform.FilePlatformService;
 import com.austin.fileflow.model.DuplicateGroup;
 import com.austin.fileflow.service.DuplicateService;
+import com.austin.fileflow.service.SimilarImageService;
+import com.austin.fileflow.model.SimilarImagePair;
 import com.austin.fileflow.model.ShortcutAction;
 import com.austin.fileflow.service.ShortcutManager;
+import com.austin.fileflow.model.SimilarImageGroup;
 import javafx.scene.input.KeyEvent;
-import javafx.scene.input.MouseButton;
 
 public class MainView {
     
@@ -106,6 +119,14 @@ public class MainView {
     private final StorageService storageService;
     private final FilePreviewFactory filePreviewFactory;
     private List<DuplicateGroup> latestDuplicateGroups  = List.of();
+    private List<SimilarImagePair> latestSimilarPairs = List.of();
+    private final SimilarImageService similarImageService =
+        new SimilarImageService();
+    private boolean similarAnalysisCompleted = false;
+    private Task<List<SimilarImagePair>> currentSimilarTask;
+    private Button activeSimilarAnalyseButton;
+    private String similarDetectionMode = "Balanced";
+    private boolean similarTabSelected = false;     
     private boolean duplicateScanning;
     private Task<List<DuplicateGroup>> currentDuplicateTask;
     private final FavouriteRepo favouriteRepo;
@@ -2349,6 +2370,18 @@ public class MainView {
         Label subtitle = new Label("Find identical files and see how much storage you could reclaim.");
         subtitle.getStyleClass().add("duplicates-subtitle");
 
+        ToggleButton exactTab = new ToggleButton("Exact Duplicates");
+        ToggleButton similarTab = new ToggleButton("Similar Images");
+
+        ToggleGroup modeGroup = new ToggleGroup();
+
+        exactTab.setToggleGroup(modeGroup);
+        similarTab.setToggleGroup(modeGroup);
+
+        exactTab.setSelected(true);
+
+        HBox modeTabs = new HBox(8, exactTab, similarTab);
+
         Button analyseButton = new Button("Analyse Duplicates");
         analyseButton.getStyleClass().add("duplicates-analyse-button");
 
@@ -2610,7 +2643,10 @@ public class MainView {
 
         
 
-        content.getChildren().addAll(
+        // Existing exact duplicate interface
+        VBox exactContent = new VBox(18);
+
+        exactContent.getChildren().addAll(
                 heading,
                 subtitle,
                 analyseButton,
@@ -2620,6 +2656,323 @@ public class MainView {
                 duplicateGroupsTitle,
                 resultsScrollPane
         );
+
+        // New similar images interface
+        VBox similarContent = new VBox(12);
+
+        Label similarHeading = new Label("Similar Images");
+        similarHeading.getStyleClass().add("duplicates-heading");
+
+        Label similarDescription = new Label(
+                "Find visually similar images, even when their sizes or resolutions differ."
+        );
+        similarDescription.setWrapText(true);
+        similarDescription.getStyleClass().add("duplicates-subtitle");
+
+        Label sensitivityLabel =
+                new Label("Detection Sensitivity");
+
+        ComboBox<String> sensitivityCombo =
+                new ComboBox<>();
+
+        sensitivityCombo.getItems().addAll(
+                "Strict",
+                "Balanced",
+                "Broad"
+        );
+
+        sensitivityCombo.setValue(similarDetectionMode);
+        sensitivityCombo.setPrefWidth(200);
+
+        Button similarAnalyseButton =
+                new Button("Analyse Similar Images");
+
+        activeSimilarAnalyseButton = similarAnalyseButton;
+
+        similarAnalyseButton.getStyleClass().add(
+                "duplicates-analyse-button"
+        );
+
+        similarAnalyseButton.setDisable(latestScanResult == null);
+
+        Label similarStatusLabel = new Label();
+
+        ProgressBar similarProgressBar = new ProgressBar(0);
+
+        similarProgressBar.setPrefWidth(360);
+
+        similarProgressBar.setVisible(false);
+        similarProgressBar.setManaged(false);
+
+        similarProgressBar.getStyleClass().add(
+                "duplicates-progress"
+        );
+
+        VBox similarResults = new VBox(12);
+
+        ScrollPane similarResultsScroll =
+                new ScrollPane(similarResults);
+
+        similarResultsScroll.setFitToWidth(true);
+
+        similarResultsScroll.setHbarPolicy(
+                ScrollPane.ScrollBarPolicy.NEVER
+        );
+
+        similarResultsScroll.getStyleClass().add(
+                "duplicates-scroll"
+        );
+
+        similarResultsScroll.setPrefViewportHeight(520);
+
+        boolean hasSimilarResults =
+                similarAnalysisCompleted
+                && !latestSimilarPairs.isEmpty();
+
+        similarResultsScroll.setVisible(hasSimilarResults);
+        similarResultsScroll.setManaged(hasSimilarResults);
+
+        if (hasSimilarResults) {
+                populateSimilarImageResults(similarResults);
+        }
+
+        sensitivityCombo.setOnAction(event -> {
+
+                String selectedMode = sensitivityCombo.getValue();
+
+                if (selectedMode == null
+                        || selectedMode.equals(similarDetectionMode)) {
+                        return;
+                }
+
+                similarDetectionMode = selectedMode;
+
+                similarAnalysisCompleted = false;
+                latestSimilarPairs = List.of();
+
+                similarResults.getChildren().clear();
+
+                similarResultsScroll.setVisible(false);
+                similarResultsScroll.setManaged(false);
+
+                similarStatusLabel.setText(
+                        "Detection mode changed. Analyse again."
+                );
+        });
+
+        similarStatusLabel.getStyleClass().add(
+                "duplicates-status"
+        );
+
+        if (latestScanResult == null) {
+        similarStatusLabel.setText(
+                "Scan a folder before analysing images."
+        );
+        } else if (similarAnalysisCompleted) {
+                similarStatusLabel.setText(
+                        getSimilarImageSummary()
+                );
+        } else {
+                similarStatusLabel.setText(
+                        "No similar image analysis yet."
+                );
+        }
+
+        similarAnalyseButton.setOnAction(event -> {
+
+                if (currentSimilarTask != null) {
+                        currentSimilarTask.cancel();
+                        return;
+                }
+
+                if (latestScanResult == null) {
+                        return;
+                }
+
+                ScanResult sourceScan = latestScanResult;
+
+                List<FileItem> items =
+                        List.copyOf(sourceScan.getItems());
+
+                String selectedMode = sensitivityCombo.getValue();
+
+                final int hashThreshold = switch (selectedMode) {
+                        case "Strict" -> 6;
+                        case "Broad" -> 12;
+                        default -> 8;
+                };
+
+                final double detailThreshold = switch (selectedMode) {
+                        case "Strict" -> 0.12;
+                        case "Broad" -> 0.20;
+                        default -> 0.16;
+                };
+
+                similarAnalyseButton.setText("Cancel Analysis");
+
+                similarProgressBar.setProgress(0);
+                similarProgressBar.setVisible(true);
+                similarProgressBar.setManaged(true);
+
+                sensitivityCombo.setDisable(true);
+
+                similarStatusLabel.setText(
+                        "Analysing images..."
+                );
+
+                Task<List<SimilarImagePair>> similarTask =
+                        new Task<>() {
+
+                                @Override
+                                protected List<SimilarImagePair> call() {
+
+                                        return similarImageService.findSimilarImages(
+                                                items,
+                                                hashThreshold,
+                                                detailThreshold,
+                                                this::isCancelled,
+                                                (processed, total) -> {
+
+                                                updateProgress(processed, Math.max(total, 1));
+
+                                                updateMessage(
+                                                        "Reading images... "
+                                                                + processed + " / " + total
+                                                );
+                                                }
+                                        );
+                                }
+                        };
+
+                similarProgressBar.progressProperty().bind(
+                        similarTask.progressProperty()
+                );
+
+                similarStatusLabel.textProperty().bind(
+                        similarTask.messageProperty()
+                );
+
+                currentSimilarTask = similarTask;
+
+                Runnable finishSimilarTask = () -> {
+
+                        similarProgressBar.progressProperty().unbind();
+                        similarStatusLabel.textProperty().unbind();
+
+                        similarProgressBar.setVisible(false);
+                        similarProgressBar.setManaged(false);
+
+                        similarAnalyseButton.setText("Analyse Similar Images");
+                        similarAnalyseButton.setDisable(latestScanResult == null);
+
+                        sensitivityCombo.setDisable(false);
+
+                        if (currentSimilarTask == similarTask) {
+                                currentSimilarTask = null;
+                        }
+                };
+
+                similarTask.setOnSucceeded(done -> {
+
+                        finishSimilarTask.run();
+
+                        if (latestScanResult != sourceScan) {
+                                similarStatusLabel.setText(
+                                        "Scan changed. Please analyse again."
+                                );
+                                return;
+                        }
+
+                        latestSimilarPairs = similarTask.getValue();
+
+                        similarAnalysisCompleted = true;
+
+                        // Display the matching image pairs
+                        populateSimilarImageResults(similarResults);
+
+                        boolean hasMatches = !latestSimilarPairs.isEmpty();
+
+                        similarResultsScroll.setVisible(hasMatches);
+                        similarResultsScroll.setManaged(hasMatches);
+
+                        similarStatusLabel.setText(
+                                getSimilarImageSummary()
+                        );
+                });
+
+                similarTask.setOnFailed(failed -> {
+
+                        finishSimilarTask.run();
+
+                        similarStatusLabel.setText(
+                                "Similar image analysis failed."
+                        );
+
+                        similarTask.getException().printStackTrace();
+                });
+
+                similarTask.setOnCancelled(done -> {
+
+                        finishSimilarTask.run();
+
+                        similarStatusLabel.setText(
+                                "Analysis cancelled."
+                        );
+                });
+
+                Thread similarThread = new Thread(similarTask);
+
+                similarThread.setDaemon(true);
+                similarThread.start();
+        });
+
+        similarContent.getChildren().addAll(
+                similarHeading,
+                similarDescription,
+                sensitivityLabel,
+                sensitivityCombo,
+                similarAnalyseButton,
+                similarProgressBar,
+                similarStatusLabel,
+                similarResultsScroll
+        );
+
+        similarContent.setVisible(false);
+        similarContent.setManaged(false);
+
+        // Add both modes to the page
+        content.getChildren().addAll(
+                modeTabs,
+                exactContent,
+                similarContent
+        );
+
+        // Handle mode switching
+        modeGroup.selectedToggleProperty().addListener(
+                (observable, oldToggle, newToggle) -> {
+
+                if (newToggle == null) {
+                        if (oldToggle != null) {
+                        oldToggle.setSelected(true);
+                        }
+                        return;
+                }
+
+                boolean showSimilar = newToggle == similarTab;
+
+                similarTabSelected = showSimilar;
+
+                exactContent.setVisible(!showSimilar);
+                exactContent.setManaged(!showSimilar);
+
+                similarContent.setVisible(showSimilar);
+                similarContent.setManaged(showSimilar);
+                }
+        );
+
+        if (similarTabSelected) {
+                similarTab.setSelected(true);
+        }
 
         if (duplicateAnalysisCompleted) {
 
@@ -3856,6 +4209,9 @@ public class MainView {
                         latestDuplicateGroups  = List.of();
                         duplicateAnalysisCompleted = false;
 
+                        latestSimilarPairs = List.of();
+                        similarAnalysisCompleted = false;
+
                         scanRootPath = selectedPath
                                 .toAbsolutePath()
                                 .normalize();
@@ -3962,6 +4318,66 @@ public class MainView {
                 }
         }
 
+        private void reconcileSimilarResultsAfterRefresh(
+                ScanResult previousScan,
+                ScanResult refreshedScan
+        ) {
+                if (!similarAnalysisCompleted || previousScan == null) {
+                        return;
+                }
+
+                Map<Path, FileItem> previousImages = new HashMap<>();
+
+                for (FileItem item : previousScan.getItems()) {
+                        if (!item.isDirectory() && item.getType() == FileType.IMAGE) {
+                        previousImages.put(
+                                item.getPath().toAbsolutePath().normalize(),
+                                item
+                        );
+                        }
+                }
+
+                Set<Path> currentImages = new HashSet<>();
+
+                for (FileItem item : refreshedScan.getItems()) {
+                        if (item.isDirectory() || item.getType() != FileType.IMAGE) {
+                        continue;
+                        }
+
+                        Path path = item.getPath().toAbsolutePath().normalize();
+                        currentImages.add(path);
+
+                        FileItem previous = previousImages.get(path);
+
+                        if (previous == null
+                                || previous.getSizeBytes() != item.getSizeBytes()
+                                || !java.util.Objects.equals(
+                                        previous.getLastModified(),
+                                        item.getLastModified()
+                                )) {
+
+                        // New or modified image: existing results are no longer complete.
+                        latestSimilarPairs = List.of();
+                        similarAnalysisCompleted = false;
+                        return;
+                        }
+                }
+
+                // Only removals (or unrelated file changes): preserve existing matches.
+                latestSimilarPairs = latestSimilarPairs.stream()
+                        .filter(pair ->
+                                currentImages.contains(
+                                        pair.first().getPath()
+                                                .toAbsolutePath().normalize()
+                                )
+                                && currentImages.contains(
+                                        pair.second().getPath()
+                                                .toAbsolutePath().normalize()
+                                )
+                        )
+                        .toList();
+        }
+
         private void refreshCurrentScan() {
 
                 if (scanRootPath == null || scanning) {
@@ -3995,11 +4411,23 @@ public class MainView {
 
                 refreshTask.setOnSucceeded(event -> {
 
+                        boolean autoReanalyseSimilar =
+                                "Duplicates".equals(pageTitle.getText())
+                                && similarTabSelected
+                                && similarAnalysisCompleted
+                                && currentSimilarTask == null;
+
                         setScanningState(false);
                         currentScanTask = null;
 
-                        latestScanResult =
-                                refreshTask.getValue();
+                        ScanResult previousScan = latestScanResult;
+
+                        latestScanResult = refreshTask.getValue();
+
+                        reconcileSimilarResultsAfterRefresh(
+                                previousScan,
+                                latestScanResult
+                        );
 
                         rebuildScannedItemIndex();
 
@@ -4672,8 +5100,14 @@ public class MainView {
 
                 refreshTask.setOnSucceeded(event -> {
 
-                        latestScanResult =
-                                refreshTask.getValue();
+                        ScanResult previousScan = latestScanResult;
+
+                        latestScanResult = refreshTask.getValue();
+
+                        reconcileSimilarResultsAfterRefresh(
+                                previousScan,
+                                latestScanResult
+                        );
 
                         rebuildScannedItemIndex();
                         
@@ -5187,7 +5621,538 @@ public class MainView {
 
         return section;
         }
+
+        private String readImageResolution(Path path) {
+
+                try (ImageInputStream input =
+                        ImageIO.createImageInputStream(path.toFile())) {
+
+                        if (input == null) {
+                        return "Unknown resolution";
+                        }
+
+                        Iterator<ImageReader> readers =
+                                ImageIO.getImageReaders(input);
+
+                        if (!readers.hasNext()) {
+                        return "Unknown resolution";
+                        }
+
+                        ImageReader reader = readers.next();
+
+                        try {
+                        reader.setInput(input, true, true);
+
+                        int width = reader.getWidth(0);
+                        int height = reader.getHeight(0);
+
+                        return width + " × " + height;
+
+                        } finally {
+                        reader.dispose();
+                        }
+
+                } catch (IOException | RuntimeException exception) {
+                        return "Unknown resolution";
+                }
+        }
+
+        private void deleteSelectedSimilarImages(
+                SimilarImageGroup group,
+                List<Path> selectedPaths
+        ) {
+
+                if (scanning || currentSimilarTask != null) {
+                        showStatusWarning(
+                                "Please finish the current analysis or scan first."
+                        );
+                        return;
+                }
+
+                Set<Path> selected = new HashSet<>(selectedPaths);
+
+                List<FileItem> toDelete = group.files()
+                        .stream()
+                        .filter(item -> selected.contains(item.getPath()))
+                        .toList();
+
+                List<FileItem> toKeep = group.files()
+                        .stream()
+                        .filter(item -> !selected.contains(item.getPath()))
+                        .toList();
+
+                if (toDelete.isEmpty()
+                        || toKeep.isEmpty()
+                        || toDelete.size() != selected.size()) {
+                        return;
+                }
+
+                long reclaimableBytes = toDelete.stream()
+                        .mapToLong(FileItem::getSizeBytes)
+                        .sum();
+
+                String keepPaths = String.join(
+                        "\n",
+                        toKeep.stream()
+                                .map(item -> item.getPath().toString())
+                                .toList()
+                );
+
+                String deletePaths = String.join(
+                        "\n",
+                        toDelete.stream()
+                                .map(item -> item.getPath().toString())
+                                .toList()
+                );
+
+                Alert confirmation = new Alert(Alert.AlertType.WARNING);
+
+                confirmation.setTitle("Resolve Similar Images");
+
+                confirmation.setHeaderText(
+                        "Permanently delete " + toDelete.size() + " image(s)?"
+                );
+
+                confirmation.setContentText(
+                        "Images to keep: " + toKeep.size()
+                                + "\nImages to delete: " + toDelete.size()
+                                + "\nSpace to reclaim: "
+                                + FileSizeFormatter.format(reclaimableBytes)
+                                + "\n\nThese files will NOT go to the Recycle Bin."
+                );
+
+                TextArea details = new TextArea(
+                        "KEEP:\n" + keepPaths
+                                + "\n\nDELETE:\n" + deletePaths
+                );
+
+                details.setEditable(false);
+                details.setWrapText(true);
+                details.setPrefRowCount(10);
+                details.setPrefColumnCount(55);
+
+                confirmation.getDialogPane().setExpandableContent(details);
+                confirmation.getDialogPane().setExpanded(true);
+
+                ButtonType deleteButton = new ButtonType(
+                        "Delete Permanently",
+                        ButtonBar.ButtonData.OK_DONE
+                );
+
+                confirmation.getButtonTypes().setAll(
+                        ButtonType.CANCEL,
+                        deleteButton
+                );
+
+                if (confirmation.showAndWait()
+                        .orElse(ButtonType.CANCEL) != deleteButton) {
+                        return;
+                }
+
+                // Do not delete anything if a kept image is already missing.
+                for (FileItem item : toKeep) {
+
+                        if (!Files.isRegularFile(item.getPath())) {
+                        showFileActionError(
+                                "Resolve Cancelled",
+                                "An image you wanted to keep is missing.",
+                                item.getPath().toString()
+                        );
+                        return;
+                        }
+                }
+
+                Set<Path> deletedPaths = new HashSet<>();
+
+                for (FileItem item : toDelete) {
+
+                        Path path = item.getPath();
+
+                        try {
+
+                        if (!Files.isRegularFile(path)
+                                || Files.size(path) != item.getSizeBytes()) {
+                                throw new IOException(
+                                        "File is missing or has changed since the scan."
+                                );
+                        }
+
+                        filePlatformService.deleteFile(path);
+
+                        deletedPaths.add(path);
+
+                        filePreviewFactory.invalidate(path);
+
+                        cleanupDeletedFileReferences(path);
+
+                        } catch (IOException exception) {
+
+                        showFileActionError(
+                                "Unable to Delete Image",
+                                "Deletion stopped. Some files may already have been deleted.",
+                                path.toString()
+                        );
+
+                        exception.printStackTrace();
+                        break;
+                        }
+                }
+
+                if (!deletedPaths.isEmpty()) {
+
+                        // Remove results involving successfully deleted files.
+                        latestSimilarPairs = latestSimilarPairs.stream()
+                                .filter(pair ->
+                                        !deletedPaths.contains(pair.first().getPath())
+                                        && !deletedPaths.contains(pair.second().getPath())
+                                )
+                                .toList();
+
+                        similarAnalysisCompleted = true;
+
+                        refreshCurrentPage();
+
+                        // Refresh file metadata without rehashing exact duplicates.
+                        refreshAfterDelete(false);
+                }
+        }
+
+        private String getSimilarImageSummary() {
+
+                if (latestSimilarPairs.isEmpty()) {
+                        return "No similar images found.";
+                }
+
+                List<SimilarImageGroup> groups =
+                        similarImageService.groupSimilarPairs(
+                                latestSimilarPairs
+                        );
+
+                long imageCount = groups.stream()
+                        .flatMap(group -> group.files().stream())
+                        .map(item -> item.getPath()
+                                .toAbsolutePath()
+                                .normalize())
+                        .distinct()
+                        .count();
+
+                return String.format(
+                        "%d similar groups · %d images",
+                        groups.size(),
+                        imageCount
+                );
+        }
         
+        private void populateSimilarImageResults(
+                VBox container
+        ) {
+                container.getChildren().clear();
+
+                PauseTransition similarClickDelay =
+                        new PauseTransition(Duration.millis(280));
+
+                List<SimilarImageGroup> groups =
+                        similarImageService.groupSimilarPairs(
+                                latestSimilarPairs
+                        );
+
+                int groupNumber = 1;
+
+                for (SimilarImageGroup group : groups) {
+
+                        Label groupTitle = new Label(
+                                "Similar Group " + groupNumber
+                                        + " · " + group.files().size()
+                                        + " images"
+                        );
+
+                        groupTitle.getStyleClass().add(
+                                "duplicate-group-summary"
+                        );
+
+                        GridPane imageGrid = new GridPane();
+
+                        imageGrid.setHgap(12);
+                        imageGrid.setVgap(18);
+
+                        imageGrid.setMaxWidth(Double.MAX_VALUE);
+
+                        for (int col = 0; col < 3; col++) {
+
+                                ColumnConstraints column = new ColumnConstraints();
+
+                                column.setPercentWidth(100.0 / 3);
+
+                                imageGrid.getColumnConstraints().add(column);
+                        }
+
+                        int imageIndex = 0;
+
+                        for (FileItem item : group.files()) {
+
+                                Node preview = createQuickInfoPreview(
+                                        item.getPath(),
+                                        "Image",
+                                        230,
+                                        160
+                                );
+
+                                Label nameLabel = new Label(
+                                        item.getName()
+                                );
+
+                                nameLabel.setWrapText(true);
+
+                                String fileSize = FileSizeFormatter.format(
+                                        item.getSizeBytes()
+                                );
+
+                                Label resolutionLabel = new Label("Reading resolution...");
+                                Label sizeLabel = new Label(fileSize);
+
+                                resolutionLabel.setStyle(
+                                        "-fx-font-size: 11px;" +
+                                        "-fx-text-fill: #64748b;"
+                                );
+
+                                sizeLabel.setStyle(
+                                        "-fx-font-size: 11px;" +
+                                        "-fx-text-fill: #64748b;"
+                                );
+
+                                Region spacer = new Region();
+
+                                HBox.setHgrow(spacer, Priority.ALWAYS);
+
+                                HBox metadataRow = new HBox(
+                                        resolutionLabel,
+                                        spacer,
+                                        sizeLabel
+                                );
+
+                                metadataRow.setAlignment(Pos.CENTER_LEFT);
+
+                                // Match the metadata width to the image preview
+                                metadataRow.prefWidthProperty().bind(
+                                        ((Region) preview).prefWidthProperty()
+                                );
+
+                                // Read image dimensions in the background
+                                CompletableFuture
+                                        .supplyAsync(() ->
+                                                readImageResolution(item.getPath())
+                                        )
+                                        .thenAccept(resolution ->
+                                                Platform.runLater(() -> {
+
+                                                resolutionLabel.setText(resolution);
+
+                                                })
+                                        );
+
+                                VBox imageCard = new VBox(
+                                        6,
+                                        preview,
+                                        nameLabel,
+                                        metadataRow
+                                );
+
+                                imageCard.setPrefWidth(245);
+                                imageCard.setMinWidth(245);
+                                imageCard.setMaxWidth(245);
+
+                                imageCard.setOnMouseClicked(event -> {
+
+                                        if (event.getButton() != MouseButton.PRIMARY) {
+                                                return;
+                                        }
+
+                                        if (event.getClickCount() == 2) {
+
+                                                similarClickDelay.stop();
+
+                                                openFile(item.getPath());
+
+                                                event.consume();
+
+                                        } else if (event.getClickCount() == 1) {
+
+                                                similarClickDelay.stop();
+
+                                                similarClickDelay.setOnFinished(done -> {
+
+                                                if (imageCard.getScene() == null
+                                                        || !"Duplicates".equals(pageTitle.getText())) {
+                                                        return;
+                                                }
+
+                                                // Do not open Quick Info after switching modes
+                                                Node current = imageCard;
+
+                                                while (current != null) {
+
+                                                        if (!current.isVisible()) {
+                                                        return;
+                                                        }
+
+                                                        current = current.getParent();
+                                                }
+
+                                                showQuickInfo(item.getPath());
+                                                });
+
+                                                similarClickDelay.playFromStart();
+                                        }
+                                });
+
+                                imageCard.setOnContextMenuRequested(event -> {
+
+                                        ContextMenu fileMenu =
+                                                createFileContextMenu(item.getPath());
+
+                                        fileMenu.show(
+                                                imageCard,
+                                                event.getScreenX(),
+                                                event.getScreenY()
+                                        );
+
+                                        event.consume();
+                                });
+
+                                GridPane.setHalignment(imageCard, HPos.CENTER);
+
+                                imageGrid.add(
+                                        imageCard,
+                                        imageIndex % 3,
+                                        imageIndex / 3
+                                );
+
+                                imageIndex++;
+                        }
+
+                        Button resolveButton = new Button("Resolve");
+
+                        resolveButton.getStyleClass().add(
+                                "secondary-button"
+                        );
+
+                        resolveButton.setOnAction(event -> {
+
+                        Dialog<List<Path>> dialog = new Dialog<>();
+
+                        dialog.setTitle("Resolve Similar Images");
+                        dialog.setHeaderText(
+                                "Select the images you want to delete"
+                        );
+
+                        ButtonType reviewType = new ButtonType(
+                                "Review Selection",
+                                ButtonBar.ButtonData.OK_DONE
+                        );
+
+                        dialog.getDialogPane().getButtonTypes().addAll(
+                                reviewType,
+                                ButtonType.CANCEL
+                        );
+
+                        VBox choicesBox = new VBox(12);
+                        List<CheckBox> checkBoxes = new ArrayList<>();
+
+                        for (FileItem file : group.files()) {
+
+                                CheckBox checkBox = new CheckBox(
+                                        file.getName() + " · " +
+                                        FileSizeFormatter.format(file.getSizeBytes())
+                                );
+
+                                checkBox.setUserData(file.getPath());
+
+                                Label pathLabel = new Label(
+                                        file.getPath().toString()
+                                );
+
+                                pathLabel.setWrapText(true);
+                                pathLabel.getStyleClass().add(
+                                        "duplicate-file-path"
+                                );
+
+                                choicesBox.getChildren().add(
+                                        new VBox(4, checkBox, pathLabel)
+                                );
+
+                                checkBoxes.add(checkBox);
+                        }
+
+                        ScrollPane choicesScroll = new ScrollPane(choicesBox);
+                        choicesScroll.setFitToWidth(true);
+                        choicesScroll.setPrefViewportHeight(320);
+
+                        dialog.getDialogPane().setContent(choicesScroll);
+
+                        dialog.setResultConverter(buttonType -> {
+
+                                if (buttonType != reviewType) {
+                                        return null;
+                                }
+
+                                return checkBoxes.stream()
+                                        .filter(CheckBox::isSelected)
+                                        .map(box -> (Path) box.getUserData())
+                                        .toList();
+                        });
+
+                        dialog.showAndWait().ifPresent(selectedPaths -> {
+
+                                if (selectedPaths.isEmpty()) {
+                                        return;
+                                }
+
+                                if (selectedPaths.size() == group.files().size()) {
+
+                                        new Alert(
+                                                Alert.AlertType.WARNING,
+                                                "You must keep at least one image.",
+                                                ButtonType.OK
+                                        ).showAndWait();
+
+                                        return;
+                                }
+
+                                deleteSelectedSimilarImages(group, selectedPaths);
+                        });
+                });
+
+                        Region headerSpacer = new Region();
+
+                        HBox.setHgrow(
+                                headerSpacer,
+                                Priority.ALWAYS
+                        );
+
+                        HBox groupHeader = new HBox(
+                                12,
+                                groupTitle,
+                                headerSpacer,
+                                resolveButton
+                        );
+
+                        groupHeader.setAlignment(Pos.CENTER_LEFT);
+
+                        VBox groupCard = new VBox(
+                                12,
+                                groupHeader,
+                                imageGrid
+                        );
+
+                        groupCard.getStyleClass().add(
+                                "duplicate-group-card"
+                        );
+
+                        container.getChildren().add(groupCard);
+
+                        groupNumber++;
+                }
+        }
 
         private void populateDuplicateResults(
                 VBox resultsContainer
@@ -5768,12 +6733,21 @@ public class MainView {
         }
 
         private Node createQuickInfoPreview(Path path, String type) {
+                return createQuickInfoPreview(path, type, 250, 180);
+        }
+
+        private Node createQuickInfoPreview(
+                Path path,
+                String type,
+                int width,
+                int height
+        ) {
 
                 StackPane previewBox = new StackPane();
 
-                previewBox.setPrefSize(250, 180);
-                previewBox.setMinHeight(180);
-                previewBox.setMaxHeight(180);
+                previewBox.setPrefSize(width, height);
+                previewBox.setMinSize(width, height);
+                previewBox.setMaxSize(width, height);
 
                 previewBox.setStyle(
                         "-fx-background-color: #f3f4f6;" +
@@ -5795,8 +6769,8 @@ public class MainView {
 
                         Image image = new Image(
                                 path.toUri().toString(),
-                                250,
-                                180,
+                                width,
+                                height,
                                 true,
                                 true,
                                 true
@@ -5804,8 +6778,8 @@ public class MainView {
 
                         ImageView imageView = new ImageView(image);
 
-                        imageView.setFitWidth(250);
-                        imageView.setFitHeight(180);
+                        imageView.setFitWidth(width);
+                        imageView.setFitHeight(height);
                         imageView.setPreserveRatio(true);
                         imageView.setSmooth(true);
 
