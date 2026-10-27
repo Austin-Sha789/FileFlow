@@ -125,7 +125,6 @@ public class MainView {
         new SimilarImageService();
     private boolean similarAnalysisCompleted = false;
     private Task<List<SimilarImagePair>> currentSimilarTask;
-    private Button activeSimilarAnalyseButton;
     private String similarDetectionMode = "Balanced";
     private boolean similarTabSelected = false;     
     private boolean duplicateScanning;
@@ -2991,8 +2990,6 @@ public class MainView {
         Button similarAnalyseButton =
                 new Button("Analyse Similar Images");
 
-        activeSimilarAnalyseButton = similarAnalyseButton;
-
         similarAnalyseButton.getStyleClass().add(
                 "duplicates-analyse-button"
         );
@@ -4682,6 +4679,67 @@ public class MainView {
                         .toList();
         }
 
+        private void reconcileExactDuplicatesAfterRefresh(
+                ScanResult previousScan,
+                ScanResult refreshedScan
+        ) {
+                if (!duplicateAnalysisCompleted
+                        || previousScan == null
+                        || refreshedScan == null) {
+                        return;
+                }
+
+                Map<Path, FileItem> previousFiles = new HashMap<>();
+
+                for (FileItem item : previousScan.getItems()) {
+                        if (!item.isDirectory()) {
+                        previousFiles.put(
+                                item.getPath().toAbsolutePath().normalize(),
+                                item
+                        );
+                        }
+                }
+
+                Set<Path> currentFiles = new HashSet<>();
+
+                for (FileItem item : refreshedScan.getItems()) {
+
+                        if (item.isDirectory()) {
+                        continue;
+                        }
+
+                        Path path = item.getPath()
+                                .toAbsolutePath()
+                                .normalize();
+
+                        currentFiles.add(path);
+
+                        FileItem previous = previousFiles.get(path);
+
+                        if (previous == null
+                                || previous.getSizeBytes() != item.getSizeBytes()
+                                || !java.util.Objects.equals(
+                                        previous.getLastModified(),
+                                        item.getLastModified()
+                                )) {
+
+                        latestDuplicateGroups = List.of();
+                        duplicateAnalysisCompleted = false;
+                        return;
+                        }
+                }
+
+                // Keep groups whose files still exist.
+                latestDuplicateGroups = latestDuplicateGroups.stream()
+                        .filter(group -> group.getFiles().stream()
+                                .allMatch(file -> currentFiles.contains(
+                                        file.getPath()
+                                                .toAbsolutePath()
+                                                .normalize()
+                                )))
+                        .toList();
+        }
+
         private void refreshCurrentScan() {
 
                 if (scanRootPath == null || scanning) {
@@ -4715,12 +4773,6 @@ public class MainView {
 
                 refreshTask.setOnSucceeded(event -> {
 
-                        boolean autoReanalyseSimilar =
-                                "Duplicates".equals(pageTitle.getText())
-                                && similarTabSelected
-                                && similarAnalysisCompleted
-                                && currentSimilarTask == null;
-
                         setScanningState(false);
                         currentScanTask = null;
 
@@ -4729,6 +4781,11 @@ public class MainView {
                         latestScanResult = refreshTask.getValue();
 
                         reconcileSimilarResultsAfterRefresh(
+                                previousScan,
+                                latestScanResult
+                        );
+
+                        reconcileExactDuplicatesAfterRefresh(
                                 previousScan,
                                 latestScanResult
                         );
@@ -4742,12 +4799,6 @@ public class MainView {
 
                                 currentFolder = scanRootPath;
                         }
-
-                        latestDuplicateGroups =
-                                List.of();
-
-                        duplicateAnalysisCompleted =
-                                false;
 
                         hideRefreshStatus();
 
@@ -5409,6 +5460,11 @@ public class MainView {
                         latestScanResult = refreshTask.getValue();
 
                         reconcileSimilarResultsAfterRefresh(
+                                previousScan,
+                                latestScanResult
+                        );
+
+                        reconcileExactDuplicatesAfterRefresh(
                                 previousScan,
                                 latestScanResult
                         );
