@@ -1,6 +1,7 @@
 package com.austin.fileflow.ui;
 
 import javafx.scene.Node;
+import javafx.scene.shape.SVGPath;
 import javafx.scene.Parent;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.VBox;
@@ -321,6 +322,17 @@ public class MainView {
         return root;
     }
 
+    private SVGPath createSidebarIcon(String pathData) {
+
+        SVGPath icon = new SVGPath();
+
+        icon.setContent(pathData);
+
+        icon.getStyleClass().add("sidebar-icon");
+
+        return icon;
+    }
+
     private VBox createSidebar() {
         VBox sidebar = new VBox();
         sidebar.setPrefWidth(220);
@@ -353,6 +365,59 @@ public class MainView {
         Label settings = new Label("Settings");
         settings.getStyleClass().add("nav-item");
 
+        // Home
+        home.setGraphic(createSidebarIcon(
+                "M3 10 L12 3 L21 10 V20 H14 V14 H10 V20 H3 Z"
+        ));
+
+        // Dashboard
+        dashboard.setGraphic(createSidebarIcon(
+                "M3 3 H10 V10 H3 Z " +
+                "M14 3 H21 V10 H14 Z " +
+                "M3 14 H10 V21 H3 Z " +
+                "M14 14 H21 V21 H14 Z"
+        ));
+
+        // Files
+        filesNavItem.setGraphic(createSidebarIcon(
+                "M3 7 V19 Q3 21 5 21 H19 " +
+                "Q21 21 21 19 V9 Q21 7 19 7 " +
+                "H12 L10 5 H5 Q3 5 3 7 Z"
+        ));
+
+        // Favourites
+        favourites.setGraphic(createSidebarIcon(
+                "M12 2 L15.1 8.3 L22 9.3 " +
+                "L17 14.2 L18.2 21 L12 17.7 " +
+                "L5.8 21 L7 14.2 L2 9.3 L8.9 8.3 Z"
+        ));
+
+        // Duplicates
+        duplicates.setGraphic(createSidebarIcon(
+                "M8 8 H21 V21 H8 Z M4 16 H3 V3 H16 V4"
+        ));
+
+        // Tags
+        tags.setGraphic(createSidebarIcon(
+                "M3 3 H12 L21 12 L12 21 L3 12 Z " +
+                "M7 7 A1 1 0 1 0 9 7 " +
+                "A1 1 0 1 0 7 7"
+        ));
+
+        // History
+        history.setGraphic(createSidebarIcon(
+                "M3 12 A9 9 0 1 0 6 5 " +
+                "M3 4 V9 H8 M12 7 V12 L15 14"
+        ));
+
+        // Settings
+        settings.setGraphic(createSidebarIcon(
+                "M4 6 H20 M4 12 H20 M4 18 H20 " +
+                "M9 3 V9 M16 9 V15 M9 15 V21"
+        ));
+
+        // Consistent icon and text spacing
+        
         navItems.addAll(List.of(
                 home,
                 dashboard,
@@ -363,6 +428,12 @@ public class MainView {
                 history,
                 settings
         ));
+        
+        for (Label navItem : navItems) {
+                navItem.setMaxWidth(Double.MAX_VALUE);
+                navItem.setAlignment(Pos.CENTER_LEFT);
+                navItem.setGraphicTextGap(12);
+        }
 
         filesNavItem.setOnMouseClicked(event ->
                 selectNavItem(filesNavItem, "Files")
@@ -815,8 +886,22 @@ public class MainView {
         Label valueLabel = new Label(value);
         valueLabel.getStyleClass().add("summary-card-value");
 
+        Region accent = new Region();
+
+        accent.getStyleClass().add(
+                "summary-card-accent"
+        );
+
+        HBox cardHeader = new HBox(
+                9,
+                accent,
+                titleLabel
+        );
+
+        cardHeader.setAlignment(Pos.CENTER_LEFT);
+
         card.getChildren().addAll(
-                titleLabel,
+                cardHeader,
                 valueLabel
         );
 
@@ -912,21 +997,111 @@ public class MainView {
         Label recentTitle = new Label("Recent Scan");
         recentTitle.getStyleClass().add("section-title");
 
-        VBox recentScanCard = new VBox();
+        VBox recentScanCard = new VBox(12);
+
         recentScanCard.getStyleClass().add("recent-scan-card");
 
-        Label folderName = new Label("No recent scan");
-        folderName.getStyleClass().add("recent-scan-name");
+        try {
 
-        Label folderDetails = new Label(
-                "Scan a folder to see recent activity here."
-        );
-        folderDetails.getStyleClass().add("recent-scan-details");
+                ScanHistoryEntry latestEntry = scanHistoryRepo.getAll()
+                        .stream()
+                        .max(Comparator.comparing(
+                                ScanHistoryEntry::getScannedAt
+                        ))
+                        .orElse(null);
 
-        recentScanCard.getChildren().addAll(
-                folderName,
-                folderDetails
+                if (latestEntry == null) {
+
+                        Label emptyName = new Label("No recent scan");
+
+                        emptyName.getStyleClass().add("recent-scan-name");
+
+                        Label emptyDetails = new Label(
+                                "Scan a folder to see recent activity here."
+                        );
+
+                        emptyDetails.getStyleClass().add("recent-scan-details");
+
+                        recentScanCard.getChildren().addAll(
+                                emptyName,
+                                emptyDetails
+                        );
+
+                } else {
+
+                        Path folderPath = latestEntry.getFolderPath();
+
+                        Label folderName = new Label(
+                                getPathDisplayName(folderPath)
+                        );
+
+                        folderName.getStyleClass().add("recent-scan-name");
+
+                        Label pathLabel = new Label(
+                                folderPath.toString()
+                        );
+
+                        pathLabel.getStyleClass().add("recent-scan-details");
+                        pathLabel.setWrapText(true);
+
+                        String scanTime = latestEntry.getScannedAt().format(
+                                DateTimeFormatter.ofPattern(
+                                        "dd MMM yyyy, HH:mm"
+                                )
+                        );
+
+                        Label detailsLabel = new Label(
+                                scanTime
+                                + "  ·  "
+                                + String.format("%,d files", latestEntry.getFileCount())
+                                + "  ·  "
+                                + FileSizeFormatter.format(latestEntry.getTotalBytes())
+                        );
+
+                        detailsLabel.getStyleClass().add("recent-scan-details");
+
+                        VBox folderInfo = new VBox(
+                                6,
+                                folderName,
+                                pathLabel,
+                                detailsLabel
+                        );
+
+                        Region spacer = new Region();
+                        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+                        Button scanAgainButton = new Button("Scan Again");
+
+                        scanAgainButton.getStyleClass().add("secondary-button");
+
+                        scanAgainButton.setOnAction(event ->
+                                startScan(folderPath)
+                        );
+
+                        HBox row = new HBox(
+                                16,
+                                folderInfo,
+                                spacer,
+                                scanAgainButton
+                        );
+
+                        row.setAlignment(Pos.CENTER_LEFT);
+
+                        recentScanCard.getChildren().add(row);
+                }
+
+        } catch (SQLException exception) {
+
+        Label errorLabel = new Label(
+                "Unable to load recent scan history."
         );
+
+        errorLabel.getStyleClass().add("recent-scan-details");
+
+        recentScanCard.getChildren().add(errorLabel);
+
+        exception.printStackTrace();
+        }
 
         homeContent.getChildren().addAll(
                 recentTitle,
@@ -982,14 +1157,30 @@ public class MainView {
         HBox summaryRow = new HBox();
         summaryRow.getStyleClass().add("summary-grid");
 
-        VBox filesCard = createSummaryCard("Files", String.valueOf(fileCount));
-        VBox storageCard = createSummaryCard("Storage", FileSizeFormatter.format(totalBytes));
-        VBox foldersCard = createSummaryCard("Folders", String.valueOf(folderCount));
-        VBox issuesCard =
-                createSummaryCard(
-                        "Scan Issues",
-                        String.valueOf(latestScanResult.getIssues().size())
+        VBox filesCard = createSummaryCard(
+                "Files",
+                String.format("%,d", fileCount)
         );
+
+        VBox storageCard = createSummaryCard(
+                "Storage",
+                FileSizeFormatter.format(totalBytes)
+        );
+
+        VBox foldersCard = createSummaryCard(
+                "Folders",
+                String.format("%,d", folderCount)
+        );
+
+        VBox issuesCard = createSummaryCard(
+                "Scan Issues",
+                String.valueOf(latestScanResult.getIssues().size())
+        );
+
+        filesCard.getStyleClass().add("summary-card-files");
+        storageCard.getStyleClass().add("summary-card-storage");
+        foldersCard.getStyleClass().add("summary-card-folders");
+        issuesCard.getStyleClass().add("summary-card-issues");
 
         HBox.setHgrow(filesCard, Priority.ALWAYS);
         HBox.setHgrow(storageCard, Priority.ALWAYS);
@@ -1369,7 +1560,9 @@ public class MainView {
 
                 Label percentageLabel = new Label(String.format("%.1f%%", percentage));
 
-                percentageLabel.getStyleClass().add("dashborad-folder-percentage");
+                percentageLabel.getStyleClass().add(
+                        "dashboard-folder-percentage"
+                );
 
                 Region spacer = new Region();
                 HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -1388,7 +1581,7 @@ public class MainView {
                 );
 
                 row.setAlignment(Pos.CENTER_LEFT);
-                row.getStyleClass().add("dashboard-floder-row");
+                row.getStyleClass().add("dashboard-folder-row");
 
                 foldersBreakdownList.getChildren().add(row);
         }
@@ -1508,6 +1701,99 @@ public class MainView {
         return dashboardPage;
     }
 
+    private Node createFolderListPreview() {
+
+        SVGPath folderIcon = new SVGPath();
+
+        folderIcon.setContent(
+                "M3 7 V19 Q3 21 5 21 H19 " +
+                "Q21 21 21 19 V9 Q21 7 19 7 " +
+                "H12 L10 5 H5 Q3 5 3 7 Z"
+        );
+
+        folderIcon.getStyleClass().add(
+                "files-folder-icon"
+        );
+
+        StackPane preview = new StackPane(folderIcon);
+
+        preview.setMinSize(56, 42);
+        preview.setPrefSize(56, 42);
+        preview.setMaxSize(56, 42);
+
+        preview.getStyleClass().add(
+                "files-folder-preview"
+        );
+
+        return preview;
+    }
+
+    private Node createFileTypeListPreview(FileItem item) {
+
+        String extension = item.getExtension() == null
+                ? ""
+                : item.getExtension()
+                        .replaceFirst("^\\.", "")
+                        .toLowerCase(Locale.ROOT);
+
+        String kind = extension.equals("pdf")
+                ? "pdf"
+                : item.getType().name().toLowerCase(Locale.ROOT);
+
+        String iconPath = switch (kind) {
+
+                case "video" ->
+                        "M4 6 H15 Q17 6 17 8 V16 Q17 18 15 18 " +
+                        "H4 Q2 18 2 16 V8 Q2 6 4 6 Z " +
+                        "M17 10 L22 7 V17 L17 14";
+
+                case "audio" ->
+                        "M9 18 V5 L21 3 V16 " +
+                        "M9 18 A3 3 0 1 1 6 15 A3 3 0 0 1 9 18 Z " +
+                        "M21 16 A3 3 0 1 1 18 13 A3 3 0 0 1 21 16 Z";
+
+                case "archive" ->
+                        "M6 2 H14 L20 8 V20 Q20 22 18 22 " +
+                        "H6 Q4 22 4 20 V4 Q4 2 6 2 Z " +
+                        "M14 2 V8 H20 M11 4 V6 M11 8 V10 " +
+                        "M11 12 V14 M9 17 H13 V20 H9 Z";
+
+                case "code" ->
+                        "M6 2 H14 L20 8 V20 Q20 22 18 22 " +
+                        "H6 Q4 22 4 20 V4 Q4 2 6 2 Z " +
+                        "M14 2 V8 H20 " +
+                        "M10 11 L7 14 L10 17 " +
+                        "M14 11 L17 14 L14 17";
+
+                case "document", "pdf" ->
+                        "M6 2 H14 L20 8 V20 Q20 22 18 22 " +
+                        "H6 Q4 22 4 20 V4 Q4 2 6 2 Z " +
+                        "M14 2 V8 H20 M8 13 H16 M8 17 H16";
+
+                default ->
+                        "M6 2 H14 L20 8 V20 Q20 22 18 22 " +
+                        "H6 Q4 22 4 20 V4 Q4 2 6 2 Z " +
+                        "M14 2 V8 H20";
+        };
+
+        SVGPath icon = new SVGPath();
+        icon.setContent(iconPath);
+        icon.getStyleClass().add("files-type-icon");
+
+        StackPane preview = new StackPane(icon);
+
+        preview.setMinSize(56, 42);
+        preview.setPrefSize(56, 42);
+        preview.setMaxSize(56, 42);
+
+        preview.getStyleClass().addAll(
+                "files-type-preview",
+                "files-type-" + kind
+        );
+
+        return preview;
+    }
+
     private VBox createFilesContent() {
         VBox filesContent = new VBox();
 
@@ -1531,6 +1817,10 @@ public class MainView {
                 new ToggleButton("Categories");
 
         ToggleGroup viewGroup = new ToggleGroup();
+
+        browseButton.getStyleClass().add("files-view-toggle");
+        allFilesButton.getStyleClass().add("files-view-toggle");
+        categoriesButton.getStyleClass().add("files-view-toggle");
 
         browseButton.setToggleGroup(viewGroup);
         allFilesButton.setToggleGroup(viewGroup);
@@ -1589,6 +1879,9 @@ public class MainView {
 
         sortBy.setValue("Name A-Z");
 
+        typeFilter.getStyleClass().add("files-filter-combo");
+        sortBy.getStyleClass().add("files-filter-combo");
+
         HBox controlsRow = new HBox(12);
 
         controlsRow.getChildren().addAll(
@@ -1597,9 +1890,13 @@ public class MainView {
                 sortBy
         );
 
-        searchField.setPrefWidth(220);
-        typeFilter.setPrefWidth(140);
-        sortBy.setPrefWidth(170);
+        searchField.setPrefWidth(280);
+        searchField.setMaxWidth(Double.MAX_VALUE);
+
+        HBox.setHgrow(searchField, Priority.ALWAYS);
+
+        typeFilter.setPrefWidth(155);
+        sortBy.setPrefWidth(180);
 
         HBox viewBar = new HBox(
                 10,
@@ -1672,6 +1969,7 @@ public class MainView {
         }
 
         ListView<FileItem> fileList = new ListView<>();
+        fileList.getStyleClass().add("files-list-view");
 
         PauseTransition quickInfoDelay =
                 new PauseTransition(Duration.millis(280));
@@ -1852,11 +2150,7 @@ public class MainView {
                                 return;
                         }
 
-                        Label fileNameLabel = new Label(
-                                item.isDirectory()
-                                        ? "[Folder] " + item.getName()
-                                        : item.getName()
-                        );
+                        Label fileNameLabel = new Label(item.getName());
                         fileNameLabel.getStyleClass().add("file-name");
 
                         Label fileSizeLabel = new Label(
@@ -1899,8 +2193,17 @@ public class MainView {
                                 relativePathLabel
                         );
 
-                        Node filePreview =
-                                filePreviewFactory.create(item);
+                        Node filePreview;
+
+                        if (item.isDirectory()) {
+                                filePreview = createFolderListPreview();
+
+                        } else if (item.getType() == FileType.IMAGE) {
+                                filePreview = filePreviewFactory.create(item);
+
+                        } else {
+                                filePreview = createFileTypeListPreview(item);
+                        }
 
                         Button favouriteButton = new Button(
                                 favouritePaths.contains(item.getPath())
@@ -2150,6 +2453,7 @@ public class MainView {
                 });
 
                         fileRow.setAlignment(Pos.CENTER_LEFT);
+                        fileRow.setMaxWidth(Double.MAX_VALUE);
                         fileRow.getStyleClass().add("file-row");
 
                         setText(null);

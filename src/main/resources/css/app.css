@@ -1,46 +1,58 @@
 .root {
     -fx-font-family: "Segoe UI";
-    -fx-background-color: #f7f7f5;
+    -fx-font-size: 13px;
+    -fx-background-color: #F5F6F8;
 }
 
 .sidebar {
-    -fx-padding: 24;
-    -fx-background-color: #ffffff;
-    -fx-spacing: 8;
-    -fx-border-color: transparent #e8e8e3 transparent transparent;
+    -fx-padding: 26 16 18 16;
+    -fx-background-color: #FFFFFF;
+    -fx-spacing: 5;
+    -fx-border-color: transparent #E6E9EE transparent transparent;
+    -fx-border-width: 0 1 0 0;
 }
 
 .page-title {
-    -fx-font-size: 28px;
+    -fx-font-size: 26px;
     -fx-font-weight: bold;
+    -fx-text-fill: #17212F;
 }
 
 .nav-item {
-    -fx-padding: 10 12;
+    -fx-padding: 12 14;
     -fx-font-size: 14px;
-    -fx-text-fill: #555555;
-    -fx-font-size: 14px;
+    -fx-text-fill: #6B7685;
+    -fx-background-radius: 10;
+    -fx-cursor: hand;
 }
 
 .nav-item:hover {
-    -fx-background-color: #f2f2ee;
+    -fx-background-color: #F1F3F6;
+    -fx-text-fill: #24344B;
 }
 
 .nav-item-selected {
-    -fx-background-color: #ecece7;
+    -fx-background-color: #E8EDF3;
+    -fx-text-fill: #2E435C;
     -fx-font-weight: bold;
+}
+
+.nav-item-selected:hover {
+    -fx-background-color: #E1E8F0;
+    -fx-text-fill: #2E435C;
 }
 
 .logo {
-    -fx-font-size: 20px;
+    -fx-font-size: 22px;
     -fx-font-weight: bold;
-    -fx-padding: 0 0 20 4;
+    -fx-text-fill: #26384D;
+    -fx-padding: 4 10 26 10;
 }
 
 .content {
-    -fx-padding: 32;
-    -fx-spacing: 24;
-    -fx-background-color: #f7f7f5;
+    -fx-padding: 28 32;
+    -fx-spacing: 22;
+    -fx-background-color: #F5F6F8;
 }
 
 .primary-button {
@@ -135,12 +147,29 @@
     -fx-text-fill: #8a5a00;
 }
 
-.search-filed {
-    -fx-padding: 10 12;
-    -fx-background-radius: 8;
-    -fx-border-radius: 8;
-    -fx-border-color: #deded8;
-    -fx-background-color: #ffffff;
+.search-field {
+    -fx-background-color: #FFFFFF;
+    -fx-background-insets: 0;
+
+    -fx-border-color: #DEE5F0;
+    -fx-border-width: 1;
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+
+    -fx-padding: 11 14;
+    -fx-font-size: 13px;
+    -fx-text-fill: #17212F;
+    -fx-prompt-text-fill: #98A3B3;
+
+    -fx-pref-height: 42;
+}
+
+.search-field:focused {
+    -fx-border-color: #477BFA;
+    -fx-border-width: 1.5;
+
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
 }
 
 .tag-group {
@@ -859,4 +888,744 @@
 .database-error-message {
     -fx-font-size: 12px;
     -fx-text-fill: #777777;
+}
+
+/* FileFlow - Modern Sidebar Preview */
+
+.sidebar {
+    -fx-background-color: #151D2F;
+    -fx-border-color: #28354A;
+    -fx-border-width: 0 1 0 0;
+}
+
+.logo {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 24px;
+}
+
+.nav-item {
+    -fx-text-fill: #A9B8D0;
+    -fx-background-radius: 10;
+    -fx-padding: 12 14;
+}
+
+.nav-item:hover {
+    -fx-background-color: #25334B;
+    -fx-text-fill: #FFFFFF;
+}
+
+.nav-item-selected {
+    -fx-background-color: #304D83;
+    -fx-text-fill: #FFFFFF;
+    -fx-font-weight: bold;
+}
+
+.nav-item-selected:hover {
+    -fx-background-color: #36578F;
+    -fx-text-fill: #FFFFFF;
+}
+
+.sidebar-storage-card {
+    -fx-background-color: #1F2B42;
+    -fx-border-color: #35445C;
+}
+
+.sidebar-storage-name {
+    -fx-text-fill: #FFFFFF;
+}
+
+.sidebar-storage-root,
+.sidebar-storage-detail {
+    -fx-text-fill: #A9B8D0;
+}
+
+.sidebar-storage-volumes-button {
+    -fx-text-fill: #A9B8D0;
+}
+
+.sidebar-storage-progress > .track {
+    -fx-background-color: #35445C;
+}
+
+.sidebar-storage-progress > .bar {
+    -fx-background-color: #477BFA;
+}
+
+/* ====================================
+   FileFlow - Modern Buttons
+   ==================================== */
+
+/* Primary actions */
+.primary-button,
+.home-scan-button,
+.duplicates-analyse-button {
+    -fx-background-color: #477BFA;
+    -fx-background-insets: 0;
+    -fx-background-radius: 10;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+
+    -fx-padding: 11 20;
+    -fx-min-height: 40;
+    -fx-cursor: hand;
+}
+
+.primary-button:hover,
+.home-scan-button:hover,
+.duplicates-analyse-button:hover {
+    -fx-background-color: #3669E8;
+}
+
+.primary-button:pressed,
+.home-scan-button:pressed,
+.duplicates-analyse-button:pressed {
+    -fx-background-color: #2856C7;
+}
+
+/* Secondary actions */
+.secondary-button {
+    -fx-background-color: #FFFFFF;
+    -fx-background-insets: 0;
+    -fx-background-radius: 10;
+
+    -fx-border-color: #DFE5EE;
+    -fx-border-radius: 10;
+    -fx-border-width: 1;
+
+    -fx-text-fill: #344054;
+    -fx-font-size: 13px;
+    -fx-padding: 10 18;
+    -fx-min-height: 40;
+    -fx-cursor: hand;
+}
+
+.secondary-button:hover {
+    -fx-background-color: #EDF2F9;
+    -fx-border-color: #C6D4E8;
+}
+
+/* Consistent keyboard focus */
+.primary-button:focused,
+.home-scan-button:focused,
+.duplicates-analyse-button:focused,
+.secondary-button:focused {
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+    -fx-border-color: #93B5FF;
+    -fx-border-radius: 10;
+    -fx-border-width: 2;
+}
+
+/* ====================================
+   FileFlow - Sidebar Icons
+   ==================================== */
+
+.sidebar-icon {
+    -fx-fill: transparent;
+    -fx-stroke: #A9B8D0;
+    -fx-stroke-width: 1.8;
+    -fx-stroke-line-cap: round;
+    -fx-stroke-line-join: round;
+
+    -fx-scale-x: 0.78;
+    -fx-scale-y: 0.78;
+}
+
+.nav-item:hover .sidebar-icon {
+    -fx-stroke: #FFFFFF;
+}
+
+.nav-item-selected .sidebar-icon {
+    -fx-stroke: #FFFFFF;
+}
+
+/* ====================================
+   FileFlow - Dashboard 2.0
+   ==================================== */
+
+.summary-card {
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 16;
+    -fx-border-color: #E6EAF1;
+    -fx-border-radius: 16;
+    -fx-border-width: 1;
+    -fx-padding: 22 24;
+    -fx-spacing: 14;
+
+    -fx-effect: dropshadow(
+        gaussian,
+        rgba(20, 35, 60, 0.05),
+        14, 0, 0, 3
+    );
+}
+
+.summary-card-title {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #64748B;
+}
+
+.summary-card-value {
+    -fx-font-size: 29px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #17212F;
+}
+
+.summary-card-accent {
+    -fx-min-width: 8;
+    -fx-pref-width: 8;
+    -fx-max-width: 8;
+
+    -fx-min-height: 8;
+    -fx-pref-height: 8;
+    -fx-max-height: 8;
+
+    -fx-background-radius: 999;
+}
+
+/* Files - Blue */
+.summary-card-files {
+    -fx-background-color: linear-gradient(
+        to bottom right,
+        #EDF4FF,
+        #FFFFFF
+    );
+    -fx-border-color: #DCE8FF;
+}
+
+.summary-card-files .summary-card-accent {
+    -fx-background-color: #477BFA;
+}
+
+/* Storage - Purple */
+.summary-card-storage {
+    -fx-background-color: linear-gradient(
+        to bottom right,
+        #F4F0FF,
+        #FFFFFF
+    );
+    -fx-border-color: #E9E0FF;
+}
+
+.summary-card-storage .summary-card-accent {
+    -fx-background-color: #9372ED;
+}
+
+/* Folders - Teal */
+.summary-card-folders {
+    -fx-background-color: linear-gradient(
+        to bottom right,
+        #EAF9F5,
+        #FFFFFF
+    );
+    -fx-border-color: #D9F0E9;
+}
+
+.summary-card-folders .summary-card-accent {
+    -fx-background-color: #20A88A;
+}
+
+/* Scan Issues - Amber */
+.summary-card-issues {
+    -fx-background-color: linear-gradient(
+        to bottom right,
+        #FFF7E9,
+        #FFFFFF
+    );
+    -fx-border-color: #F5E9D3;
+}
+
+.summary-card-issues .summary-card-accent {
+    -fx-background-color: #E8A33C;
+}
+
+/* ====================================
+   Dashboard - File & Folder Breakdown
+   ==================================== */
+
+.dashboard-type-row,
+.dashboard-folder-row {
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 12;
+
+    -fx-border-color: #E6EAF1;
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+
+    -fx-padding: 14 16;
+}
+
+.dashboard-type-row:hover,
+.dashboard-folder-row:hover {
+    -fx-background-color: #F8FAFF;
+    -fx-border-color: #D8E4F8;
+}
+
+/* Progress bars */
+
+.dashboard-type-progress,
+.dashboard-folder-progress {
+    -fx-pref-height: 8px;
+}
+
+.dashboard-type-progress > .track,
+.dashboard-folder-progress > .track {
+    -fx-background-color: #EBEFF5;
+    -fx-background-radius: 999;
+}
+
+.dashboard-type-progress > .bar {
+    -fx-background-color: #477BFA;
+    -fx-background-radius: 999;
+    -fx-background-insets: 0;
+}
+
+.dashboard-folder-progress > .bar {
+    -fx-background-color: #9372ED;
+    -fx-background-radius: 999;
+    -fx-background-insets: 0;
+}
+
+/* Percentage text */
+
+.dashboard-type-percentage,
+.dashboard-folder-percentage {
+    -fx-text-fill: #344054;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+}
+
+/* ====================================
+   FileFlow - Home Hero 2.0
+   ==================================== */
+
+.home-hero {
+    -fx-background-color: linear-gradient(
+        to right,
+        #17253F 0%,
+        #2858A3 65%,
+        #477BFA 100%
+    );
+
+    -fx-background-radius: 18;
+    -fx-border-color: transparent;
+    -fx-padding: 40 42;
+    -fx-spacing: 16;
+
+    -fx-effect: dropshadow(
+        gaussian,
+        rgba(25, 50, 100, 0.12),
+        18, 0, 0, 5
+    );
+}
+
+.home-heading {
+    -fx-font-size: 34px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #FFFFFF;
+}
+
+.home-subtitle {
+    -fx-font-size: 14px;
+    -fx-text-fill: #DFE9FF;
+}
+
+.home-scan-button {
+    -fx-background-color: #FFFFFF;
+    -fx-background-insets: 0;
+    -fx-background-radius: 10;
+
+    -fx-border-color: transparent;
+    -fx-text-fill: #2858A3;
+
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+
+    -fx-padding: 12 22;
+    -fx-cursor: hand;
+}
+
+.home-scan-button:hover {
+    -fx-background-color: #EAF1FF;
+}
+
+.home-scan-button:pressed {
+    -fx-background-color: #DCE8FF;
+}
+
+/* Home - Recent Scan */
+
+.recent-scan-card {
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 14;
+    -fx-border-color: #E6EAF1;
+    -fx-border-radius: 14;
+    -fx-padding: 22 26;
+}
+
+.recent-scan-name {
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #17212F;
+}
+
+.recent-scan-details {
+    -fx-font-size: 12px;
+    -fx-text-fill: #7A8798;
+}
+
+/* ====================================
+   FileFlow - Files Toolbar 2.0
+   ==================================== */
+
+/* Browse / All Files / Categories */
+
+.files-view-toggle {
+    -fx-background-color: #FFFFFF;
+    -fx-background-insets: 0;
+    -fx-background-radius: 10;
+
+    -fx-border-color: #DFE5EE;
+    -fx-border-radius: 10;
+    -fx-border-width: 1;
+
+    -fx-text-fill: #64748B;
+    -fx-font-size: 13px;
+    -fx-font-weight: normal;
+
+    -fx-padding: 10 18;
+    -fx-min-height: 40;
+    -fx-cursor: hand;
+}
+
+.files-view-toggle:hover {
+    -fx-background-color: #EDF4FF;
+    -fx-border-color: #CADBFA;
+    -fx-text-fill: #2858A3;
+}
+
+.files-view-toggle:selected {
+    -fx-background-color: #477BFA;
+    -fx-border-color: #477BFA;
+    -fx-text-fill: #FFFFFF;
+    -fx-font-weight: bold;
+}
+
+.files-view-toggle:selected:hover {
+    -fx-background-color: #3669E8;
+    -fx-border-color: #3669E8;
+}
+
+.files-view-toggle:focused {
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+/* File type and sorting dropdowns */
+
+.files-filter-combo {
+    -fx-background-color: #FFFFFF;
+    -fx-background-insets: 0;
+    -fx-background-radius: 10;
+
+    -fx-border-color: #DFE5EE;
+    -fx-border-radius: 10;
+    -fx-border-width: 1;
+
+    -fx-pref-height: 42;
+    -fx-min-height: 42;
+    -fx-cursor: hand;
+}
+
+/* Dropdown popup menu */
+
+.combo-box-popup > .list-view {
+    -fx-background-color: #FFFFFF;
+    -fx-background-insets: 0;
+    -fx-background-radius: 12;
+
+    -fx-border-color: #DCE4F0;
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+
+    -fx-padding: 6;
+    -fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.12), 18, 0, 0, 4);
+}
+
+.combo-box-popup > .list-view > .virtual-flow > .clipped-container > .sheet > .list-cell {
+    -fx-background-color: transparent;
+    -fx-background-radius: 8;
+
+    -fx-text-fill: #17212F;
+    -fx-font-size: 13px;
+
+    -fx-padding: 10 14;
+}
+
+.combo-box-popup > .list-view > .virtual-flow > .clipped-container > .sheet > .list-cell:hover {
+    -fx-background-color: #EEF4FF;
+    -fx-text-fill: #2858A3;
+}
+
+.combo-box-popup > .list-view > .virtual-flow > .clipped-container > .sheet > .list-cell:filled:selected,
+.combo-box-popup > .list-view > .virtual-flow > .clipped-container > .sheet > .list-cell:filled:selected:hover {
+    -fx-background-color: #477BFA;
+    -fx-text-fill: #FFFFFF;
+}
+
+.combo-box-popup > .list-view > .placeholder {
+    -fx-background-color: transparent;
+}
+
+.files-filter-combo:hover {
+    -fx-border-color: #B8C9E2;
+}
+
+.files-filter-combo:focused {
+    -fx-border-color: #477BFA;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+.files-filter-combo > .list-cell {
+    -fx-text-fill: #344054;
+    -fx-font-size: 13px;
+    -fx-padding: 0 10;
+    -fx-background-color: transparent;
+}
+
+.files-filter-combo > .arrow-button {
+    -fx-background-color: transparent;
+}
+
+.files-filter-combo > .arrow-button > .arrow {
+    -fx-background-color: #64748B;
+}
+
+/* ====================================
+   FileFlow - Files List 2.0
+   ==================================== */
+
+/* Main list container */
+
+.files-list-view {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+
+    -fx-control-inner-background: transparent;
+    -fx-control-inner-background-alt: transparent;
+}
+
+.files-list-view:focused {
+    -fx-background-insets: 0;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+/* Remove default JavaFX cell backgrounds */
+
+.files-list-view .list-cell {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 4 0;
+}
+
+.files-list-view .list-cell:empty {
+    -fx-background-color: transparent;
+}
+
+/* Individual file cards */
+
+.files-list-view .file-row {
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 12;
+    -fx-background-insets: 0;
+
+    -fx-border-color: #E5EAF2;
+    -fx-border-width: 1;
+    -fx-border-radius: 12;
+
+    -fx-padding: 9 14;
+    -fx-alignment: center-left;
+    -fx-cursor: hand;
+}
+
+/* Hover */
+
+.files-list-view .list-cell:hover .file-row {
+    -fx-background-color: #F5F8FF;
+    -fx-border-color: #CDDBF5;
+}
+
+/* Selected file */
+
+.files-list-view .list-cell:filled:selected .file-row {
+    -fx-background-color: #EAF1FF;
+    -fx-border-color: #8EAEFA;
+}
+
+/* File name */
+
+.files-list-view .file-name {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #24344B;
+}
+
+/* File path */
+
+.files-list-view .file-relative-path {
+    -fx-font-size: 11px;
+    -fx-text-fill: #8B98AA;
+}
+
+/* Actions */
+
+.files-list-view .add-tag-button {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #DCE4F0;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+
+    -fx-text-fill: #51627A;
+    -fx-padding: 6 12;
+}
+
+.files-list-view .add-tag-button:hover {
+    -fx-background-color: #EAF1FF;
+    -fx-border-color: #AFC6F7;
+    -fx-text-fill: #2858A3;
+}
+
+.files-list-view .favourite-button,
+.files-list-view .more-button {
+    -fx-text-fill: #71819A;
+    -fx-background-radius: 8;
+}
+
+.files-list-view .favourite-button:hover,
+.files-list-view .more-button:hover {
+    -fx-background-color: #E6EEFC;
+    -fx-text-fill: #2858A3;
+}
+
+/* ====================================
+   FileFlow - Folder Preview
+   ==================================== */
+
+.files-folder-preview {
+    -fx-background-color: #EAF1FF;
+    -fx-background-radius: 11;
+
+    -fx-border-color: #D8E6FF;
+    -fx-border-radius: 11;
+    -fx-border-width: 1;
+}
+
+.files-folder-icon {
+    -fx-fill: transparent;
+    -fx-stroke: #477BFA;
+    -fx-stroke-width: 1.8;
+    -fx-stroke-line-cap: round;
+    -fx-stroke-line-join: round;
+}
+
+.files-list-view .list-cell:hover .files-folder-preview {
+    -fx-background-color: #DFEAFF;
+    -fx-border-color: #AFC9FF;
+}
+
+.files-list-view .list-cell:filled:selected .files-folder-preview {
+    -fx-background-color: #D5E4FF;
+    -fx-border-color: #93B6FF;
+}
+
+/* ====================================
+   FileFlow - File Type Icons
+   ==================================== */
+
+.files-type-preview {
+    -fx-background-color: #F0F3F8;
+    -fx-background-radius: 11;
+    -fx-border-color: #E0E6EF;
+    -fx-border-radius: 11;
+    -fx-border-width: 1;
+}
+
+.files-type-icon {
+    -fx-fill: transparent;
+    -fx-stroke: #78879E;
+    -fx-stroke-width: 1.7;
+    -fx-stroke-line-cap: round;
+    -fx-stroke-line-join: round;
+}
+
+/* PDF - Red */
+.files-type-pdf {
+    -fx-background-color: #FFF0F2;
+    -fx-border-color: #FFD9DF;
+}
+
+.files-type-pdf .files-type-icon {
+    -fx-stroke: #D9576B;
+}
+
+/* Documents - Blue */
+.files-type-document {
+    -fx-background-color: #EDF4FF;
+    -fx-border-color: #DCE8FF;
+}
+
+.files-type-document .files-type-icon {
+    -fx-stroke: #477BFA;
+}
+
+/* Videos - Purple */
+.files-type-video {
+    -fx-background-color: #F4EFFF;
+    -fx-border-color: #E7DAFF;
+}
+
+.files-type-video .files-type-icon {
+    -fx-stroke: #8867D6;
+}
+
+/* Audio - Teal */
+.files-type-audio {
+    -fx-background-color: #E9F8F4;
+    -fx-border-color: #D1F0E6;
+}
+
+.files-type-audio .files-type-icon {
+    -fx-stroke: #159C87;
+}
+
+/* Archives - Amber */
+.files-type-archive {
+    -fx-background-color: #FFF7E8;
+    -fx-border-color: #F5E6C9;
+}
+
+.files-type-archive .files-type-icon {
+    -fx-stroke: #B77F26;
+}
+
+/* Code - Indigo */
+.files-type-code {
+    -fx-background-color: #EEF0FF;
+    -fx-border-color: #DDE2FF;
+}
+
+.files-type-code .files-type-icon {
+    -fx-stroke: #5965D5;
+}
+
+.files-list-view .list-cell:hover .files-type-preview {
+    -fx-opacity: 0.88;
 }
