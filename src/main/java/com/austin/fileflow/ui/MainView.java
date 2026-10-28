@@ -107,6 +107,9 @@ import com.austin.fileflow.model.SimilarImagePair;
 import com.austin.fileflow.model.ShortcutAction;
 import com.austin.fileflow.service.ShortcutManager;
 import com.austin.fileflow.model.SimilarImageGroup;
+import com.austin.fileflow.model.WorkspaceScanSnapshot;
+import com.austin.fileflow.service.WorkspaceScanService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javafx.scene.input.KeyEvent;
 
 public class MainView {
@@ -156,6 +159,11 @@ public class MainView {
     private final FilePlatformService filePlatformService;
     private Path scanRootPath;
     private final ScanWorkspace scanWorkspace = new ScanWorkspace();
+    // Tracks cancellation of a multi-folder scan
+    private AtomicBoolean workspaceCancelRequested;
+
+    // Holds the latest multi-folder scan results
+    private WorkspaceScanSnapshot lastWorkspaceScanSnapshot;
     private final FolderWatcher folderWatcher = new FolderWatcher();
     private boolean autoRefreshPending = false;
     private final PauseTransition autoRefreshDelay = new PauseTransition(Duration.millis(1000));
@@ -5858,8 +5866,14 @@ public class MainView {
                         ButtonBar.ButtonData.OK_DONE
                 );
 
+                ButtonType scanWorkspaceButtonType = new ButtonType(
+                        "Scan Workspace",
+                        ButtonBar.ButtonData.APPLY
+                );
+
                 dialog.getDialogPane().getButtonTypes().addAll(
                         saveButtonType,
+                        scanWorkspaceButtonType,
                         ButtonType.CANCEL
                 );
 
@@ -5902,7 +5916,7 @@ public class MainView {
                         );
 
                         if (selectedFolder == null) {
-                        return;
+                                return;
                         }
 
                         Path selectedPath = selectedFolder.toPath();
@@ -5913,7 +5927,7 @@ public class MainView {
                         feedbackLabel.setText(
                                 "This folder cannot be accessed."
                         );
-                        return;
+                                return;
                         }
 
                         int previousCount = draft.size();
@@ -5922,11 +5936,11 @@ public class MainView {
 
                         if (!changed) {
 
-                        feedbackLabel.setText(
-                                "This folder is already included "
-                                + "in another selected folder."
+                                feedbackLabel.setText(
+                                        "This folder is already included "
+                                        + "in another selected folder."
                         );
-                        return;
+                                return;
                         }
 
                         refreshScanWorkspaceRows(
@@ -5936,11 +5950,11 @@ public class MainView {
                         );
 
                         if (draft.size() <= previousCount) {
-                        feedbackLabel.setText(
-                                "Parent folder added. Covered child folders removed."
+                                feedbackLabel.setText(
+                                        "Parent folder added. Covered child folders removed."
                         );
                         } else {
-                        feedbackLabel.setText("Folder added.");
+                                feedbackLabel.setText("Folder added.");
                         }
                 });
 
@@ -5961,17 +5975,23 @@ public class MainView {
 
                 dialog.showAndWait().ifPresent(result -> {
 
-                        if (result != saveButtonType) {
-                        return;
+                        if (result != saveButtonType
+                                && result != scanWorkspaceButtonType) {
+                                return;
                         }
 
-                        // Apply the confirmed workspace changes
+                        // Save the selected roots
                         List<Path> selectedRoots = draft.getRoots();
 
                         scanWorkspace.clear();
 
                         for (Path path : selectedRoots) {
-                        scanWorkspace.addRoot(path);
+                                scanWorkspace.addRoot(path);
+                        }
+
+                        // Scan only when explicitly requested
+                        if (result == scanWorkspaceButtonType) {
+                                startWorkspaceScan();
                         }
                 });
         }
@@ -6051,8 +6071,232 @@ public class MainView {
                 }
         }
 
-        private void handleScanAction() {
+        
+        private void startWorkspaceScan() {
+
                 if (scanning) {
+                        return;
+                }
+
+                // Freeze the selected roots for this scan
+                ScanWorkspace scanPlan = new ScanWorkspace();
+
+                for (Path path : scanWorkspace.getRoots()) {
+                        scanPlan.addRoot(path);
+                }
+
+                if (scanPlan.isEmpty()) {
+
+                        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+
+                        alert.setTitle("Scan Workspace");
+                        alert.setHeaderText("No folders selected");
+                        alert.setContentText(
+                                "Add at least one folder before scanning."
+                        );
+
+                        alert.showAndWait();
+                        return;
+                }
+
+                AtomicBoolean cancelRequested = new AtomicBoolean(false);
+
+                workspaceCancelRequested = cancelRequested;
+
+                Task<WorkspaceScanSnapshot> workspaceTask =
+                        new Task<>() {
+
+                                @Override
+                                protected WorkspaceScanSnapshot call() {
+
+                                updateMessage("Preparing workspace scan...");
+
+                                WorkspaceScanService service =
+                                        new WorkspaceScanService(fileScanService);
+
+                                return service.scan(
+                                        scanPlan,
+                                        cancelRequested::get,
+
+                                        progress -> {
+
+                                                String folderName =
+                                                        progress.root().getFileName() == null
+                                                                ? progress.root().toString()
+                                                                : progress.root()
+                                                                        .getFileName()
+                                                                        .toString();
+
+                                                updateMessage(
+                                                        String.format(
+                                                                "Folder %d/%d: %s (%,d items)",
+                                                                progress.folderIndex(),
+                                                                progress.totalFolders(),
+                                                                folderName,
+                                                                progress.processedItems()
+                                                        )
+                                                );
+                                        }
+                                );
+                                }
+                        };
+
+                scanStatusLabel.textProperty().bind(
+                        workspaceTask.messageProperty()
+                );
+
+                workspaceTask.setOnSucceeded(event -> {
+
+                        scanStatusLabel.textProperty().unbind();
+
+                        workspaceCancelRequested = null;
+
+                        lastWorkspaceScanSnapshot = workspaceTask.getValue();
+
+                        setScanningState(false);
+
+                        showWorkspaceScanSummary(
+                                lastWorkspaceScanSnapshot
+                        );
+                });
+
+                workspaceTask.setOnFailed(event -> {
+
+                        scanStatusLabel.textProperty().unbind();
+
+                        workspaceCancelRequested = null;
+
+                        setScanningState(false);
+
+                        Throwable error = workspaceTask.getException();
+
+                        Alert alert = new Alert(Alert.AlertType.ERROR);
+
+                        alert.setTitle("Workspace Scan Failed");
+                        alert.setHeaderText(
+                                "An unexpected error interrupted the scan."
+                        );
+
+                        alert.setContentText(
+                                error == null
+                                        ? "Unknown error."
+                                        : String.valueOf(error.getMessage())
+                        );
+
+                        alert.showAndWait();
+                });
+
+                // Reuse the existing top-bar scan indicator
+                setScanningState(true);
+
+                Thread thread = new Thread(
+                        workspaceTask,
+                        "fileflow-workspace-scan"
+                );
+
+                thread.setDaemon(true);
+                thread.start();
+        }
+
+        
+        private void showWorkspaceScanSummary(
+                WorkspaceScanSnapshot snapshot
+        ) {
+
+                int completed = snapshot.completedFolderCount();
+                int failed = snapshot.failures().size();
+
+                Alert.AlertType alertType =
+                        failed > 0
+                                ? Alert.AlertType.WARNING
+                                : Alert.AlertType.INFORMATION;
+
+                Alert alert = new Alert(alertType);
+
+                alert.setTitle("Workspace Scan Results");
+
+                if (snapshot.cancelled()) {
+
+                        alert.setHeaderText(
+                                "Workspace scan cancelled"
+                        );
+
+                } else if (failed > 0) {
+
+                        alert.setHeaderText(
+                                "Workspace scan completed with issues"
+                        );
+
+                } else {
+
+                        alert.setHeaderText(
+                                "Workspace scan completed"
+                        );
+                }
+
+                String message = String.format(
+                        "Folders completed: %d%n"
+                                + "Folders failed: %d%n"
+                                + "Files found: %,d%n"
+                                + "Total file size: %,d bytes%n%n"
+                                + "Results are saved in memory. "
+                                + "Multi-folder browsing will be enabled "
+                                + "in the next development stage.",
+                        completed,
+                        failed,
+                        snapshot.fileCount(),
+                        snapshot.totalFileBytes()
+                );
+
+                alert.setContentText(message);
+
+                if (failed > 0) {
+
+                        StringBuilder details = new StringBuilder();
+
+                        for (var failure : snapshot.failures()) {
+
+                                details.append(failure.root());
+                                details.append(System.lineSeparator());
+
+                                details.append(
+                                        failure.error().getMessage()
+                                );
+
+                                details.append(System.lineSeparator());
+                                details.append(System.lineSeparator());
+                        }
+
+                        TextArea failureDetails = new TextArea(
+                                details.toString()
+                        );
+
+                        failureDetails.setEditable(false);
+                        failureDetails.setWrapText(true);
+                        failureDetails.setPrefRowCount(6);
+
+                        alert.getDialogPane().setExpandableContent(
+                                failureDetails
+                        );
+
+                        alert.getDialogPane().setExpanded(false);
+                }
+
+                alert.showAndWait();
+        }
+
+        private void handleScanAction() {
+
+                if (scanning) {
+
+                        // Multi-folder scan uses cooperative cancellation.
+                        if (workspaceCancelRequested != null) {
+
+                                workspaceCancelRequested.set(true);
+                                return;
+                        }
+
+                        // Preserve the existing single-folder cancellation.
                         if (currentScanTask != null) {
                                 currentScanTask.cancel();
                         }
