@@ -7245,14 +7245,21 @@ public class MainView {
 
         private Node createStoredFilePreview(Path filePath) {
 
-                FileItem scannedItem = findScannedFileItem(filePath);
+    FileItem scannedItem = findScannedFileItem(filePath);
 
-                if (scannedItem != null) {
-                        return createUnifiedFilePreview(scannedItem);
-                }
+        if (scannedItem != null) {
+                return createUnifiedFilePreview(scannedItem);
+        }
 
-                String fileName = filePath.getFileName().toString()
-                        .toLowerCase(Locale.ROOT);
+        // Use FileFlow Signature Tile for stored files
+        Node storedBadge = filePreviewFactory.createStoredBadge(filePath);
+
+        if (storedBadge != null) {
+                return storedBadge;
+        }
+
+        String fileName = filePath.getFileName().toString()
+                .toLowerCase(Locale.ROOT);
 
                 boolean isImage = fileName.matches(
                         ".*\\.(jpg|jpeg|png|gif|bmp)"

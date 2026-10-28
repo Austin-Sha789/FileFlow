@@ -70,39 +70,43 @@ public class FilePreviewFactory {
         imageThumbnailCache.clear();
     }
 
-    private String getBadgeType(FileItem item) {
+   private String getBadgeType(FileItem item) {
 
-        if (item.isDirectory() || item.getExtension() == null) {
+        if (item.isDirectory()) {
                 return null;
         }
 
-        String extension = item.getExtension()
+        return getBadgeTypeFromExtension(item.getExtension());
+    }
+
+    private String getBadgeTypeFromExtension(String extension) {
+
+        if (extension == null) {
+                return null;
+        }
+
+        String ext = extension
                 .replaceFirst("^\\.", "")
                 .toLowerCase(Locale.ROOT);
 
-        return switch (extension) {
+        return switch (ext) {
 
-                // Office & PDF
                 case "pdf" -> "pdf";
                 case "doc", "docx", "docm" -> "word";
                 case "xls", "xlsx", "xlsm" -> "excel";
                 case "ppt", "pptx", "pptm" -> "powerpoint";
 
-                // Text & Data
                 case "txt" -> "text";
                 case "csv" -> "csv";
                 case "json" -> "json";
                 case "xml" -> "xml";
 
-                // Programming Languages
                 case "java" -> "java";
                 case "py", "pyw" -> "python";
-                // Web Development
                 case "js", "jsx", "mjs", "cjs" -> "javascript";
                 case "ts", "tsx", "mts", "cts" -> "typescript";
-                case "md", "markdown" -> "markdown";
 
-                // Web & Data Files
+                case "md", "markdown" -> "markdown";
                 case "html", "htm" -> "html";
                 case "css" -> "css";
                 case "yaml", "yml" -> "yaml";
@@ -298,69 +302,7 @@ public class FilePreviewFactory {
         String badgeType = getBadgeType(item);
 
         if (badgeType != null) {
-
-                String badgeText = switch (badgeType) {
-
-                        case "pdf" -> "PDF";
-                        case "word" -> "W";
-                        case "excel" -> "X";
-                        case "powerpoint" -> "P";
-
-                        case "text" -> "TXT";
-                        case "csv" -> "CSV";
-                        case "json" -> "JSON";
-                        case "xml" -> "XML";
-                        case "java" -> "JAVA";
-                        case "python" -> "PY";
-                        case "javascript" -> "JS";
-                        case "typescript" -> "TS";
-                        case "markdown" -> "MD";
-
-                        case "html" -> "HTML";
-                        case "css" -> "CSS";
-                        case "yaml" -> "YAML";
-                        case "sql" -> "SQL";
-
-                        default -> "FILE";
-                };
-
-                Label badgeLabel = new Label(badgeText);
-
-                badgeLabel.getStyleClass().add(
-                        "file-document-badge-text"
-                );
-
-                preview.getStyleClass().addAll(
-                        "file-document-badge",
-                        "file-document-" + badgeType
-                );
-
-                // FileFlow Signature Flowline
-                Region flowline = new Region();
-
-                flowline.getStyleClass().add(
-                        "fileflow-badge-flowline"
-                );
-
-                flowline.setMinSize(3, 18);
-                flowline.setPrefSize(3, 18);
-                flowline.setMaxSize(3, 18);
-
-                // Position the signature mark on the left
-                StackPane.setAlignment(flowline, Pos.CENTER_LEFT);
-
-                StackPane.setMargin(
-                        flowline,
-                        new Insets(0, 0, 0, 6)
-                );
-
-                // Keep the document letter centred
-                preview.getChildren().addAll(
-                        flowline,
-                        badgeLabel
-                );
-
-                return preview;
+                return createSignatureTile(badgeType, preview);
         }
 
         if (hasNativeAppIcon(item)) {
@@ -479,6 +421,117 @@ public class FilePreviewFactory {
         );
 
         return preview;
+    }
+
+    private Node createSignatureTile(
+                String badgeType,
+                StackPane preview
+    ) {
+
+        // 1. Add FileFlow badge styles
+        preview.getStyleClass().addAll(
+                "file-document-badge",
+                "file-document-" + badgeType
+        );
+
+        // 2. Determine badge text
+        String badgeText = switch (badgeType) {
+
+                case "pdf" -> "PDF";
+                case "word" -> "W";
+                case "excel" -> "X";
+                case "powerpoint" -> "P";
+
+                case "text" -> "TXT";
+                case "csv" -> "CSV";
+                case "json" -> "JSON";
+                case "xml" -> "XML";
+
+                case "java" -> "JAVA";
+                case "python" -> "PY";
+
+                case "javascript" -> "JS";
+                case "typescript" -> "TS";
+                case "markdown" -> "MD";
+
+                case "html" -> "HTML";
+                case "css" -> "CSS";
+                case "yaml" -> "YAML";
+                case "sql" -> "SQL";
+
+                default -> "FILE";
+        };
+
+        // 3. Create text label
+        Label badgeLabel = new Label(badgeText);
+
+        badgeLabel.getStyleClass().add(
+                "file-document-badge-text"
+        );
+
+        // 4. Create FileFlow Signature Flowline
+        Region flowline = new Region();
+
+        flowline.getStyleClass().add(
+                "fileflow-badge-flowline"
+        );
+
+        flowline.setMinSize(3, 18);
+        flowline.setPrefSize(3, 18);
+        flowline.setMaxSize(3, 18);
+
+        StackPane.setAlignment(
+                flowline,
+                Pos.CENTER_LEFT
+        );
+
+        StackPane.setMargin(
+                flowline,
+                new Insets(0, 0, 0, 6)
+        );
+
+        // 5. Assemble the complete tile
+        preview.getChildren().addAll(
+                flowline,
+                badgeLabel
+        );
+
+        return preview;
+    }
+
+    public Node createStoredBadge(Path filePath) {
+
+        if (filePath == null || filePath.getFileName() == null) {
+                return null;
+        }
+
+        String fileName = filePath.getFileName().toString();
+
+        int lastDot = fileName.lastIndexOf('.');
+
+        // No valid extension
+        if (lastDot <= 0 || lastDot == fileName.length() - 1) {
+                return null;
+        }
+
+        String extension = fileName.substring(lastDot + 1);
+
+        String badgeType = getBadgeTypeFromExtension(extension);
+
+        // No signature badge available
+        if (badgeType == null) {
+                return null;
+        }
+
+        StackPane preview = new StackPane();
+
+        preview.setMinSize(56, 42);
+        preview.setPrefSize(56, 42);
+        preview.setMaxSize(56, 42);
+
+        preview.getStyleClass().add("file-preview");
+
+        return createSignatureTile(badgeType, preview);
     }
 
     public Node createFallback() {
