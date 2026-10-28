@@ -954,8 +954,17 @@ public class MainView {
             case "Favourites" ->
                     pageContent.getChildren().add(createFavouritesContent());
 
-            case "Duplicates" ->
-                    pageContent.getChildren().add(createDuplicatesContent());
+            case "Duplicates" -> {
+
+                VBox duplicatesContent = createDuplicatesContent();
+
+                pageContent.getChildren().add(duplicatesContent);
+
+                VBox.setVgrow(
+                        duplicatesContent,
+                        Priority.ALWAYS
+                );
+            }
 
             case "Tags" ->
                     pageContent.getChildren().add(createTagsContent());
@@ -2964,6 +2973,9 @@ public class MainView {
         VBox content = new VBox(18);
         content.getStyleClass().add("duplicates-content");
 
+        content.setMinHeight(0);
+        content.setMaxHeight(Double.MAX_VALUE);
+
         ToggleButton exactTab = new ToggleButton("Exact Duplicates");
         ToggleButton similarTab = new ToggleButton("Similar Images");
 
@@ -3013,12 +3025,19 @@ public class MainView {
                 "section-title"
         );
 
+        VBox.setMargin(
+                duplicateGroupsTitle,
+                new javafx.geometry.Insets(8, 0, 0, 0)
+        );
+
         duplicateGroupsTitle.setVisible(false);
         duplicateGroupsTitle.setManaged(false);
         
         ScrollPane resultsScrollPane = new ScrollPane(resultsContainer);
 
         resultsScrollPane.setFitToWidth(true);
+
+        resultsScrollPane.setMinHeight(0);
 
         resultsScrollPane.setHbarPolicy(
                 ScrollPane.ScrollBarPolicy.NEVER
@@ -3258,6 +3277,15 @@ public class MainView {
 
         // Exact duplicate interface
         VBox exactContent = new VBox(18);
+
+        exactContent.setSpacing(10);
+        exactContent.setMinHeight(0);
+        exactContent.setMaxHeight(Double.MAX_VALUE);
+
+        VBox.setVgrow(
+                exactContent,
+                Priority.ALWAYS
+        );
 
         // Card heading
         Label exactCardTitle = new Label("Content match");

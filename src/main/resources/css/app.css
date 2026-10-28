@@ -2468,3 +2468,28 @@
 .duplicate-summary-row .summary-card-value {
     -fx-font-size: 23px;
 }
+
+/* Compact duplicate group rows */
+
+.exact-duplicate-group-card .duplicate-group-header {
+    -fx-padding: 11 16;
+    -fx-spacing: 10;
+}
+
+.exact-duplicate-group-title {
+    -fx-font-size: 13px;
+}
+
+.exact-duplicate-group-card .duplicate-group-summary {
+    -fx-font-size: 11px;
+}
+
+.exact-duplicate-reclaimable-badge {
+    -fx-padding: 6 9;
+    -fx-font-size: 11px;
+}
+
+.exact-duplicate-resolve-button {
+    -fx-padding: 7 12;
+    -fx-font-size: 12px;
+}
