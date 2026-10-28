@@ -2708,3 +2708,60 @@
     -fx-background-color: #DFEBFF;
     -fx-border-color: #B8D0F5;
 }
+
+/* =====================================
+   Tags - Compact Group Cards
+   ===================================== */
+
+.tags-content {
+    -fx-spacing: 12;
+}
+
+.tags-content .tag-group {
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 12;
+
+    -fx-border-color: #E2E8F2;
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+
+    -fx-padding: 12 16;
+}
+
+.tags-content .tag-header {
+    -fx-alignment: center-left;
+    -fx-spacing: 10;
+}
+
+.tags-content .tag-group-title {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #20334F;
+}
+
+.tags-content .tag-count-badge {
+    -fx-background-color: #EDF3FA;
+    -fx-background-radius: 7;
+
+    -fx-padding: 5 9;
+
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #61758F;
+}
+
+.tags-content .tag-file-list {
+    -fx-spacing: 6;
+}
+
+.tags-content .tag-delete-button {
+    -fx-background-color: #FFF1F1;
+    -fx-background-radius: 8;
+
+    -fx-text-fill: #C95A62;
+    -fx-padding: 7 12;
+}
+
+.tags-content .tag-delete-button:hover {
+    -fx-background-color: #FFE4E6;
+}

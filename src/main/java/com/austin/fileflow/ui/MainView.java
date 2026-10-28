@@ -3779,9 +3779,12 @@ public class MainView {
     }
 
     private VBox createTagsContent() {
-        VBox tagsContent = new VBox(12);
 
-        VBox tagList = new VBox(8);
+        VBox tagsContent = new VBox(12);
+        tagsContent.getStyleClass().add("tags-content");
+
+        VBox tagList = new VBox(10);
+        tagList.getStyleClass().add("tags-list");
 
         populateTagList(tagList);
 
@@ -4687,8 +4690,16 @@ public class MainView {
                 for (String tag : tags) {
                         List<Path> files = tagRepo.getFilesForTag(tag);
 
-                        Label tagLabel = new Label(
-                                tag + "(" + files.size() + ")"
+                        Label tagLabel = new Label(tag);
+
+                        Label tagCountLabel = new Label(
+                                files.size() == 1
+                                        ? "1 file"
+                                        : files.size() + " files"
+                        );
+
+                        tagCountLabel.getStyleClass().add(
+                                "tag-count-badge"
                         );
 
                         Button deleteButton = new Button("Delete");
@@ -4731,6 +4742,7 @@ public class MainView {
                         HBox tagHeader = new HBox(
                                 10,
                                 tagLabel,
+                                tagCountLabel,
                                 spacer,
                                 deleteButton
                         );
