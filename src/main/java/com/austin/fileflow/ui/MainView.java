@@ -2340,21 +2340,21 @@ public class MainView {
                         Label relativePathLabel = new Label();
                         relativePathLabel.getStyleClass().add("file-relative-path");
 
-                        if (filesViewMode == FilesViewMode.ALL_FILES
-                                && scanRootPath != null) {
+                        if (filesViewMode == FilesViewMode.ALL_FILES) {
 
+                                relativePathLabel.setText(
+                                        getWorkspaceFileLocation(item.getPath())
+                                );
+
+                                // The full path is available on hover
                                 Path parent = item.getPath().getParent();
 
                                 if (parent != null) {
-                                        Path relativeParent = scanRootPath.relativize(parent);
-
-                                        if (relativeParent.toString().isEmpty()) {
-                                                relativePathLabel.setText("Scan root");
-                                        } else {
-                                                relativePathLabel.setText(
-                                                        relativeParent.toString()
-                                                );
-                                        }
+                                        relativePathLabel.setTooltip(
+                                                new javafx.scene.control.Tooltip(
+                                                        parent.toString()
+                                                )
+                                        );
                                 }
                         }
 
@@ -4846,8 +4846,14 @@ public class MainView {
                         Comparator.comparing(FileItem::getName);
         };
 
-        List<FileItem> filteredItems = latestScanResult.getItems()
-                .stream()
+        List<FileItem> sourceItems =
+                filesViewMode == FilesViewMode.ALL_FILES
+                && lastWorkspaceScanSnapshot != null
+                && !lastWorkspaceScanSnapshot.resultsByRoot().isEmpty()
+                        ? lastWorkspaceScanSnapshot.items()
+                        : latestScanResult.getItems();
+
+        List<FileItem> filteredItems = sourceItems.stream()
                 .filter(item -> {
                         if (filesViewMode == FilesViewMode.ALL_FILES) {
                                 return !item.isDirectory();
@@ -4873,6 +4879,8 @@ public class MainView {
                 .toList();
 
         fileList.getItems().setAll(filteredItems);
+
+        fileList.refresh();
     }
 
     private boolean matchesType(FileItem item, String selectedType) {
@@ -7099,6 +7107,69 @@ public class MainView {
                         breadcrumbBar.getChildren().addAll(separator, pathButton);
                 }
 
+        }
+
+        private String getWorkspaceFileLocation(Path filePath) {
+
+                Path parent = filePath
+                        .toAbsolutePath()
+                        .normalize()
+                        .getParent();
+
+                if (parent == null) {
+                        return "";
+                }
+
+                // Workspace: locate the correct root for this file
+                if (lastWorkspaceScanSnapshot != null
+                        && !lastWorkspaceScanSnapshot.resultsByRoot().isEmpty()) {
+
+                        for (Path root :
+                                lastWorkspaceScanSnapshot.resultsByRoot().keySet()) {
+
+                                Path normalizedRoot = root
+                                        .toAbsolutePath()
+                                        .normalize();
+
+                                if (parent.startsWith(normalizedRoot)) {
+
+                                        Path relativeParent =
+                                                normalizedRoot.relativize(parent);
+
+                                        String rootName =
+                                                getPathDisplayName(normalizedRoot);
+
+                                        if (relativeParent.toString().isEmpty()) {
+                                        return rootName;
+                                        }
+
+                                        return rootName + " / " + relativeParent;
+                                }
+                        }
+
+                        // Fallback for paths outside all scanned roots
+                        return parent.toString();
+                }
+
+                // Original single-folder scan
+                if (scanRootPath != null) {
+
+                        Path normalizedRoot = scanRootPath
+                                .toAbsolutePath()
+                                .normalize();
+
+                        if (parent.startsWith(normalizedRoot)) {
+
+                        Path relativeParent =
+                                normalizedRoot.relativize(parent);
+
+                        return relativeParent.toString().isEmpty()
+                                ? "Scan root"
+                                : relativeParent.toString();
+                        }
+                }
+
+                return parent.toString();
         }
 
         private String getPathDisplayName(Path path) {
