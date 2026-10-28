@@ -2021,6 +2021,79 @@ public class MainView {
 
         toolbar.setMaxWidth(Double.MAX_VALUE);
 
+        
+        // Show a root selector after a workspace scan
+        if (lastWorkspaceScanSnapshot != null
+                && !lastWorkspaceScanSnapshot.resultsByRoot().isEmpty()) {
+
+        List<Path> availableRoots = new ArrayList<>(
+                lastWorkspaceScanSnapshot
+                        .resultsByRoot()
+                        .keySet()
+        );
+
+        Label workspaceLabel = new Label(
+                "Workspace (" + availableRoots.size() + " folders)"
+        );
+
+        workspaceLabel.getStyleClass().add("section-title");
+
+        ComboBox<Path> rootSelector = new ComboBox<>();
+
+        rootSelector.getItems().setAll(availableRoots);
+
+        rootSelector.setPromptText("Select scan folder");
+
+        rootSelector.setPrefWidth(360);
+        rootSelector.setMaxWidth(Double.MAX_VALUE);
+
+        HBox.setHgrow(
+                rootSelector,
+                Priority.ALWAYS
+        );
+
+        rootSelector.getStyleClass().add(
+                "files-filter-combo"
+        );
+
+        if (scanRootPath != null
+                && availableRoots.contains(scanRootPath)) {
+
+                rootSelector.setValue(scanRootPath);
+        }
+
+        rootSelector.setOnAction(event -> {
+
+                Path selectedRoot = rootSelector.getValue();
+
+                if (selectedRoot == null
+                        || selectedRoot.equals(scanRootPath)) {
+                return;
+                }
+
+                activateWorkspaceRoot(selectedRoot);
+        });
+
+        HBox workspaceBar = new HBox(
+                14,
+                workspaceLabel,
+                rootSelector
+        );
+
+        workspaceBar.setAlignment(Pos.CENTER_LEFT);
+        workspaceBar.setMaxWidth(Double.MAX_VALUE);
+
+        workspaceBar.setStyle(
+                "-fx-padding: 12 14;"
+                + "-fx-background-color: white;"
+                + "-fx-background-radius: 10;"
+                + "-fx-border-color: #E1E8F2;"
+                + "-fx-border-radius: 10;"
+        );
+
+        filesContent.getChildren().add(workspaceBar);
+        }
+
         filesContent.getChildren().add(toolbar);
         filesContent.getChildren().add(browseHeader);
         filesContent.getChildren().add(categoriesContent);
@@ -5270,6 +5343,9 @@ public class MainView {
 
                         latestScanResult = scanTask.getValue();
 
+                        // A successful standalone scan replaces workspace browsing
+                        lastWorkspaceScanSnapshot = null;
+
                         rebuildScannedItemIndex();
 
                         latestDuplicateGroups  = List.of();
@@ -6070,7 +6146,53 @@ public class MainView {
                         rootsBox.getChildren().add(folderRow);
                 }
         }
+        
+        private void activateWorkspaceRoot(Path rootPath) {
 
+                if (lastWorkspaceScanSnapshot == null || scanning) {
+                        return;
+                }
+
+                        Path normalizedRoot = rootPath
+                                .toAbsolutePath()
+                                .normalize();
+
+                        ScanResult selectedResult =
+                                lastWorkspaceScanSnapshot
+                                        .resultsByRoot()
+                                        .get(normalizedRoot);
+
+                        if (selectedResult == null) {
+                                return;
+                }
+
+                // Stop any pending refresh for the previous root
+                autoRefreshDelay.stop();
+                autoRefreshPending = false;
+
+                // Switch the active result and browsing location
+                latestScanResult = selectedResult;
+                scanRootPath = normalizedRoot;
+                currentFolder = normalizedRoot;
+
+                // Results from another root must not be reused
+                latestDuplicateGroups = List.of();
+                duplicateAnalysisCompleted = false;
+
+                latestSimilarPairs = List.of();
+                similarAnalysisCompleted = false;
+
+                // Rebuild the lookup for the active root
+                rebuildScannedItemIndex();
+
+                // Rebuild the file preview cache
+                filePreviewFactory.clearCache();
+
+                updateStorageCard(normalizedRoot);
+
+                // Re-create the Files page using the selected root
+                selectNavItem(filesNavItem, "Files");
+        }
         
         private void startWorkspaceScan() {
 
@@ -6154,6 +6276,20 @@ public class MainView {
                         lastWorkspaceScanSnapshot = workspaceTask.getValue();
 
                         setScanningState(false);
+
+                        // Automatically open the first successfully scanned root
+                        if (!lastWorkspaceScanSnapshot
+                                .resultsByRoot()
+                                .isEmpty()) {
+
+                                Path firstRoot = lastWorkspaceScanSnapshot
+                                        .resultsByRoot()
+                                        .keySet()
+                                        .iterator()
+                                        .next();
+
+                                activateWorkspaceRoot(firstRoot);
+                        }
 
                         showWorkspaceScanSummary(
                                 lastWorkspaceScanSnapshot
