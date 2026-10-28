@@ -2967,8 +2967,19 @@ public class MainView {
         Label heading = new Label("Duplicate Files");
         heading.getStyleClass().add("duplicates-heading");
 
-        Label subtitle = new Label("Find identical files and see how much storage you could reclaim.");
+        Label subtitle = new Label(
+                "Find identical files and visually similar images before deciding what to keep."
+        );
+
+        subtitle.setWrapText(true);
         subtitle.getStyleClass().add("duplicates-subtitle");
+
+        // Shared page header
+        VBox pageHeader = new VBox(6, heading, subtitle);
+
+        pageHeader.getStyleClass().add(
+                "duplicates-page-header"
+        );
 
         ToggleButton exactTab = new ToggleButton("Exact Duplicates");
         ToggleButton similarTab = new ToggleButton("Similar Images");
@@ -2981,6 +2992,18 @@ public class MainView {
         exactTab.setSelected(true);
 
         HBox modeTabs = new HBox(8, exactTab, similarTab);
+
+        modeTabs.getStyleClass().add(
+                "duplicates-mode-tabs"
+        );
+
+        exactTab.getStyleClass().add(
+                "duplicates-mode-tab"
+        );
+
+        similarTab.getStyleClass().add(
+                "duplicates-mode-tab"
+        );
 
         Button analyseButton = new Button("Analyse Duplicates");
         analyseButton.getStyleClass().add("duplicates-analyse-button");
@@ -3244,11 +3267,21 @@ public class MainView {
         
 
         // Existing exact duplicate interface
+        // Exact duplicate interface
         VBox exactContent = new VBox(18);
 
+        Label exactDescription = new Label(
+                "Identify files with identical content, even when their names differ."
+        );
+
+        exactDescription.setWrapText(true);
+
+        exactDescription.getStyleClass().add(
+                "duplicates-mode-description"
+        );
+
         exactContent.getChildren().addAll(
-                heading,
-                subtitle,
+                exactDescription,
                 analyseButton,
                 progressBar,
                 statusLabel,
@@ -3257,17 +3290,16 @@ public class MainView {
                 resultsScrollPane
         );
 
-        // New similar images interface
-        VBox similarContent = new VBox(12);
 
-        Label similarHeading = new Label("Similar Images");
-        similarHeading.getStyleClass().add("duplicates-heading");
+        VBox similarContent = new VBox(12);
 
         Label similarDescription = new Label(
                 "Find visually similar images, even when their sizes or resolutions differ."
         );
         similarDescription.setWrapText(true);
-        similarDescription.getStyleClass().add("duplicates-subtitle");
+        similarDescription.getStyleClass().add(
+                "duplicates-mode-description"
+        );
 
         Label sensitivityLabel =
                 new Label("Detection Sensitivity");
@@ -3525,7 +3557,6 @@ public class MainView {
         });
 
         similarContent.getChildren().addAll(
-                similarHeading,
                 similarDescription,
                 sensitivityLabel,
                 sensitivityCombo,
@@ -3538,8 +3569,9 @@ public class MainView {
         similarContent.setVisible(false);
         similarContent.setManaged(false);
 
-        // Add both modes to the page
+        // Shared header and both analysis modes
         content.getChildren().addAll(
+                pageHeader,
                 modeTabs,
                 exactContent,
                 similarContent

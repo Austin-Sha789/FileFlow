@@ -2215,3 +2215,82 @@
     -fx-text-fill: #8190A6;
     -fx-alignment: center;
 }
+
+/* =====================================
+   Duplicates - Shared Page Layout
+   ===================================== */
+
+.duplicates-page-header {
+    -fx-spacing: 6;
+    -fx-padding: 22 24;
+
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 14;
+
+    -fx-border-color: #E2E8F2;
+    -fx-border-radius: 14;
+    -fx-border-width: 1;
+}
+
+.duplicates-page-header .duplicates-heading {
+    -fx-font-size: 25px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #1D304C;
+}
+
+.duplicates-page-header .duplicates-subtitle {
+    -fx-font-size: 13px;
+    -fx-text-fill: #8190A6;
+}
+
+/* Analysis mode tabs */
+
+.duplicates-mode-tabs {
+    -fx-alignment: center-left;
+    -fx-spacing: 6;
+    -fx-padding: 5;
+
+    -fx-background-color: #EDF3FA;
+    -fx-background-radius: 12;
+}
+
+.duplicates-mode-tab {
+    -fx-background-color: transparent;
+    -fx-background-radius: 9;
+
+    -fx-border-color: transparent;
+    -fx-border-radius: 9;
+
+    -fx-text-fill: #7586A0;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+
+    -fx-padding: 11 20;
+    -fx-cursor: hand;
+}
+
+.duplicates-mode-tab:hover {
+    -fx-background-color: #E0EAF8;
+}
+
+.duplicates-mode-tab:selected {
+    -fx-background-color: #FFFFFF;
+    -fx-text-fill: #3975D9;
+
+    -fx-effect: dropshadow(
+        gaussian,
+        rgba(35, 70, 120, 0.08),
+        8,
+        0,
+        0,
+        2
+    );
+}
+
+/* Description inside each analysis mode */
+
+.duplicates-mode-description {
+    -fx-font-size: 13px;
+    -fx-text-fill: #8190A6;
+    -fx-padding: 4 0 2 0;
+}
