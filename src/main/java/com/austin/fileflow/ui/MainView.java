@@ -2231,6 +2231,15 @@ public class MainView {
 
         Label selectedCountLabel = new Label("0 files selected");
 
+        Button bulkFavouriteButton =
+                new Button("Add to Favourites");
+
+        bulkFavouriteButton.getStyleClass().add(
+                "secondary-button"
+        );
+
+        bulkFavouriteButton.setDisable(true);
+
         Button bulkTagButton = new Button("Tag Selected");
 
         bulkTagButton.getStyleClass().add("primary-button");
@@ -2249,6 +2258,7 @@ public class MainView {
                 selectedCountLabel,
                 selectionSpacer,
                 bulkTagButton,
+                bulkFavouriteButton,
                 clearSelectionButton
         );
 
@@ -2271,6 +2281,7 @@ public class MainView {
                 boolean nothingSelected = count == 0;
 
                 bulkTagButton.setDisable(nothingSelected);
+                bulkFavouriteButton.setDisable(nothingSelected);
                 clearSelectionButton.setDisable(nothingSelected);
         };
 
@@ -2281,6 +2292,71 @@ public class MainView {
                         fileList
                 )
         );
+
+        bulkFavouriteButton.setOnAction(event -> {
+
+                if (selectedFilePaths.isEmpty()) {
+                        return;
+                }
+
+                List<Path> targets =
+                        new ArrayList<>(selectedFilePaths);
+
+                int added = 0;
+                int alreadySaved = 0;
+                int failed = 0;
+
+                for (Path path : targets) {
+
+                        if (favouritePaths.contains(path)) {
+                                alreadySaved++;
+                                continue;
+                        }
+
+                        try {
+
+                                favouriteRepo.add(path);
+                                favouritePaths.add(path);
+
+                        added++;
+
+                        } catch (SQLException exception) {
+
+                                failed++;
+                                exception.printStackTrace();
+                        }
+                }
+
+                // Refresh favourite stars in the visible rows
+                fileList.refresh();
+
+                Alert result = new Alert(
+                        failed == 0
+                                ? Alert.AlertType.INFORMATION
+                                : Alert.AlertType.WARNING
+                );
+
+                result.setTitle("Bulk Favourite Results");
+
+                result.setHeaderText(
+                        failed == 0
+                                ? "Favourites updated"
+                                : "Some items could not be saved"
+                );
+
+                result.setContentText(
+                        String.format(
+                                "Added: %d%n"
+                                + "Already in Favourites: %d%n"
+                                + "Failed: %d",
+                                added,
+                                alreadySaved,
+                                failed
+                        )
+                );
+
+                result.showAndWait();
+        });
 
         clearSelectionButton.setOnAction(event -> {
 
