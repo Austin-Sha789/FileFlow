@@ -1241,6 +1241,62 @@ public class MainView {
 
         dashboardContent.getChildren().add(summaryRow);
 
+        // Entire workspace summary
+        if (lastWorkspaceScanSnapshot != null
+                && !lastWorkspaceScanSnapshot.resultsByRoot().isEmpty()) {
+
+                WorkspaceScanSnapshot workspace =
+                        lastWorkspaceScanSnapshot;
+
+                Label workspaceTitle = new Label("Entire Workspace");
+                workspaceTitle.getStyleClass().add("section-title");
+
+                HBox workspaceRow = new HBox(12);
+                workspaceRow.getStyleClass().add("summary-grid");
+
+                VBox rootsCard = createSummaryCard(
+                        "Scanned Roots",
+                        String.valueOf(workspace.completedFolderCount())
+                );
+
+                VBox workspaceFilesCard = createSummaryCard(
+                        "Total Files",
+                        String.format("%,d", workspace.fileCount())
+                );
+
+                VBox workspaceSizeCard = createSummaryCard(
+                        "Total Size",
+                        FileSizeFormatter.format(workspace.totalFileBytes())
+                );
+
+                VBox failedCard = createSummaryCard(
+                        "Failed Roots",
+                        String.valueOf(workspace.failures().size())
+                );
+
+                for (VBox card : List.of(
+                        rootsCard,
+                        workspaceFilesCard,
+                        workspaceSizeCard,
+                        failedCard
+                )) {
+                        HBox.setHgrow(card, Priority.ALWAYS);
+                        card.setMaxWidth(Double.MAX_VALUE);
+                }
+
+                workspaceRow.getChildren().addAll(
+                        rootsCard,
+                        workspaceFilesCard,
+                        workspaceSizeCard,
+                        failedCard
+                );
+
+                dashboardContent.getChildren().addAll(
+                        workspaceTitle,
+                        workspaceRow
+                );
+        }
+
         VBox largestFilesList = new VBox(6);
 
         List<FileItem> largestFiles = latestScanResult.getItems()
@@ -6315,6 +6371,12 @@ public class MainView {
                         WorkspaceScanSnapshot refreshed =
                                 workspaceTask.getValue();
 
+                        // Record only roots actually scanned successfully.
+                        // A cancelled refresh does not create a new history entry.
+                        if (!(refreshExisting && refreshed.cancelled())) {
+                        saveWorkspaceScanHistory(refreshed);
+                        }
+
                         // Cancelled refresh: keep the old workspace unchanged
                         if (refreshExisting && refreshed.cancelled()) {
 
@@ -6444,6 +6506,43 @@ public class MainView {
                 thread.start();
         }
 
+        private void saveWorkspaceScanHistory(
+                WorkspaceScanSnapshot snapshot
+        ) {
+
+                for (var entry : snapshot.resultsByRoot().entrySet()) {
+
+                        Path rootPath = entry.getKey();
+                        ScanResult result = entry.getValue();
+
+                        long fileCount = result.getItems().stream()
+                                .filter(item -> !item.isDirectory())
+                                .count();
+
+                        long totalBytes = result.getItems().stream()
+                                .filter(item -> !item.isDirectory())
+                                .mapToLong(FileItem::getSizeBytes)
+                                .sum();
+
+                        try {
+
+                                scanHistoryRepo.add(
+                                        rootPath,
+                                        LocalDateTime.now(),
+                                        fileCount,
+                                        totalBytes
+                                );
+
+                        } catch (SQLException exception) {
+
+                                showStatusWarning(
+                                        "Some workspace scan history could not be saved."
+                                );
+
+                                exception.printStackTrace();
+                        }
+                }
+        }
         
         private void showWorkspaceScanSummary(
                 WorkspaceScanSnapshot snapshot
