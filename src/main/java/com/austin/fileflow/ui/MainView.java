@@ -2760,16 +2760,17 @@ public class MainView {
 
                         favouriteButton.setOnAction(event -> {
                                 try {
+                                        // Remove favourite from database
                                         favouriteRepo.remove(filePath);
 
+                                        // Prevent delayed Quick Info from opening
                                         clickDelay.stop();
-                                        
-                                        content.getChildren().remove(row);
 
-                                        root.setRight(null);
+                                        // Rebuild Favourites with the latest database state
+                                        refreshCurrentPage();
 
                                 } catch (SQLException e) {
-                                        
+
                                         showDatabaseError(
                                                 "Unable to Update Favourite",
                                                 "FileFlow could not remove this file from your favourites."
