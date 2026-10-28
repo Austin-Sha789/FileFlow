@@ -7,6 +7,7 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.GridPane;
+import javafx.scene.layout.TilePane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
@@ -6698,23 +6699,24 @@ public class MainView {
                                 "duplicate-group-summary"
                         );
 
-                        GridPane imageGrid = new GridPane();
+                        // Responsive image grid
+                        TilePane imageGrid = new TilePane();
 
                         imageGrid.setHgap(12);
-                        imageGrid.setVgap(18);
+                        imageGrid.setVgap(14);
 
+                        imageGrid.setPrefColumns(3);
+                        imageGrid.setPrefTileWidth(245);
+
+                        imageGrid.setMinWidth(0);
                         imageGrid.setMaxWidth(Double.MAX_VALUE);
 
-                        for (int col = 0; col < 3; col++) {
+                        imageGrid.setAlignment(Pos.TOP_LEFT);
+                        imageGrid.setTileAlignment(Pos.TOP_CENTER);
 
-                                ColumnConstraints column = new ColumnConstraints();
-
-                                column.setPercentWidth(100.0 / 3);
-
-                                imageGrid.getColumnConstraints().add(column);
-                        }
-
-                        int imageIndex = 0;
+                        imageGrid.getStyleClass().add(
+                                "similar-image-grid"
+                        );
 
                         for (FileItem item : group.files()) {
 
@@ -6729,7 +6731,22 @@ public class MainView {
                                         item.getName()
                                 );
 
-                                nameLabel.setWrapText(true);
+                                nameLabel.setWrapText(false);
+
+                                nameLabel.setMinWidth(0);
+                                nameLabel.setMaxWidth(230);
+
+                                nameLabel.setTextOverrun(
+                                        javafx.scene.control.OverrunStyle.ELLIPSIS
+                                );
+
+                                nameLabel.setTooltip(
+                                        new javafx.scene.control.Tooltip(item.getName())
+                                );
+
+                                nameLabel.getStyleClass().add(
+                                        "similar-image-name"
+                                );
 
                                 String fileSize = FileSizeFormatter.format(
                                         item.getSizeBytes()
@@ -6783,6 +6800,9 @@ public class MainView {
                                         preview,
                                         nameLabel,
                                         metadataRow
+                                );
+                                imageCard.getStyleClass().add(
+                                        "similar-image-card"
                                 );
 
                                 imageCard.setPrefWidth(245);
@@ -6847,15 +6867,7 @@ public class MainView {
                                         event.consume();
                                 });
 
-                                GridPane.setHalignment(imageCard, HPos.CENTER);
-
-                                imageGrid.add(
-                                        imageCard,
-                                        imageIndex % 3,
-                                        imageIndex / 3
-                                );
-
-                                imageIndex++;
+                                imageGrid.getChildren().add(imageCard);
                         }
 
                         Button resolveButton = new Button("Resolve");
@@ -6972,8 +6984,9 @@ public class MainView {
                                 imageGrid
                         );
 
-                        groupCard.getStyleClass().add(
-                                "duplicate-group-card"
+                        groupCard.getStyleClass().addAll(
+                                "duplicate-group-card",
+                                "similar-image-group-card"
                         );
 
                         container.getChildren().add(groupCard);
