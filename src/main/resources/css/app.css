@@ -2031,3 +2031,51 @@
 .file-document-generic .fileflow-badge-flowline {
     -fx-background-color: #64748B;
 }
+
+/* =====================================
+   Favourites Page
+   ===================================== */
+
+.favourites-content {
+    -fx-padding: 8 0 24 0;
+}
+
+.favourites-heading {
+    -fx-font-size: 25px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #172B49;
+}
+
+.favourites-subtitle {
+    -fx-font-size: 13px;
+    -fx-text-fill: #8190A6;
+}
+
+/* Empty State */
+
+.favourites-empty-state {
+    -fx-alignment: center;
+    -fx-spacing: 10;
+    -fx-padding: 56 24;
+    -fx-background-color: #F7F9FD;
+    -fx-background-radius: 16;
+    -fx-border-color: #E4EAF3;
+    -fx-border-radius: 16;
+}
+
+.favourites-empty-icon {
+    -fx-font-size: 38px;
+    -fx-text-fill: #D4A12E;
+}
+
+.favourites-empty-title {
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #243852;
+}
+
+.favourites-empty-description {
+    -fx-font-size: 13px;
+    -fx-text-fill: #8190A6;
+    -fx-text-alignment: center;
+}

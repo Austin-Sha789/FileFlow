@@ -2568,16 +2568,59 @@ public class MainView {
     }
 
     private VBox createFavouritesContent() {
-        VBox content  = new VBox(12);
+
+        VBox content = new VBox(18);
+        content.getStyleClass().add("favourites-content");
+
+        Label heading = new Label("Your saved files");
+        heading.getStyleClass().add("favourites-heading");
+
+        Label subtitle = new Label(
+                "Keep important files close, wherever they are stored."
+        );
+        subtitle.getStyleClass().add("favourites-subtitle");
+
+        content.getChildren().addAll(heading, subtitle);
 
         try {
                 List<Path> favouritePaths = favouriteRepo.getAll();
 
                 if (favouritePaths.isEmpty()) {
-                        content.getChildren().add(
-                                new Label("No favourite files yet.")
+
+                        VBox emptyState = new VBox(8);
+                        emptyState.getStyleClass().add(
+                                "favourites-empty-state"
                         );
-                        return content ;
+
+                        Label emptyIcon = new Label("☆");
+                        emptyIcon.getStyleClass().add(
+                                "favourites-empty-icon"
+                        );
+
+                        Label emptyTitle = new Label(
+                                "Nothing saved yet"
+                        );
+                        emptyTitle.getStyleClass().add(
+                                "favourites-empty-title"
+                        );
+
+                        Label emptyDescription = new Label(
+                                "Star a file in Files to keep it here for quick access."
+                        );
+                        emptyDescription.getStyleClass().add(
+                                "favourites-empty-description"
+                        );
+                        emptyDescription.setWrapText(true);
+
+                        emptyState.getChildren().addAll(
+                                emptyIcon,
+                                emptyTitle,
+                                emptyDescription
+                        );
+
+                        content.getChildren().add(emptyState);
+
+                        return content;
                 }
 
                 for (Path filePath : favouritePaths) {
