@@ -14,6 +14,7 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.ColumnConstraints;
 import javafx.geometry.HPos;
+import javafx.geometry.Insets;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.Button;
@@ -26,6 +27,7 @@ import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
+import javafx.scene.control.Tooltip;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.control.ContextMenu;
@@ -168,6 +170,7 @@ public class MainView {
     private boolean duplicateAnalysisCompleted;
     private final Map<Path, FileItem> scannedItemsByPath =
         new HashMap<>();
+    private final Set<String> expandedTags = new HashSet<>();
 
 
     private enum FilesViewMode {
@@ -1831,6 +1834,50 @@ public class MainView {
         return createFileTypeListPreview(item);
     }
 
+    private Node createFileTagChip(
+        String tagName,
+        Runnable onRemove
+    ) {
+        Label tagText = new Label(tagName);
+        tagText.getStyleClass().add("file-tag-text");
+
+        StackPane tagPill = new StackPane(tagText);
+        tagPill.getStyleClass().add("file-tag-pill");
+
+        Button removeBadge = new Button("×");
+        removeBadge.getStyleClass().add("file-tag-remove-badge");
+        removeBadge.setFocusTraversable(false);
+
+        removeBadge.setOnAction(event -> {
+                event.consume();
+                onRemove.run();
+        });
+
+        Tooltip.install(
+                removeBadge,
+                new Tooltip("Remove tag from file")
+        );
+
+        StackPane container = new StackPane(
+                tagPill,
+                removeBadge
+        );
+
+        container.getStyleClass().add("file-tag-chip");
+
+        StackPane.setAlignment(
+                removeBadge,
+                Pos.TOP_RIGHT
+        );
+
+        StackPane.setMargin(
+                removeBadge,
+                new Insets(-5, -5, 0, 0)
+        );
+
+        return container;
+    }
+
     private VBox createFilesContent() {
         VBox filesContent = new VBox();
 
@@ -2378,38 +2425,112 @@ public class MainView {
                         );
 
                         for (String tag : tags) {
-                                Button tagChip = new Button(tag + "x");
-                                tagChip.getStyleClass().add("file-tag-chip");
 
-                                tagChip.setOnAction(event -> {
+                                // 1. Tag text: no "x" appended
+                                Label tagPill = new Label(tag);
+
+                                tagPill.getStyleClass().add(
+                                        "file-tag-pill"
+                                );
+
+                                // 2. Independent circular remove button
+                               Button removeBadge = new Button();
+
+                                // Draw the X using vector lines, not a font character
+                                SVGPath closeIcon = new SVGPath();
+                                closeIcon.setContent(
+                                        "M2 2 L6 6 M6 2 L2 6"
+                                );
+
+                                closeIcon.getStyleClass().add(
+                                        "file-tag-close-icon"
+                                );
+
+                                removeBadge.setGraphic(closeIcon);
+
+                                removeBadge.getStyleClass().add(
+                                        "file-tag-remove-badge"
+                                );
+
+                                removeBadge.setFocusTraversable(false);
+
+                                removeBadge.setTooltip(
+                                        new javafx.scene.control.Tooltip(
+                                                "Remove tag: " + tag
+                                        )
+                                );
+
+                                // Prevent clicking the remove button
+                                // from triggering the file row click action
+                                removeBadge.addEventFilter(
+                                        MouseEvent.MOUSE_CLICKED,
+                                        event -> event.consume()
+                                );
+
+                                // 3. Keep the original database removal logic
+                                removeBadge.setOnAction(event -> {
+
                                         try {
-                                                Path filePath = item.getPath();
+                                        Path filePath = item.getPath();
 
-                                                tagRepo.removeTagFromFile(filePath, tag);
+                                        tagRepo.removeTagFromFile(filePath, tag);
 
-                                                List<String> itemTags = fileTags.get(filePath);
+                                        List<String> itemTags = fileTags.get(filePath);
 
-                                                if (itemTags != null) {
-                                                        itemTags.remove(tag);
+                                        if (itemTags != null) {
 
-                                                        if (itemTags.isEmpty()) {
-                                                                fileTags.remove(filePath);
-                                                        }
+                                                itemTags.remove(tag);
+
+                                                if (itemTags.isEmpty()) {
+                                                fileTags.remove(filePath);
                                                 }
-
-                                                getListView().refresh();
-                                        } catch (SQLException e) {
-                                                showDatabaseError(
-                                                        "Unable to Remove Tag",
-                                                        "FileFlow could not remove this tag from the file."
-                                                );
-
-                                                e.printStackTrace();
-
                                         }
-                                });
 
-                                tagContainer.getChildren().add(tagChip);
+                                        getListView().refresh();
+
+                                        } catch (SQLException e) {
+
+                                        showDatabaseError(
+                                                "Unable to Remove Tag",
+                                                "FileFlow could not remove this tag from the file."
+                                        );
+
+                                        e.printStackTrace();
+                                }
+                        });
+
+                        // 4. Overlay the remove button on the pill
+                        StackPane tagChip = new StackPane();
+
+                        tagChip.getStyleClass().add(
+                                "file-tag-container"
+                        );
+
+                        tagChip.setPadding(
+                                new javafx.geometry.Insets(7, 7, 0, 0)
+                        );
+
+                        tagChip.getChildren().addAll(
+                                tagPill,
+                                removeBadge
+                        );
+
+                        StackPane.setAlignment(
+                                tagPill,
+                                Pos.BOTTOM_LEFT
+                        );
+
+                        StackPane.setAlignment(
+                                removeBadge,
+                                Pos.TOP_RIGHT
+                        );
+
+                        // Move the badge onto the top-right corner
+                        removeBadge.setTranslateX(4);
+                        removeBadge.setTranslateY(-4);
+
+                        // 5. Add complete chip to the existing tag container
+                        tagContainer.getChildren().add(tagChip);
                         }
 
                         HBox actionsBox = new HBox(
@@ -4702,9 +4823,15 @@ public class MainView {
                                 "tag-count-badge"
                         );
 
-                        Button deleteButton = new Button("Delete");
+                        Button tagMenuButton = new Button("⋯");
+                        tagMenuButton.getStyleClass().add(
+                                "tag-more-button"
+                        );
 
-                        deleteButton.setOnAction(event -> {
+                        MenuItem deleteTagItem = new MenuItem("Delete Tag");
+
+                        deleteTagItem.setOnAction(event -> {
+
                                 Alert confirmation = new Alert(
                                         Alert.AlertType.CONFIRMATION
                                 );
@@ -4719,37 +4846,115 @@ public class MainView {
                                 );
 
                                 confirmation.showAndWait().ifPresent(buttonType -> {
-                                        if (buttonType == ButtonType.OK) {
-                                                try {
-                                                        tagRepo.deleteTag(tag);
-                                                        populateTagList(tagList);
-                                                } catch (SQLException e) {
-                                                        showDatabaseError(
-                                                                "Unable to Delete Tag",
-                                                                "FileFlow could not delete this tag."
-                                                        );
 
-                                                        e.printStackTrace();
-                                                }
+                                        if (buttonType == ButtonType.OK) {
+
+                                        try {
+                                                tagRepo.deleteTag(tag);
+
+                                                expandedTags.remove(tag);
+                                                populateTagList(tagList);
+
+                                        } catch (SQLException e) {
+
+                                                showDatabaseError(
+                                                        "Unable to Delete Tag",
+                                                        "FileFlow could not delete this tag."
+                                                );
+
+                                                e.printStackTrace();
+                                        }
                                         }
                                 });
                         });
+
+                        ContextMenu tagMenu = new ContextMenu(deleteTagItem);
+
+                        tagMenuButton.setOnAction(event ->
+                                tagMenu.show(
+                                        tagMenuButton,
+                                        Side.BOTTOM,
+                                        0,
+                                        0
+                                )
+                        );
+
+                        // Do not expand the group when opening its menu
+                        tagMenuButton.addEventFilter(
+                                MouseEvent.MOUSE_CLICKED,
+                                event -> event.consume()
+                        );
                                 
 
                         Region spacer = new Region();
                         HBox.setHgrow(spacer,Priority.ALWAYS);
 
+                        // FileFlow tag outline icon
+                        SVGPath tagIcon = new SVGPath();
+
+                        tagIcon.setContent(
+                                "M2 2 H11 L21 12 L12 21 L2 11 Z " +
+                                "M7 7 a1.5 1.5 0 1 0 3 0 " +
+                                "a1.5 1.5 0 1 0 -3 0"
+                        );
+
+                        tagIcon.getStyleClass().add(
+                                "tag-group-icon"
+                        );
+
+                        // Expansion indicator
+                        Label expandArrow = new Label("›");
+
+                        expandArrow.getStyleClass().add(
+                                "tag-expand-arrow"
+                        );
+
                         HBox tagHeader = new HBox(
                                 10,
+                                tagIcon,
                                 tagLabel,
                                 tagCountLabel,
                                 spacer,
-                                deleteButton
+                                expandArrow,
+                                tagMenuButton
                         );
 
                         tagHeader.setAlignment(Pos.CENTER_LEFT);
 
+                        tagHeader.setAlignment(Pos.CENTER_LEFT);
+
                         VBox fileList = new VBox(6);
+
+                        boolean expanded = expandedTags.contains(tag);
+
+                        fileList.setVisible(expanded);
+                        fileList.setManaged(expanded);
+
+                        expandArrow.setText(
+                                expanded ? "⌄" : "›"
+                        );
+
+                        tagHeader.setOnMouseClicked(event -> {
+
+                                if (event.getButton() != MouseButton.PRIMARY) {
+                                        return;
+                                }
+
+                                boolean shouldExpand = !fileList.isVisible();
+
+                                fileList.setVisible(shouldExpand);
+                                fileList.setManaged(shouldExpand);
+
+                                expandArrow.setText(
+                                        shouldExpand ? "⌄" : "›"
+                                );
+
+                                if (shouldExpand) {
+                                        expandedTags.add(tag);
+                                } else {
+                                        expandedTags.remove(tag);
+                                }
+                        });
 
                         if (files.isEmpty()) {
                                 Label emptyLabel = new Label("No files with this tag.");
@@ -4775,10 +4980,40 @@ public class MainView {
                                                 filePathLabel
                                         );
 
-                                        Node filePreview = createStoredFilePreview(filePath);
+                                        // Allow long file names and paths to shrink
+                                        fileNameLabel.setMinWidth(0);
+                                        fileNameLabel.setMaxWidth(Double.MAX_VALUE);
 
-                                        Region spacer1 = new Region();
-                                        HBox.setHgrow(spacer1, Priority.ALWAYS);
+                                        fileNameLabel.setTextOverrun(
+                                                javafx.scene.control.OverrunStyle.ELLIPSIS
+                                        );
+
+                                        filePathLabel.setMinWidth(0);
+                                        filePathLabel.setMaxWidth(Double.MAX_VALUE);
+
+                                        filePathLabel.setTextOverrun(
+                                                javafx.scene.control.OverrunStyle.ELLIPSIS
+                                        );
+
+                                        // Show full text on hover
+                                        fileNameLabel.setTooltip(
+                                                new javafx.scene.control.Tooltip(
+                                                        filePath.getFileName().toString()
+                                                )
+                                        );
+
+                                        filePathLabel.setTooltip(
+                                                new javafx.scene.control.Tooltip(
+                                                        filePath.toString()
+                                                )
+                                        );
+
+                                        fileInfo.setMinWidth(0);
+                                        fileInfo.setMaxWidth(Double.MAX_VALUE);
+
+                                        HBox.setHgrow(fileInfo, Priority.ALWAYS);
+
+                                        Node filePreview = createStoredFilePreview(filePath);
 
                                         Button removeButton = new Button("×");
                                         removeButton.getStyleClass().add("tag-remove-button");
@@ -4800,14 +5035,44 @@ public class MainView {
 
                                         Button moreButton = createFileActionsButton(filePath);
 
+                                        removeButton.setTooltip(
+                                                new javafx.scene.control.Tooltip(
+                                                        "Remove this tag from file"
+                                                )
+                                        );
+
+                                        moreButton.setTooltip(
+                                                new javafx.scene.control.Tooltip(
+                                                        "More file actions"
+                                                )
+                                        );
+
+                                        HBox actionsBox = new HBox(
+                                                8,
+                                                removeButton,
+                                                moreButton
+                                        );
+
+                                        actionsBox.setAlignment(Pos.CENTER_RIGHT);
+                                        actionsBox.setMinWidth(Region.USE_PREF_SIZE);
+
+                                        actionsBox.getStyleClass().add(
+                                                "tags-row-actions"
+                                        );
+
                                         HBox fileRow = new HBox(
                                                 10,
                                                 filePreview,
                                                 fileInfo,
-                                                spacer1,
-                                                removeButton,
-                                                moreButton
+                                                actionsBox
                                         );
+
+                                        fileRow.getStyleClass().add(
+                                                "tag-file-row"
+                                        );
+
+                                        fileRow.setMinWidth(0);
+                                        fileRow.setMaxWidth(Double.MAX_VALUE);
 
                                         fileRow.setAlignment(Pos.CENTER_LEFT);
                                         fileRow.setMaxWidth(Double.MAX_VALUE);
@@ -4868,7 +5133,6 @@ public class MainView {
                         }
 
                         tagLabel.getStyleClass().add("tag-group-title");
-                        deleteButton.getStyleClass().add("tag-delete-button");
 
                         tagHeader.getStyleClass().add("tag-header");
                         fileList.getStyleClass().add("tag-file-list");
