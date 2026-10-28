@@ -2640,10 +2640,34 @@ public class MainView {
                                 filePathLabel
                         );
 
-                        Node filePreview = createStoredFilePreview(filePath);
+                        // Prevent long names and paths from expanding the row
+                        fileNameLabel.setMinWidth(0);
+                        fileNameLabel.setMaxWidth(Double.MAX_VALUE);
+                        fileNameLabel.setTextOverrun(
+                                javafx.scene.control.OverrunStyle.ELLIPSIS
+                        );
 
-                        Region spacer = new Region();
-                        HBox.setHgrow(spacer, Priority.ALWAYS);
+                        filePathLabel.setMinWidth(0);
+                        filePathLabel.setMaxWidth(Double.MAX_VALUE);
+                        filePathLabel.setTextOverrun(
+                                javafx.scene.control.OverrunStyle.ELLIPSIS
+                        );
+
+                        // Show full information on hover
+                        fileNameLabel.setTooltip(
+                                new javafx.scene.control.Tooltip(fileNameLabel.getText())
+                        );
+
+                        filePathLabel.setTooltip(
+                                new javafx.scene.control.Tooltip(filePath.toString())
+                        );
+
+                        fileInfo.setMinWidth(0);
+                        fileInfo.setMaxWidth(Double.MAX_VALUE);
+
+                        HBox.setHgrow(fileInfo, Priority.ALWAYS);
+
+                        Node filePreview = createStoredFilePreview(filePath);
 
                         Button favouriteButton = new Button("★");
                         favouriteButton.getStyleClass().add(
@@ -2652,17 +2676,36 @@ public class MainView {
 
                         Button moreButton = createFileActionsButton(filePath);
 
-                        HBox row = new HBox(
-                                12,
-                                filePreview,
-                                fileInfo,
-                                spacer,
+                        // Keep action buttons together
+                        HBox actionsBox = new HBox(
+                                8,
                                 favouriteButton,
                                 moreButton
                         );
 
+                        actionsBox.setAlignment(Pos.CENTER_RIGHT);
+                        actionsBox.getStyleClass().add(
+                                "favourites-row-actions"
+                        );
+
+                        actionsBox.setMinWidth(Region.USE_PREF_SIZE);
+
+                        // Assemble the file card
+                        HBox row = new HBox(
+                                12,
+                                filePreview,
+                                fileInfo,
+                                actionsBox
+                        );
+
                         row.setAlignment(Pos.CENTER_LEFT);
-                        row.getStyleClass().add("file-row");
+                        row.setMinWidth(0);
+                        row.setMaxWidth(Double.MAX_VALUE);
+
+                        row.getStyleClass().addAll(
+                                "file-row",
+                                "favourites-file-row"
+                        );
 
                         PauseTransition clickDelay =
                         new PauseTransition(Duration.millis(280));

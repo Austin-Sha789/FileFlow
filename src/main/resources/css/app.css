@@ -2079,3 +2079,91 @@
     -fx-text-fill: #8190A6;
     -fx-text-alignment: center;
 }
+
+/* =====================================
+   Favourites - File Cards
+   ===================================== */
+
+.favourites-file-row {
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 12;
+
+    -fx-border-color: #E2E8F2;
+    -fx-border-width: 1;
+    -fx-border-radius: 12;
+
+    -fx-padding: 12 14;
+    -fx-spacing: 12;
+
+    -fx-alignment: center-left;
+    -fx-cursor: hand;
+}
+
+.favourites-file-row:hover {
+    -fx-background-color: #F7FAFF;
+    -fx-border-color: #C9DAF5;
+
+    -fx-effect: dropshadow(
+        gaussian,
+        rgba(48, 96, 160, 0.08),
+        10,
+        0,
+        0,
+        2
+    );
+}
+
+/* File information */
+
+.favourites-file-row .file-name {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #243852;
+}
+
+.favourites-file-row .file-path {
+    -fx-font-size: 11px;
+    -fx-text-fill: #8A9AAF;
+}
+
+/* Right-side buttons */
+
+.favourites-row-actions {
+    -fx-alignment: center-right;
+    -fx-spacing: 8;
+}
+
+.favourites-row-actions .favourite-button,
+.favourites-row-actions .more-button {
+    -fx-min-width: 34;
+    -fx-pref-width: 34;
+    -fx-max-width: 34;
+
+    -fx-min-height: 34;
+    -fx-pref-height: 34;
+    -fx-max-height: 34;
+
+    -fx-background-color: transparent;
+    -fx-background-radius: 8;
+
+    -fx-border-color: #E2E8F2;
+    -fx-border-radius: 8;
+
+    -fx-padding: 0;
+    -fx-cursor: hand;
+}
+
+.favourites-row-actions .favourite-button {
+    -fx-text-fill: #D4A12E;
+    -fx-font-size: 18px;
+}
+
+.favourites-row-actions .more-button {
+    -fx-text-fill: #7586A0;
+    -fx-font-size: 20px;
+}
+
+.favourites-row-actions .button:hover {
+    -fx-background-color: #EDF4FF;
+    -fx-border-color: #C4D8F6;
+}
