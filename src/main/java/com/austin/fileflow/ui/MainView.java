@@ -2231,6 +2231,13 @@ public class MainView {
 
         Label selectedCountLabel = new Label("0 files selected");
 
+        Button bulkTagButton = new Button("Tag Selected");
+
+        bulkTagButton.getStyleClass().add("primary-button");
+
+        // No items selected initially
+        bulkTagButton.setDisable(true);
+
         Button clearSelectionButton = new Button("Clear");
         clearSelectionButton.getStyleClass().add("secondary-button");
 
@@ -2241,6 +2248,7 @@ public class MainView {
                 12,
                 selectedCountLabel,
                 selectionSpacer,
+                bulkTagButton,
                 clearSelectionButton
         );
 
@@ -2250,12 +2258,38 @@ public class MainView {
         selectionBar.setVisible(false);
         selectionBar.setManaged(false);
 
+        Runnable updateSelectionUi = () -> {
+
+                int count = selectedFilePaths.size();
+
+                selectedCountLabel.setText(
+                        count + (count == 1
+                                ? " item selected"
+                                : " items selected")
+                );
+
+                boolean nothingSelected = count == 0;
+
+                bulkTagButton.setDisable(nothingSelected);
+                clearSelectionButton.setDisable(nothingSelected);
+        };
+
+        bulkTagButton.setOnAction(event ->
+                showBulkTagDialog(
+                        existingTags,
+                        fileTags,
+                        fileList
+                )
+        );
+
         clearSelectionButton.setOnAction(event -> {
 
                 selectedFilePaths.clear();
-                selectedCountLabel.setText("0 files selected");
 
                 fileList.getSelectionModel().clearSelection();
+
+                updateSelectionUi.run();
+
                 fileList.refresh();
         });
 
@@ -2275,7 +2309,7 @@ public class MainView {
                         fileSelectionMode ? "Done" : "Select Files"
                 );
 
-                selectedCountLabel.setText("0 files selected");
+                updateSelectionUi.run();
 
                 fileList.refresh();
         });
@@ -2801,9 +2835,7 @@ public class MainView {
                                         selectedFilePaths.remove(selectionPath);
                                 }
 
-                                selectedCountLabel.setText(
-                                        selectedFilePaths.size() + " items selected"
-                                );
+                                updateSelectionUi.run();
 
                                 // Update only this row instead of refreshing the ListView
                                 if (selectCheckBox.getParent() instanceof HBox row) {
@@ -2907,9 +2939,7 @@ public class MainView {
                                         );
                                 }
 
-                                selectedCountLabel.setText(
-                                        selectedFilePaths.size() + " items selected"
-                                );
+                                updateSelectionUi.run();
 
                                 quickInfoDelay.stop();
 
@@ -5074,6 +5104,179 @@ public class MainView {
                 activeShortcutCaptureButton = null;
                 activeShortcutOriginalText = null;
         }
+
+    
+    private void showBulkTagDialog(
+                List<String> existingTags,
+                Map<Path, List<String>> fileTags,
+                ListView<FileItem> fileList
+    ) {
+
+        if (selectedFilePaths.isEmpty()) {
+                return;
+        }
+
+        // Snapshot: the selection cannot change during this operation
+        List<Path> targets =
+                new ArrayList<>(selectedFilePaths);
+
+        Dialog<String> dialog = new Dialog<>();
+
+        dialog.setTitle("Tag Selected Items");
+        dialog.setHeaderText(
+                "Add a tag to " + targets.size() + " selected items"
+        );
+
+        dialog.initOwner(root.getScene().getWindow());
+
+        ButtonType applyType = new ButtonType(
+                "Apply Tag",
+                ButtonBar.ButtonData.OK_DONE
+        );
+
+        dialog.getDialogPane().getButtonTypes().addAll(
+                applyType,
+                ButtonType.CANCEL
+        );
+
+        ComboBox<String> tagBox = new ComboBox<>();
+        tagBox.getItems().addAll(existingTags);
+        tagBox.setPromptText("Choose an existing tag");
+        tagBox.setMaxWidth(Double.MAX_VALUE);
+
+        TextField newTagField = new TextField();
+        newTagField.setPromptText("Or create a new tag");
+
+        Label note = new Label(
+                "Selected folders receive the tag themselves. "
+                + "Files inside folders are not tagged recursively."
+        );
+
+        note.setWrapText(true);
+
+        VBox content = new VBox(
+                10,
+                new Label("Existing tag"),
+                tagBox,
+                new Label("New tag"),
+                newTagField,
+                note
+        );
+
+        content.setPrefWidth(360);
+
+        dialog.getDialogPane().setContent(content);
+
+        // Prevent Apply when neither option is provided
+        Button applyButton = (Button)
+                dialog.getDialogPane().lookupButton(applyType);
+
+        Runnable updateApplyState = () ->
+                applyButton.setDisable(
+                        newTagField.getText().trim().isEmpty()
+                        && tagBox.getValue() == null
+                );
+
+        newTagField.textProperty().addListener(
+                (obs, oldValue, newValue) ->
+                        updateApplyState.run()
+        );
+
+        tagBox.valueProperty().addListener(
+                (obs, oldValue, newValue) ->
+                        updateApplyState.run()
+        );
+
+        updateApplyState.run();
+
+        dialog.setResultConverter(buttonType -> {
+
+                if (buttonType != applyType) {
+                        return null;
+                }
+
+                String newTag = newTagField.getText().trim();
+
+                // A typed tag takes priority
+                return !newTag.isEmpty()
+                        ? newTag
+                        : tagBox.getValue();
+        });
+
+        dialog.showAndWait().ifPresent(tag -> {
+
+                int succeeded = 0;
+                List<Path> failed = new ArrayList<>();
+
+                for (Path path : targets) {
+
+                        try {
+
+                                // Reuse the existing TagRepo API
+                                tagRepo.assignTagToFile(path, tag);
+                                succeeded++;
+
+                        } catch (SQLException exception) {
+
+                                failed.add(path);
+                                exception.printStackTrace();
+                        }
+                }
+
+                if (succeeded > 0) {
+
+                // Reload authoritative data after the operation
+                        try {
+
+                                Map<Path, List<String>> updatedTags =
+                                        tagRepo.getAllFileTags();
+
+                                fileTags.clear();
+                                fileTags.putAll(updatedTags);
+
+                        } catch (SQLException exception) {
+
+                                showStatusWarning(
+                                        "Tags were applied, but the file list "
+                                        + "could not reload tag metadata."
+                                );
+
+                                exception.printStackTrace();
+                        }
+
+                        if (!existingTags.contains(tag)) {
+                                existingTags.add(tag);
+                        }
+
+                        fileList.refresh();
+                }
+
+                Alert result = new Alert(
+                        failed.isEmpty()
+                                ? Alert.AlertType.INFORMATION
+                                : Alert.AlertType.WARNING
+                );
+
+                result.setTitle("Bulk Tag Results");
+
+                result.setHeaderText(
+                        failed.isEmpty()
+                                ? "Tag applied successfully"
+                                : "Some items could not be tagged"
+                );
+
+                result.setContentText(
+                        String.format(
+                                "Tag: %s%nSuccessful: %d%nFailed: %d",
+                                tag,
+                                succeeded,
+                                failed.size()
+                        )
+                );
+
+                result.showAndWait();
+        });
+    }
 
     private void populateFileList(
             ListView<FileItem> fileList, 
