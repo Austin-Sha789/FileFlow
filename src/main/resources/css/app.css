@@ -2167,3 +2167,51 @@
     -fx-background-color: #EDF4FF;
     -fx-border-color: #C4D8F6;
 }
+
+/* =====================================
+   Favourites - Search and Sort
+   ===================================== */
+
+.favourites-toolbar {
+    -fx-alignment: center-left;
+    -fx-spacing: 12;
+    -fx-padding: 6 0 8 0;
+}
+
+.favourites-search-field {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #DCE5F2;
+    -fx-border-radius: 9;
+    -fx-background-radius: 9;
+
+    -fx-padding: 10 12;
+    -fx-font-size: 13px;
+    -fx-text-fill: #243852;
+    -fx-prompt-text-fill: #96A4B8;
+}
+
+.favourites-search-field:focused {
+    -fx-border-color: #3975D9;
+    -fx-border-width: 1.5;
+}
+
+.favourites-sort-box {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #DCE5F2;
+    -fx-border-radius: 9;
+    -fx-background-radius: 9;
+
+    -fx-font-size: 12px;
+}
+
+.favourites-count {
+    -fx-font-size: 12px;
+    -fx-text-fill: #8190A6;
+}
+
+.favourites-no-results {
+    -fx-padding: 30;
+    -fx-font-size: 13px;
+    -fx-text-fill: #8190A6;
+    -fx-alignment: center;
+}

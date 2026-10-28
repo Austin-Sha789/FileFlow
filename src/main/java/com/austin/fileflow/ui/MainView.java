@@ -130,6 +130,8 @@ public class MainView {
     private boolean duplicateScanning;
     private Task<List<DuplicateGroup>> currentDuplicateTask;
     private final FavouriteRepo favouriteRepo;
+    private String favouritesSearchQuery = "";
+    private String favouritesSortOrder = "Name A-Z";
     private final TagRepo tagRepo;
     private final ScanHistoryRepo scanHistoryRepo;
     private final ShortcutManager shortcutManager;
@@ -2623,6 +2625,76 @@ public class MainView {
                         return content;
                 }
 
+                // Search
+                TextField favouritesSearchField = new TextField();
+                favouritesSearchField.setPromptText("Search favourites...");
+                favouritesSearchField.setText(favouritesSearchQuery);
+                favouritesSearchField.getStyleClass().add(
+                        "favourites-search-field"
+                );
+
+                HBox.setHgrow(favouritesSearchField, Priority.ALWAYS);
+                favouritesSearchField.setMaxWidth(Double.MAX_VALUE);
+
+                // Sort
+                ComboBox<String> sortBox = new ComboBox<>();
+
+                sortBox.getItems().addAll(
+                        "Name A-Z",
+                        "Name Z-A",
+                        "File Type"
+                );
+
+                sortBox.setValue(favouritesSortOrder);
+                sortBox.setPrefWidth(150);
+
+                sortBox.getStyleClass().add(
+                        "favourites-sort-box"
+                );
+
+                // Total count
+                Label countLabel = new Label(
+                        favouritePaths.size() + " saved files"
+                );
+
+                countLabel.getStyleClass().add(
+                        "favourites-count"
+                );
+
+                // Toolbar
+                HBox toolbar = new HBox(
+                        12,
+                        favouritesSearchField,
+                        sortBox,
+                        countLabel
+                );
+
+                toolbar.setAlignment(Pos.CENTER_LEFT);
+                toolbar.getStyleClass().add(
+                        "favourites-toolbar"
+                );
+
+                // Container for file rows
+                VBox rowsContainer = new VBox(10);
+
+                // Message when a search returns no matches
+                Label noMatchesLabel = new Label(
+                        "No matching favourites. Try another search."
+                );
+
+                noMatchesLabel.getStyleClass().add(
+                        "favourites-no-results"
+                );
+
+                // Store each row by its file path
+                Map<Path, HBox> rowsByPath = new HashMap<>();
+
+                content.getChildren().addAll(
+                        toolbar,
+                        rowsContainer,
+                        noMatchesLabel
+                );
+
                 for (Path filePath : favouritePaths) {
                         Label fileNameLabel = new Label(
                                 filePath.getFileName().toString()
@@ -2780,8 +2852,98 @@ public class MainView {
                                 }
                         });
 
-                        content.getChildren().add(row);
+                        rowsByPath.put(filePath, row);
+
+                        rowsContainer.getChildren().add(row);
                 }
+
+                // Comparator: sort files alphabetically by name
+                Comparator<Path> byName = Comparator.comparing(
+                        path -> path.getFileName()
+                                .toString()
+                                .toLowerCase(Locale.ROOT)
+                );
+
+                // Comparator: sort files by extension, then name
+                Comparator<Path> byType = Comparator
+                        .comparing((Path path) -> {
+
+                        String name = path.getFileName().toString();
+                        int dot = name.lastIndexOf('.');
+
+                        return dot > 0 && dot < name.length() - 1
+                                ? name.substring(dot + 1).toLowerCase(Locale.ROOT)
+                                : "";
+                        })
+                        .thenComparing(byName);
+
+                // Update displayed rows based on search and sort
+                Runnable updateFavourites = () -> {
+
+                String query = favouritesSearchField.getText()
+                        .trim()
+                        .toLowerCase(Locale.ROOT);
+
+                Comparator<Path> comparator = switch (sortBox.getValue()) {
+
+                        case "Name Z-A" -> byName.reversed();
+
+                        case "File Type" -> byType;
+
+                        default -> byName;
+                };
+
+                List<HBox> matchingRows = favouritePaths.stream()
+
+                        .filter(path -> {
+
+                                String name = path.getFileName()
+                                        .toString()
+                                        .toLowerCase(Locale.ROOT);
+
+                                String fullPath = path.toString()
+                                        .toLowerCase(Locale.ROOT);
+
+                                return name.contains(query)
+                                        || fullPath.contains(query);
+                        })
+
+                        .sorted(comparator)
+
+                        .map(rowsByPath::get)
+
+                        .toList();
+
+                rowsContainer.getChildren().setAll(matchingRows);
+
+                boolean noMatches = matchingRows.isEmpty();
+
+                noMatchesLabel.setVisible(noMatches);
+                noMatchesLabel.setManaged(noMatches);
+                };
+
+                // React to search changes
+                favouritesSearchField.textProperty().addListener(
+                        (observable, oldValue, newValue) -> {
+
+                        favouritesSearchQuery = newValue;
+
+                        updateFavourites.run();
+                        }
+                );
+
+                // React to sorting changes
+                sortBox.valueProperty().addListener(
+                        (observable, oldValue, newValue) -> {
+
+                        favouritesSortOrder = newValue;
+
+                        updateFavourites.run();
+                        }
+                );
+
+                // Initial render
+                updateFavourites.run();
 
         } catch(SQLException e) {
                 content.getChildren().add(
