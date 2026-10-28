@@ -3347,7 +3347,15 @@ public class MainView {
         );
 
 
-        VBox similarContent = new VBox(12);
+        VBox similarContent = new VBox(10);
+
+        similarContent.setMinHeight(0);
+        similarContent.setMaxHeight(Double.MAX_VALUE);
+
+        VBox.setVgrow(
+                similarContent,
+                Priority.ALWAYS
+        );
 
         Label similarDescription = new Label(
                 "Find visually similar images, even when their sizes or resolutions differ."
@@ -3399,6 +3407,13 @@ public class MainView {
         ScrollPane similarResultsScroll =
                 new ScrollPane(similarResults);
 
+        similarResultsScroll.setMinHeight(0);
+
+        VBox.setVgrow(
+                similarResultsScroll,
+                Priority.ALWAYS
+        );
+
         similarResultsScroll.setFitToWidth(true);
 
         similarResultsScroll.setHbarPolicy(
@@ -3408,8 +3423,6 @@ public class MainView {
         similarResultsScroll.getStyleClass().add(
                 "duplicates-scroll"
         );
-
-        similarResultsScroll.setPrefViewportHeight(520);
 
         boolean hasSimilarResults =
                 similarAnalysisCompleted
@@ -3616,13 +3629,80 @@ public class MainView {
                 similarThread.start();
         });
 
-        similarContent.getChildren().addAll(
-                similarDescription,
+        // Similar Images analysis card
+        Label similarCardTitle = new Label(
+                "Visual similarity"
+        );
+
+        similarCardTitle.getStyleClass().add(
+                "similar-scan-card-title"
+        );
+
+        // Reuse the existing description
+        VBox similarCardText = new VBox(
+                4,
+                similarCardTitle,
+                similarDescription
+        );
+
+        similarCardText.setMinWidth(0);
+        HBox.setHgrow(similarCardText, Priority.ALWAYS);
+
+        // Title and analyse button
+        HBox similarCardTop = new HBox(
+                16,
+                similarCardText,
+                similarAnalyseButton
+        );
+
+        similarCardTop.setAlignment(Pos.CENTER_LEFT);
+
+        similarAnalyseButton.setMinWidth(
+                Region.USE_PREF_SIZE
+        );
+
+        // Sensitivity controls
+        HBox sensitivityRow = new HBox(
+                12,
                 sensitivityLabel,
-                sensitivityCombo,
-                similarAnalyseButton,
+                sensitivityCombo
+        );
+
+        sensitivityRow.setAlignment(Pos.CENTER_LEFT);
+
+        Region sensitivitySpacer = new Region();
+
+        HBox.setHgrow(
+                sensitivitySpacer,
+                Priority.ALWAYS
+        );
+
+        sensitivityRow.getChildren().add(
+                1,
+                sensitivitySpacer
+        );
+
+        // Complete analysis card
+        VBox similarScanCard = new VBox(
+                12,
+                similarCardTop,
+                sensitivityRow,
                 similarProgressBar,
-                similarStatusLabel,
+                similarStatusLabel
+        );
+
+        similarScanCard.getStyleClass().add(
+                "similar-scan-card"
+        );
+
+        similarProgressBar.setMaxWidth(
+                Double.MAX_VALUE
+        );
+
+        similarStatusLabel.setWrapText(true);
+
+        similarContent.getChildren().addAll(
+                similarScanCard,
                 similarResultsScroll
         );
 

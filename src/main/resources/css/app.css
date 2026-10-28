@@ -2549,3 +2549,56 @@
     -fx-background-color: #E8F1FF;
     -fx-border-color: #BFD4F6;
 }
+
+/* =====================================
+   Similar Images - Compact Analysis Card
+   ===================================== */
+
+.similar-scan-card {
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 14;
+
+    -fx-border-color: #E2E8F2;
+    -fx-border-radius: 14;
+    -fx-border-width: 1;
+
+    -fx-padding: 14 18;
+    -fx-spacing: 12;
+}
+
+.similar-scan-card-title {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #20334F;
+}
+
+.similar-scan-card .duplicates-mode-description {
+    -fx-font-size: 11px;
+    -fx-text-fill: #8190A6;
+    -fx-padding: 0;
+}
+
+.similar-scan-card .duplicates-status {
+    -fx-font-size: 12px;
+    -fx-text-fill: #7586A0;
+}
+
+/* Detection sensitivity */
+
+.similar-scan-card .combo-box {
+    -fx-background-color: #F5F8FD;
+    -fx-border-color: #DCE5F2;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+}
+
+.similar-scan-card .combo-box:hover {
+    -fx-border-color: #BFD4F6;
+}
+
+/* Progress indicator */
+
+.similar-scan-card .duplicates-progress {
+    -fx-accent: #3975D9;
+    -fx-pref-height: 8;
+}
