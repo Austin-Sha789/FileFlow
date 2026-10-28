@@ -2964,23 +2964,6 @@ public class MainView {
         VBox content = new VBox(18);
         content.getStyleClass().add("duplicates-content");
 
-        Label heading = new Label("Duplicate Files");
-        heading.getStyleClass().add("duplicates-heading");
-
-        Label subtitle = new Label(
-                "Find identical files and visually similar images before deciding what to keep."
-        );
-
-        subtitle.setWrapText(true);
-        subtitle.getStyleClass().add("duplicates-subtitle");
-
-        // Shared page header
-        VBox pageHeader = new VBox(6, heading, subtitle);
-
-        pageHeader.getStyleClass().add(
-                "duplicates-page-header"
-        );
-
         ToggleButton exactTab = new ToggleButton("Exact Duplicates");
         ToggleButton similarTab = new ToggleButton("Similar Images");
 
@@ -3276,16 +3259,6 @@ public class MainView {
         // Exact duplicate interface
         VBox exactContent = new VBox(18);
 
-        // Description below the analysis tabs
-        Label exactDescription = new Label(
-                "Identify files with identical content, even when their names differ."
-        );
-
-        exactDescription.setWrapText(true);
-        exactDescription.getStyleClass().add(
-                "duplicates-mode-description"
-        );
-
         // Card heading
         Label exactCardTitle = new Label("Content match");
         exactCardTitle.getStyleClass().add(
@@ -3339,7 +3312,6 @@ public class MainView {
 
         // Complete Exact Duplicates section
         exactContent.getChildren().addAll(
-                exactDescription,
                 exactScanCard,
                 duplicateSummaryRow,
                 duplicateGroupsTitle,
@@ -3631,7 +3603,6 @@ public class MainView {
 
         // Shared header and both analysis modes
         content.getChildren().addAll(
-                pageHeader,
                 modeTabs,
                 exactContent,
                 similarContent
@@ -6926,17 +6897,26 @@ public class MainView {
                                 )
                                 .toList();
 
+                int groupNumber = 1;
+
                 for (DuplicateGroup group : sortedGroups) {
 
+                        // Group title
+                        Label groupTitle = new Label(
+                                String.format("Duplicate Group %02d", groupNumber)
+                        );
+
+                        groupTitle.getStyleClass().add(
+                                "exact-duplicate-group-title"
+                        );
+
+                        // File count and individual file size
                         Label summaryLabel = new Label(
                                 String.format(
-                                        "%,d copies · %s each · %s reclaimable",
+                                        "%,d copies · %s each",
                                         group.getFiles().size(),
                                         FileSizeFormatter.format(
                                                 group.getFileSizeBytes()
-                                        ),
-                                        FileSizeFormatter.format(
-                                                group.getReclaimableBytes()
                                         )
                                 )
                         );
@@ -6945,7 +6925,33 @@ public class MainView {
                                 "duplicate-group-summary"
                         );
 
+                        summaryLabel.setWrapText(true);
+
+                        // Title + description
+                        VBox groupInfo = new VBox(
+                                4,
+                                groupTitle,
+                                summaryLabel
+                        );
+
+                        groupInfo.setMinWidth(0);
+                        HBox.setHgrow(groupInfo, Priority.ALWAYS);
+
+                        // Highlight reclaimable storage
+                        Label reclaimableBadge = new Label(
+                                FileSizeFormatter.format(
+                                        group.getReclaimableBytes()
+                                ) + " reclaimable"
+                        );
+
+                        reclaimableBadge.getStyleClass().add(
+                                "exact-duplicate-reclaimable-badge"
+                        );
+
                         VBox fileList = new VBox(6);
+                        fileList.getStyleClass().add(
+                                "exact-duplicate-file-list"
+                        );
 
                         fileList.setVisible(false);
                         fileList.setManaged(false);
@@ -6954,18 +6960,16 @@ public class MainView {
 
                         arrowLabel.getStyleClass().add("duplicate-group-arrow");
 
-                        Region headerSpacer = new Region();
-
-                        HBox.setHgrow(
-                                headerSpacer,
-                                Priority.ALWAYS
-                        );
-
                         Button resolveButton =
                                 new Button("Resolve");
 
-                        resolveButton.getStyleClass().add(
-                                "secondary-button"
+                        resolveButton.getStyleClass().addAll(
+                                "secondary-button",
+                                "exact-duplicate-resolve-button"
+                        );
+
+                        resolveButton.setMinWidth(
+                                Region.USE_PREF_SIZE
                         );
                         
                         resolveButton.setOnMouseClicked(
@@ -7113,10 +7117,10 @@ public class MainView {
                         }); 
 
                         HBox groupHeader = new HBox(
-                                10,
+                                14,
                                 arrowLabel,
-                                summaryLabel,
-                                headerSpacer,
+                                groupInfo,
+                                reclaimableBadge,
                                 resolveButton
                         );
 
@@ -7156,9 +7160,14 @@ public class MainView {
                                 fileList
                         );
 
-                        groupCard.getStyleClass().add("duplicate-group-card");
+                        groupCard.getStyleClass().addAll(
+                                "duplicate-group-card",
+                                "exact-duplicate-group-card"
+                        );
 
                         resultsContainer.getChildren().add(groupCard);
+
+                        groupNumber++;
 
                 }
         }

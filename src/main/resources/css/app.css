@@ -2333,5 +2333,138 @@
     -fx-pref-height: 8;
 }
 
-/* Button is still controlled by its existing
-   duplicates-analyse-button style. */
+/* =====================================
+   Duplicates - Exact Result Groups
+   ===================================== */
+
+.exact-duplicate-group-card {
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 14;
+
+    -fx-border-color: #E2E8F2;
+    -fx-border-radius: 14;
+    -fx-border-width: 1;
+
+    -fx-padding: 0;
+}
+
+/* Group header */
+
+.exact-duplicate-group-card .duplicate-group-header {
+    -fx-alignment: center-left;
+    -fx-spacing: 14;
+    -fx-padding: 18 20;
+    -fx-background-color: transparent;
+    -fx-background-radius: 14;
+
+    -fx-cursor: hand;
+}
+
+.exact-duplicate-group-card .duplicate-group-header:hover {
+    -fx-background-color: #F7FAFF;
+}
+
+/* Group title */
+
+.exact-duplicate-group-title {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #20334F;
+}
+
+.exact-duplicate-group-card .duplicate-group-summary {
+    -fx-font-size: 12px;
+    -fx-text-fill: #8190A6;
+}
+
+/* Reclaimable space badge */
+
+.exact-duplicate-reclaimable-badge {
+    -fx-background-color: #E7F7EF;
+    -fx-background-radius: 8;
+
+    -fx-padding: 8 11;
+
+    -fx-text-fill: #218C65;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+}
+
+/* Resolve button */
+
+.exact-duplicate-resolve-button {
+    -fx-background-color: #EDF4FF;
+    -fx-background-radius: 8;
+
+    -fx-border-color: #D0E1FA;
+    -fx-border-radius: 8;
+
+    -fx-text-fill: #3975D9;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+
+    -fx-padding: 9 16;
+    -fx-cursor: hand;
+}
+
+.exact-duplicate-resolve-button:hover {
+    -fx-background-color: #DFEBFF;
+    -fx-border-color: #B8D0F5;
+}
+
+/* Expanded file list */
+
+.exact-duplicate-file-list {
+    -fx-padding: 4 16 16 16;
+    -fx-spacing: 6;
+}
+
+/* =====================================
+   Duplicates - Compact Workspace
+   ===================================== */
+
+.duplicates-content {
+    -fx-spacing: 12;
+}
+
+/* Compact tabs */
+
+.duplicates-mode-tabs {
+    -fx-padding: 3;
+    -fx-spacing: 4;
+}
+
+.duplicates-mode-tab {
+    -fx-padding: 8 16;
+}
+
+/* Compact analysis card */
+
+.duplicates-scan-card {
+    -fx-padding: 12 16;
+    -fx-spacing: 8;
+}
+
+.duplicates-scan-card-title {
+    -fx-font-size: 14px;
+}
+
+.duplicates-scan-card-subtitle {
+    -fx-font-size: 11px;
+}
+
+/* Compact summary cards */
+
+.duplicate-summary-row .summary-card {
+    -fx-padding: 10 16;
+    -fx-spacing: 3;
+    -fx-pref-height: 76;
+}
+
+.duplicate-summary-row .summary-card-title {
+    -fx-font-size: 11px;
+}
+
+.duplicate-summary-row .summary-card-value {
+    -fx-font-size: 23px;
+}
