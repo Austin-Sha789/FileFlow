@@ -3010,6 +3010,7 @@ public class MainView {
 
         Label statusLabel = new Label();
         statusLabel.getStyleClass().add("duplicates-status");
+        statusLabel.setWrapText(true);
 
         HBox duplicateSummaryRow = new HBox(12);
 
@@ -3055,6 +3056,7 @@ public class MainView {
         progressBar.setVisible(false);
         progressBar.setManaged(false);
         progressBar.setPrefWidth(320);
+        progressBar.setMaxWidth(Double.MAX_VALUE);
 
         progressBar.getStyleClass().add("duplicates-progress");
 
@@ -3148,6 +3150,7 @@ public class MainView {
 
                 progressBar.setVisible(true);
                 progressBar.setManaged(true);
+                
 
                 duplicateTask.setOnSucceeded(event -> {
                         progressBar.progressProperty().unbind();
@@ -3229,6 +3232,9 @@ public class MainView {
                                 "Duplicate analysis failed."
                         );
 
+                        statusLabel.setVisible(true);
+                        statusLabel.setManaged(true);
+
                         duplicateTask
                                 .getException()
                                 .printStackTrace();
@@ -3254,6 +3260,9 @@ public class MainView {
                         statusLabel.setText(
                                 "Analysis cancelled."
                         );
+
+                        statusLabel.setVisible(true);
+                        statusLabel.setManaged(true);
                 });
 
                 currentDuplicateTask = duplicateTask;
@@ -3264,27 +3273,74 @@ public class MainView {
                 duplicateThread.start();
         });
 
-        
-
-        // Existing exact duplicate interface
         // Exact duplicate interface
         VBox exactContent = new VBox(18);
 
+        // Description below the analysis tabs
         Label exactDescription = new Label(
                 "Identify files with identical content, even when their names differ."
         );
 
         exactDescription.setWrapText(true);
-
         exactDescription.getStyleClass().add(
                 "duplicates-mode-description"
         );
 
+        // Card heading
+        Label exactCardTitle = new Label("Content match");
+        exactCardTitle.getStyleClass().add(
+                "duplicates-scan-card-title"
+        );
+
+        // Card subtitle
+        Label exactCardSubtitle = new Label(
+                "Compare file contents to identify exact duplicates."
+        );
+
+        exactCardSubtitle.setWrapText(true);
+        exactCardSubtitle.getStyleClass().add(
+                "duplicates-scan-card-subtitle"
+        );
+
+        // Text on the left side
+        VBox exactCardText = new VBox(
+                5,
+                exactCardTitle,
+                exactCardSubtitle
+        );
+
+        exactCardText.setMinWidth(0);
+        HBox.setHgrow(exactCardText, Priority.ALWAYS);
+
+        // Button on the right side
+        analyseButton.setMinWidth(
+                Region.USE_PREF_SIZE
+        );
+
+        HBox exactCardTop = new HBox(
+                16,
+                exactCardText,
+                analyseButton
+        );
+
+        exactCardTop.setAlignment(Pos.CENTER_LEFT);
+
+        // Analysis card
+        VBox exactScanCard = new VBox(
+                14,
+                exactCardTop,
+                progressBar,
+                statusLabel
+        );
+
+        exactScanCard.getStyleClass().add(
+                "duplicates-scan-card"
+        );
+
+        // Complete Exact Duplicates section
         exactContent.getChildren().addAll(
                 exactDescription,
-                analyseButton,
-                progressBar,
-                statusLabel,
+                exactScanCard,
                 duplicateSummaryRow,
                 duplicateGroupsTitle,
                 resultsScrollPane
@@ -3443,6 +3499,10 @@ public class MainView {
                 similarProgressBar.setProgress(0);
                 similarProgressBar.setVisible(true);
                 similarProgressBar.setManaged(true);
+                
+                // Always show analysis status when a new task starts
+                statusLabel.setVisible(true);
+                statusLabel.setManaged(true);
 
                 sensitivityCombo.setDisable(true);
 

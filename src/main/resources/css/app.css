@@ -2294,3 +2294,44 @@
     -fx-text-fill: #8190A6;
     -fx-padding: 4 0 2 0;
 }
+
+/* =====================================
+   Duplicates - Exact Analysis Card
+   ===================================== */
+
+.duplicates-scan-card {
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 14;
+
+    -fx-border-color: #E2E8F2;
+    -fx-border-radius: 14;
+    -fx-border-width: 1;
+
+    -fx-padding: 22 24;
+    -fx-spacing: 14;
+}
+
+.duplicates-scan-card-title {
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #20334F;
+}
+
+.duplicates-scan-card-subtitle {
+    -fx-font-size: 12px;
+    -fx-text-fill: #8190A6;
+}
+
+.duplicates-scan-card .duplicates-status {
+    -fx-font-size: 12px;
+    -fx-text-fill: #7586A0;
+    -fx-padding: 4 0 0 0;
+}
+
+.duplicates-scan-card .duplicates-progress {
+    -fx-accent: #3975D9;
+    -fx-pref-height: 8;
+}
+
+/* Button is still controlled by its existing
+   duplicates-analyse-button style. */
