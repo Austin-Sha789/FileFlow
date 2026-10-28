@@ -65,6 +65,54 @@ public record WorkspaceScanSnapshot(
         );
     }
 
+    public static WorkspaceScanSnapshot mergeRefresh(
+            WorkspaceScanSnapshot previous,
+            WorkspaceScanSnapshot refreshed,
+            List<Path> requestedRoots
+    ) {
+
+        Objects.requireNonNull(previous);
+        Objects.requireNonNull(refreshed);
+        Objects.requireNonNull(requestedRoots);
+
+        List<MultiScanCoordinator.CompletedRoot<ScanResult>>
+                mergedResults = new ArrayList<>();
+
+        for (Path selectedRoot : requestedRoots) {
+
+            Path root = selectedRoot
+                    .toAbsolutePath()
+                    .normalize();
+
+            // Prefer freshly scanned data
+            ScanResult result =
+                    refreshed.resultsByRoot().get(root);
+
+            // Keep previously successful data if this root failed
+            if (result == null) {
+                result = previous.resultsByRoot().get(root);
+            }
+
+            if (result != null) {
+                mergedResults.add(
+                        new MultiScanCoordinator.CompletedRoot<>(
+                                root,
+                                result
+                        )
+                );
+            }
+        }
+
+        var mergedReport =
+                new MultiScanCoordinator.ScanReport<>(
+                        mergedResults,
+                        refreshed.failures(),
+                        refreshed.cancelled()
+                );
+
+        return WorkspaceScanSnapshot.from(mergedReport);
+    }
+
     public int completedFolderCount() {
         return resultsByRoot.size();
     }

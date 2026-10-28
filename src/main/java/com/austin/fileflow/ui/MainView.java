@@ -232,6 +232,12 @@ public class MainView {
         
         autoRefreshDelay.setOnFinished(event -> {
 
+                // Automatic multi-root watching is not enabled yet
+                if (lastWorkspaceScanSnapshot != null) {
+                        autoRefreshPending = false;
+                        return;
+                }
+
                 if (scanRootPath == null) {
                         return;
                 }
@@ -5591,6 +5597,12 @@ public class MainView {
 
         private void refreshCurrentScan() {
 
+                // Workspace mode refreshes all selected roots
+                if (lastWorkspaceScanSnapshot != null) {
+                        refreshWorkspaceScan();
+                        return;
+                }
+
                 if (scanRootPath == null || scanning) {
                         return;
                 }
@@ -6203,6 +6215,19 @@ public class MainView {
         }
         
         private void startWorkspaceScan() {
+                startWorkspaceScan(false);
+        }
+
+        private void refreshWorkspaceScan() {
+
+                if (scanning || lastWorkspaceScanSnapshot == null) {
+                        return;
+                }
+
+                startWorkspaceScan(true);
+        }
+
+        private void startWorkspaceScan(boolean refreshExisting) {
 
                 if (scanning) {
                         return;
@@ -6228,6 +6253,10 @@ public class MainView {
                         alert.showAndWait();
                         return;
                 }
+                
+                // Used to preserve previous results during refresh
+                WorkspaceScanSnapshot previousSnapshot =
+                        lastWorkspaceScanSnapshot;
 
                 AtomicBoolean cancelRequested = new AtomicBoolean(false);
 
@@ -6281,27 +6310,100 @@ public class MainView {
 
                         workspaceCancelRequested = null;
 
-                        lastWorkspaceScanSnapshot = workspaceTask.getValue();
-
                         setScanningState(false);
 
-                        // Automatically open the first successfully scanned root
-                        if (!lastWorkspaceScanSnapshot
-                                .resultsByRoot()
-                                .isEmpty()) {
+                        WorkspaceScanSnapshot refreshed =
+                                workspaceTask.getValue();
 
-                                Path firstRoot = lastWorkspaceScanSnapshot
-                                        .resultsByRoot()
+                        // Cancelled refresh: keep the old workspace unchanged
+                        if (refreshExisting && refreshed.cancelled()) {
+
+                                Alert alert = new Alert(
+                                        Alert.AlertType.INFORMATION
+                                );
+
+                                alert.setTitle("Workspace Refresh");
+                                alert.setHeaderText("Refresh cancelled");
+                                alert.setContentText(
+                                        "Your previous workspace results were preserved."
+                                );
+
+                                alert.showAndWait();
+                                return;
+                        }
+
+                        // Merge refreshed results with previous results
+                        if (refreshExisting && previousSnapshot != null) {
+
+                                lastWorkspaceScanSnapshot =
+                                        WorkspaceScanSnapshot.mergeRefresh(
+                                                previousSnapshot,
+                                                refreshed,
+                                                scanPlan.getRoots()
+                                        );
+
+                        } else {
+
+                                lastWorkspaceScanSnapshot = refreshed;
+                        }
+
+                        WorkspaceScanSnapshot snapshot =
+                                lastWorkspaceScanSnapshot;
+
+                        if (!snapshot.resultsByRoot().isEmpty()) {
+
+                                // Try to preserve the currently selected root
+                                if (refreshExisting
+                                        && scanRootPath != null
+                                        && snapshot.resultsByRoot()
+                                                .containsKey(scanRootPath)) {
+
+                                latestScanResult =
+                                        snapshot.resultsByRoot().get(scanRootPath);
+
+                                // Clear analysis results based on old scan data
+                                latestDuplicateGroups = List.of();
+                                duplicateAnalysisCompleted = false;
+
+                                latestSimilarPairs = List.of();
+                                similarAnalysisCompleted = false;
+
+                                filePreviewFactory.clearCache();
+
+                                rebuildScannedItemIndex();
+
+                                // Keep the user's current folder if it still exists
+                                if (currentFolder == null
+                                        || !currentFolder.startsWith(scanRootPath)
+                                        || !Files.isDirectory(currentFolder)) {
+
+                                        currentFolder = scanRootPath;
+                                }
+
+                                refreshCurrentPage();
+
+                                } else {
+
+                                // Initial scan, or previously selected root removed
+                                Path firstRoot = snapshot.resultsByRoot()
                                         .keySet()
                                         .iterator()
                                         .next();
 
                                 activateWorkspaceRoot(firstRoot);
+                                }
                         }
 
-                        showWorkspaceScanSummary(
-                                lastWorkspaceScanSnapshot
-                        );
+                        if (refreshExisting && !refreshed.failures().isEmpty()) {
+
+                                showStatusWarning(
+                                        "Some folders could not be refreshed. "
+                                        + "Previous results were preserved where available."
+                                );
+                        }
+
+                        // Report this scan attempt, not the preserved old data
+                        showWorkspaceScanSummary(refreshed);
                 });
 
                 workspaceTask.setOnFailed(event -> {
@@ -6764,6 +6866,20 @@ public class MainView {
         }
 
         private void refreshAfterDelete(boolean reanalyseDuplicates) {
+
+                if (lastWorkspaceScanSnapshot != null) {
+
+                if (!scanning) {
+                        refreshWorkspaceScan();
+                } else {
+                        showStatusWarning(
+                                "Workspace scan is still running. "
+                                + "Refresh after it completes."
+                        );
+                }
+
+                return;
+                }
 
                 if (scanRootPath == null) {
 
