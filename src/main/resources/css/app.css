@@ -1629,3 +1629,405 @@
 .files-list-view .list-cell:hover .files-type-preview {
     -fx-opacity: 0.88;
 }
+
+/* ====================================
+   FileFlow - File Row Actions
+   ==================================== */
+
+.files-row-actions {
+    -fx-alignment: center-right;
+    -fx-spacing: 8;
+}
+
+/* Tag button */
+.files-row-actions .add-tag-button {
+    -fx-background-color: #FFFFFF;
+    -fx-background-insets: 0;
+    -fx-background-radius: 9;
+
+    -fx-border-color: #DCE5F2;
+    -fx-border-radius: 9;
+    -fx-border-width: 1;
+
+    -fx-text-fill: #526785;
+    -fx-font-size: 12px;
+
+    -fx-min-width: 72;
+    -fx-pref-height: 34;
+    -fx-padding: 6 12;
+
+    -fx-cursor: hand;
+}
+
+/* Star and more buttons */
+.files-row-actions .favourite-button,
+.files-row-actions .more-button {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-background-radius: 9;
+
+    -fx-border-color: transparent;
+
+    -fx-text-fill: #8495AD;
+    -fx-font-size: 19px;
+
+    -fx-min-width: 34;
+    -fx-pref-width: 34;
+    -fx-min-height: 34;
+    -fx-pref-height: 34;
+
+    -fx-padding: 0;
+    -fx-alignment: center;
+    -fx-cursor: hand;
+}
+
+/* Hover states */
+.files-row-actions .add-tag-button:hover {
+    -fx-background-color: #EEF4FF;
+    -fx-border-color: #BBD0FA;
+    -fx-text-fill: #477BFA;
+}
+
+.files-row-actions .favourite-button:hover,
+.files-row-actions .more-button:hover {
+    -fx-background-color: #EAF1FF;
+    -fx-text-fill: #477BFA;
+}
+
+/* Remove default JavaFX focus ring */
+.files-row-actions .button:focused {
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+/* ====================================
+   FileFlow Signature Document Badges
+   ==================================== */
+
+.file-preview.file-document-badge {
+    -fx-background-radius: 11;
+    -fx-border-radius: 11;
+    -fx-border-width: 1;
+    -fx-background-insets: 0;
+}
+
+.file-document-badge-text {
+    -fx-font-size: 19px;
+    -fx-font-weight: bold;
+}
+
+/* PDF */
+.file-preview.file-document-pdf {
+    -fx-background-color: #FFF0F2;
+    -fx-border-color: #F8D8DE;
+}
+
+.file-document-pdf .file-document-badge-text {
+    -fx-text-fill: #D64D62;
+    -fx-font-size: 14px;
+}
+
+/* Word */
+.file-preview.file-document-word {
+    -fx-background-color: #EAF2FF;
+    -fx-border-color: #D3E2FF;
+}
+
+.file-document-word .file-document-badge-text {
+    -fx-text-fill: #3975D9;
+}
+
+/* Excel */
+.file-preview.file-document-excel {
+    -fx-background-color: #E5F7EF;
+    -fx-border-color: #CDEDDD;
+}
+
+.file-document-excel .file-document-badge-text {
+    -fx-text-fill: #218C65;
+}
+
+/* PowerPoint */
+.file-preview.file-document-powerpoint {
+    -fx-background-color: #FFF0E5;
+    -fx-border-color: #F6DDC7;
+}
+
+.file-document-powerpoint .file-document-badge-text {
+    -fx-text-fill: #D87835;
+}
+
+/* FileFlow - Native Application Icons */
+
+.file-native-app-preview {
+    -fx-background-color: #EDF1FA;
+    -fx-background-radius: 11;
+    -fx-border-color: #DCE4F2;
+    -fx-border-radius: 11;
+    -fx-border-width: 1;
+}
+
+.file-native-app-placeholder {
+    -fx-text-fill: #50678E;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+}
+
+.file-native-app-loaded {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #E6EAF1;
+}
+
+/* =====================================
+   FileFlow Signature Tiles 2.0
+   Signature Flowline
+   ===================================== */
+
+.file-preview.file-document-badge {
+    -fx-background-radius: 5 12 12 12;
+    -fx-border-radius: 5 12 12 12;
+}
+
+/* Shared Flowline shape */
+.fileflow-badge-flowline {
+    -fx-background-radius: 3;
+}
+
+/* PDF */
+.file-document-pdf .fileflow-badge-flowline {
+    -fx-background-color: #D64D62;
+}
+
+/* Word */
+.file-document-word .fileflow-badge-flowline {
+    -fx-background-color: #3975D9;
+}
+
+/* Excel */
+.file-document-excel .fileflow-badge-flowline {
+    -fx-background-color: #218C65;
+}
+
+/* PowerPoint */
+.file-document-powerpoint .fileflow-badge-flowline {
+    -fx-background-color: #D87835;
+}
+
+/* =====================================
+   FileFlow Signature Tiles
+   Text, Data & Developer Extensions
+   ===================================== */
+
+/* Text */
+.file-preview.file-document-text {
+    -fx-background-color: #F0F3F8;
+    -fx-border-color: #DFE6F0;
+}
+.file-document-text .file-document-badge-text {
+    -fx-text-fill: #53627B;
+    -fx-font-size: 13px;
+}
+.file-document-text .fileflow-badge-flowline {
+    -fx-background-color: #53627B;
+}
+
+/* CSV */
+.file-preview.file-document-csv {
+    -fx-background-color: #E9F8F5;
+    -fx-border-color: #CBEDE7;
+}
+.file-document-csv .file-document-badge-text {
+    -fx-text-fill: #0B8D81;
+    -fx-font-size: 13px;
+}
+.file-document-csv .fileflow-badge-flowline {
+    -fx-background-color: #0B8D81;
+}
+
+/* JSON */
+.file-preview.file-document-json {
+    -fx-background-color: #F2ECFF;
+    -fx-border-color: #E1D4FF;
+}
+.file-document-json .file-document-badge-text {
+    -fx-text-fill: #7D55C7;
+    -fx-font-size: 12px;
+}
+.file-document-json .fileflow-badge-flowline {
+    -fx-background-color: #7D55C7;
+}
+
+/* XML */
+.file-preview.file-document-xml {
+    -fx-background-color: #EAF0FF;
+    -fx-border-color: #D5DFFF;
+}
+.file-document-xml .file-document-badge-text {
+    -fx-text-fill: #4262C9;
+    -fx-font-size: 13px;
+}
+.file-document-xml .fileflow-badge-flowline {
+    -fx-background-color: #4262C9;
+}
+
+/* Java */
+.file-preview.file-document-java {
+    -fx-background-color: #FFF1E8;
+    -fx-border-color: #F8DECE;
+}
+.file-document-java .file-document-badge-text {
+    -fx-text-fill: #BD6936;
+    -fx-font-size: 12px;
+}
+.file-document-java .fileflow-badge-flowline {
+    -fx-background-color: #BD6936;
+}
+
+/* Python */
+.file-preview.file-document-python {
+    -fx-background-color: #EAF6FF;
+    -fx-border-color: #CFEAFF;
+}
+.file-document-python .file-document-badge-text {
+    -fx-text-fill: #2879B9;
+    -fx-font-size: 16px;
+}
+.file-document-python .fileflow-badge-flowline {
+    -fx-background-color: #2879B9;
+}
+
+/* =====================================
+   FileFlow Signature Tiles - Web Dev
+   ===================================== */
+
+/* JavaScript */
+.file-preview.file-document-javascript {
+    -fx-background-color: #FFF8DB;
+    -fx-border-color: #F0E7B6;
+}
+
+.file-document-javascript .file-document-badge-text {
+    -fx-text-fill: #A67A0A;
+    -fx-font-size: 17px;
+}
+
+.file-document-javascript .fileflow-badge-flowline {
+    -fx-background-color: #A67A0A;
+}
+
+/* TypeScript */
+.file-preview.file-document-typescript {
+    -fx-background-color: #E8F3FF;
+    -fx-border-color: #CDDEFA;
+}
+
+.file-document-typescript .file-document-badge-text {
+    -fx-text-fill: #3176C6;
+    -fx-font-size: 17px;
+}
+
+.file-document-typescript .fileflow-badge-flowline {
+    -fx-background-color: #3176C6;
+}
+
+/* Markdown */
+.file-preview.file-document-markdown {
+    -fx-background-color: #EDF1F6;
+    -fx-border-color: #DCE4EE;
+}
+
+.file-document-markdown .file-document-badge-text {
+    -fx-text-fill: #536276;
+    -fx-font-size: 17px;
+}
+
+.file-document-markdown .fileflow-badge-flowline {
+    -fx-background-color: #536276;
+}
+
+/* =====================================
+   FileFlow Signature Tiles - Web & Data
+   ===================================== */
+
+/* HTML */
+.file-preview.file-document-html {
+    -fx-background-color: #FFF2E7;
+    -fx-border-color: #F5DDC8;
+}
+
+.file-document-html .file-document-badge-text {
+    -fx-text-fill: #C46D28;
+    -fx-font-size: 12px;
+}
+
+.file-document-html .fileflow-badge-flowline {
+    -fx-background-color: #C46D28;
+}
+
+/* CSS */
+.file-preview.file-document-css {
+    -fx-background-color: #E6F7FD;
+    -fx-border-color: #C6E9F4;
+}
+
+.file-document-css .file-document-badge-text {
+    -fx-text-fill: #188BAA;
+    -fx-font-size: 14px;
+}
+
+.file-document-css .fileflow-badge-flowline {
+    -fx-background-color: #188BAA;
+}
+
+/* YAML */
+.file-preview.file-document-yaml {
+    -fx-background-color: #F5ECFF;
+    -fx-border-color: #E7D7F7;
+}
+
+.file-document-yaml .file-document-badge-text {
+    -fx-text-fill: #8956B8;
+    -fx-font-size: 12px;
+}
+
+.file-document-yaml .fileflow-badge-flowline {
+    -fx-background-color: #8956B8;
+}
+
+/* SQL */
+.file-preview.file-document-sql {
+    -fx-background-color: #E6F7F3;
+    -fx-border-color: #C6EBE1;
+}
+
+.file-document-sql .file-document-badge-text {
+    -fx-text-fill: #248578;
+    -fx-font-size: 14px;
+}
+
+.file-document-sql .fileflow-badge-flowline {
+    -fx-background-color: #248578;
+}
+
+/* =====================================
+   FileFlow Signature Tiles - Generic
+   ===================================== */
+
+.file-preview.file-document-generic {
+    -fx-background-color: #EEF1F6;
+    -fx-border-color: #DCE3EC;
+
+    -fx-background-radius: 5 12 12 12;
+    -fx-border-radius: 5 12 12 12;
+    -fx-border-width: 1;
+}
+
+.file-document-generic .file-document-badge-text {
+    -fx-text-fill: #64748B;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+}
+
+.file-document-generic .fileflow-badge-flowline {
+    -fx-background-color: #64748B;
+}

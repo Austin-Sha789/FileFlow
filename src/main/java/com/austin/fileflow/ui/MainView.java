@@ -1241,7 +1241,7 @@ public class MainView {
                 );
 
                 Node filePreview =
-                        filePreviewFactory.create(item);
+                        createUnifiedFilePreview(item);
 
                 Label sizeLabel = new Label(FileSizeFormatter.format(item.getSizeBytes()));
                 sizeLabel.getStyleClass().add("file-size");
@@ -1639,7 +1639,7 @@ public class MainView {
                 );
 
                 Node filePreview =
-                        filePreviewFactory.create(item);
+                        createUnifiedFilePreview(item);
 
                 Label modifiedLabel = new Label(formatModifiedTime(item.getLastModified()));
 
@@ -1739,6 +1739,16 @@ public class MainView {
                 ? "pdf"
                 : item.getType().name().toLowerCase(Locale.ROOT);
 
+        if (!Set.of(
+                "video",
+                "audio",
+                "archive",
+                "code"
+        ).contains(kind)) {
+
+                return filePreviewFactory.createFallback();
+        }
+
         String iconPath = switch (kind) {
 
                 case "video" ->
@@ -1791,6 +1801,22 @@ public class MainView {
         );
 
         return preview;
+    }
+
+    private Node createUnifiedFilePreview(FileItem item) {
+
+        if (item.isDirectory()) {
+                return createFolderListPreview();
+        }
+
+        if (item.getType() == FileType.IMAGE
+                || filePreviewFactory.hasSignatureBadge(item)
+                || filePreviewFactory.hasNativeAppIcon(item)) {
+
+                return filePreviewFactory.create(item);
+        }
+
+        return createFileTypeListPreview(item);
     }
 
     private VBox createFilesContent() {
@@ -2192,17 +2218,25 @@ public class MainView {
                                 relativePathLabel
                         );
 
-                        Node filePreview;
+                        // Allow file names to shrink instead of expanding the row
+                        fileNameLabel.setMinWidth(0);
+                        fileNameLabel.setMaxWidth(Double.MAX_VALUE);
+                        fileNameLabel.setTextOverrun(
+                                javafx.scene.control.OverrunStyle.ELLIPSIS
+                        );
 
-                        if (item.isDirectory()) {
-                                filePreview = createFolderListPreview();
+                        relativePathLabel.setMinWidth(0);
+                        relativePathLabel.setMaxWidth(Double.MAX_VALUE);
+                        relativePathLabel.setTextOverrun(
+                                javafx.scene.control.OverrunStyle.ELLIPSIS
+                        );
 
-                        } else if (item.getType() == FileType.IMAGE) {
-                                filePreview = filePreviewFactory.create(item);
+                        fileInfo.setMinWidth(0);
+                        fileInfo.setMaxWidth(Double.MAX_VALUE);
 
-                        } else {
-                                filePreview = createFileTypeListPreview(item);
-                        }
+                        HBox.setHgrow(fileInfo, Priority.ALWAYS);
+
+                        Node filePreview = createUnifiedFilePreview(item);
 
                         Button favouriteButton = new Button(
                                 favouritePaths.contains(item.getPath())
@@ -2366,18 +2400,32 @@ public class MainView {
                                 tagContainer.getChildren().add(tagChip);
                         }
 
-                        Region spacer = new Region();
-                        HBox.setHgrow(spacer, Priority.ALWAYS);
+                        HBox actionsBox = new HBox(
+                                8,
+                                tagButton,
+                                favouriteButton,
+                                moreButton
+                        );
+
+                        actionsBox.setAlignment(Pos.CENTER_RIGHT);
+                        actionsBox.getStyleClass().add("files-row-actions");
+
+                        // Keep the action buttons at their preferred size
+                        actionsBox.setMinWidth(Region.USE_PREF_SIZE);
 
                         HBox fileRow = new HBox(
                                 12,
                                 filePreview,
                                 fileInfo,
                                 tagContainer,
-                                spacer,
-                                tagButton,
-                                favouriteButton,
-                                moreButton
+                                actionsBox
+                        );
+
+                        // Fit the file row inside the ListView viewport
+                        fileRow.setMinWidth(0);
+
+                        fileRow.prefWidthProperty().bind(
+                                getListView().widthProperty().subtract(36)
                         );
 
                         fileRow.setOnContextMenuRequested(event -> {
@@ -6890,7 +6938,7 @@ public class MainView {
                         );
 
                         Node filePreview =
-                                filePreviewFactory.create(item);
+                                createUnifiedFilePreview(item);
 
                         Region spacer = new Region();
 
@@ -7200,7 +7248,7 @@ public class MainView {
                 FileItem scannedItem = findScannedFileItem(filePath);
 
                 if (scannedItem != null) {
-                        return filePreviewFactory.create(scannedItem);
+                        return createUnifiedFilePreview(scannedItem);
                 }
 
                 String fileName = filePath.getFileName().toString()
