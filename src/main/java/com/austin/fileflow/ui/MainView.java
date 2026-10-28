@@ -2283,6 +2283,27 @@ public class MainView {
                 bulkTagButton.setDisable(nothingSelected);
                 bulkFavouriteButton.setDisable(nothingSelected);
                 clearSelectionButton.setDisable(nothingSelected);
+
+                boolean allFavourites = !nothingSelected
+                        && selectedFilePaths.stream()
+                                .allMatch(favouritePaths::contains);
+
+                boolean anyFavourite = selectedFilePaths.stream()
+                        .anyMatch(favouritePaths::contains);
+
+                if (allFavourites) {
+                        bulkFavouriteButton.setText(
+                                "Remove from Favourites"
+                        );
+                } else if (anyFavourite) {
+                        bulkFavouriteButton.setText(
+                                "Add Missing to Favourites"
+                        );
+                } else {
+                        bulkFavouriteButton.setText(
+                                "Add to Favourites"
+                        );
+                }
         };
 
         bulkTagButton.setOnAction(event ->
@@ -2302,23 +2323,36 @@ public class MainView {
                 List<Path> targets =
                         new ArrayList<>(selectedFilePaths);
 
-                int added = 0;
-                int alreadySaved = 0;
+                // Remove only when ALL selected items are favourites
+                boolean removeMode = targets.stream()
+                        .allMatch(favouritePaths::contains);
+
+                int changed = 0;
+                int skipped = 0;
                 int failed = 0;
 
                 for (Path path : targets) {
 
-                        if (favouritePaths.contains(path)) {
-                                alreadySaved++;
-                                continue;
-                        }
-
                         try {
 
-                                favouriteRepo.add(path);
-                                favouritePaths.add(path);
+                                if (removeMode) {
 
-                        added++;
+                                        favouriteRepo.remove(path);
+                                        favouritePaths.remove(path);
+                                        changed++;
+
+                                } else {
+
+                                        // Preserve existing favourites in mixed selections
+                                        if (favouritePaths.contains(path)) {
+                                        skipped++;
+                                        continue;
+                                        }
+
+                                        favouriteRepo.add(path);
+                                        favouritePaths.add(path);
+                                        changed++;
+                                }
 
                         } catch (SQLException exception) {
 
@@ -2327,7 +2361,8 @@ public class MainView {
                         }
                 }
 
-                // Refresh favourite stars in the visible rows
+                // Update stars and button label after database changes
+                updateSelectionUi.run();
                 fileList.refresh();
 
                 Alert result = new Alert(
@@ -2339,18 +2374,20 @@ public class MainView {
                 result.setTitle("Bulk Favourite Results");
 
                 result.setHeaderText(
-                        failed == 0
-                                ? "Favourites updated"
-                                : "Some items could not be saved"
+                        removeMode
+                                ? "Remove from Favourites"
+                                : "Add to Favourites"
                 );
 
                 result.setContentText(
                         String.format(
-                                "Added: %d%n"
-                                + "Already in Favourites: %d%n"
+                                "Action: %s%n"
+                                + "Updated: %d%n"
+                                + "Already saved: %d%n"
                                 + "Failed: %d",
-                                added,
-                                alreadySaved,
+                                removeMode ? "Remove" : "Add",
+                                changed,
+                                skipped,
                                 failed
                         )
                 );
@@ -2655,6 +2692,8 @@ public class MainView {
                                                 favouritePaths.add(filePath);
                                                 favouriteButton.setText("★");
                                         }
+
+                                        updateSelectionUi.run();
                                 } catch (SQLException e) {
                                         showDatabaseError(
                                                 "Unable to Update Favourite",
