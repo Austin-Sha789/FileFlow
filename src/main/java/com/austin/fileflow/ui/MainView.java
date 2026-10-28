@@ -89,6 +89,7 @@ import com.austin.fileflow.model.ScanResult;
 import com.austin.fileflow.model.ScanHistoryEntry;
 import com.austin.fileflow.model.StorageVolume;
 import com.austin.fileflow.service.FileScanService;
+import com.austin.fileflow.service.ScanWorkspace;
 import com.austin.fileflow.service.FolderWatcher;
 import javafx.application.Platform;
 import com.austin.fileflow.service.StorageService;
@@ -154,6 +155,7 @@ public class MainView {
     private final Label scanStatusLabel;
     private final FilePlatformService filePlatformService;
     private Path scanRootPath;
+    private final ScanWorkspace scanWorkspace = new ScanWorkspace();
     private final FolderWatcher folderWatcher = new FolderWatcher();
     private boolean autoRefreshPending = false;
     private final PauseTransition autoRefreshDelay = new PauseTransition(Duration.millis(1000));
@@ -846,8 +848,17 @@ public class MainView {
         pageTitle.getStyleClass().add("page-title");
 
         scanButton.setOnAction(event -> handleScanAction());
-
         scanButton.getStyleClass().add("primary-button");
+
+        Button manageFoldersButton = new Button("Manage Folders");
+
+        manageFoldersButton.getStyleClass().add(
+                "secondary-button"
+        );
+
+        manageFoldersButton.setOnAction(
+                event -> showScanWorkspaceDialog()
+        );
 
         refreshButton.setOnAction(
                 event -> refreshCurrentScan()
@@ -867,6 +878,7 @@ public class MainView {
                 scanStatusLabel,
                 scanProgressBar,
                 refreshButton,
+                manageFoldersButton,
                 scanButton
         );
         topBar.getStyleClass().add("top-bar");
@@ -5821,6 +5833,221 @@ public class MainView {
                         autoRefreshPending = false;
 
                         autoRefreshDelay.playFromStart();
+                }
+        }
+
+        
+        private void showScanWorkspaceDialog() {
+
+                // Work on a temporary copy so Cancel discards changes
+                ScanWorkspace draft = new ScanWorkspace();
+
+                for (Path path : scanWorkspace.getRoots()) {
+                        draft.addRoot(path);
+                }
+
+                Dialog<ButtonType> dialog = new Dialog<>();
+
+                dialog.setTitle("Manage Scan Folders");
+                dialog.setHeaderText("Scan Workspace");
+
+                dialog.initOwner(root.getScene().getWindow());
+
+                ButtonType saveButtonType = new ButtonType(
+                        "Save Folders",
+                        ButtonBar.ButtonData.OK_DONE
+                );
+
+                dialog.getDialogPane().getButtonTypes().addAll(
+                        saveButtonType,
+                        ButtonType.CANCEL
+                );
+
+                Label description = new Label(
+                        "Choose folders for your scan workspace. "
+                        + "Saving does not start a scan."
+                );
+                description.setWrapText(true);
+
+                Label countLabel = new Label();
+
+                VBox rootsBox = new VBox(8);
+
+                refreshScanWorkspaceRows(
+                        rootsBox,
+                        countLabel,
+                        draft
+                );
+
+                ScrollPane rootsScroll = new ScrollPane(rootsBox);
+                rootsScroll.setFitToWidth(true);
+                rootsScroll.setPrefViewportHeight(240);
+                rootsScroll.setHbarPolicy(
+                        ScrollPane.ScrollBarPolicy.NEVER
+                );
+
+                Label feedbackLabel = new Label();
+                feedbackLabel.setWrapText(true);
+
+                Button addButton = new Button("Add Folder");
+                addButton.getStyleClass().add("secondary-button");
+
+                addButton.setOnAction(event -> {
+
+                        DirectoryChooser chooser = new DirectoryChooser();
+                        chooser.setTitle("Add Folder to Scan Workspace");
+
+                        File selectedFolder = chooser.showDialog(
+                                dialog.getDialogPane().getScene().getWindow()
+                        );
+
+                        if (selectedFolder == null) {
+                        return;
+                        }
+
+                        Path selectedPath = selectedFolder.toPath();
+
+                        if (!Files.isDirectory(selectedPath)
+                                || !Files.isReadable(selectedPath)) {
+
+                        feedbackLabel.setText(
+                                "This folder cannot be accessed."
+                        );
+                        return;
+                        }
+
+                        int previousCount = draft.size();
+
+                        boolean changed = draft.addRoot(selectedPath);
+
+                        if (!changed) {
+
+                        feedbackLabel.setText(
+                                "This folder is already included "
+                                + "in another selected folder."
+                        );
+                        return;
+                        }
+
+                        refreshScanWorkspaceRows(
+                                rootsBox,
+                                countLabel,
+                                draft
+                        );
+
+                        if (draft.size() <= previousCount) {
+                        feedbackLabel.setText(
+                                "Parent folder added. Covered child folders removed."
+                        );
+                        } else {
+                        feedbackLabel.setText("Folder added.");
+                        }
+                });
+
+                VBox dialogContent = new VBox(
+                        12,
+                        description,
+                        countLabel,
+                        rootsScroll,
+                        addButton,
+                        feedbackLabel
+                );
+
+                dialogContent.setPrefWidth(520);
+
+                dialog.getDialogPane().setContent(dialogContent);
+
+                dialog.setResultConverter(buttonType -> buttonType);
+
+                dialog.showAndWait().ifPresent(result -> {
+
+                        if (result != saveButtonType) {
+                        return;
+                        }
+
+                        // Apply the confirmed workspace changes
+                        List<Path> selectedRoots = draft.getRoots();
+
+                        scanWorkspace.clear();
+
+                        for (Path path : selectedRoots) {
+                        scanWorkspace.addRoot(path);
+                        }
+                });
+        }
+
+        
+        private void refreshScanWorkspaceRows(
+                VBox rootsBox,
+                Label countLabel,
+                ScanWorkspace workspace
+        ) {
+
+                rootsBox.getChildren().clear();
+
+                List<Path> roots = workspace.getRoots();
+
+                countLabel.setText(
+                        roots.size() == 1
+                                ? "1 folder selected"
+                                : roots.size() + " folders selected"
+                );
+
+                if (roots.isEmpty()) {
+
+                        Label emptyLabel = new Label(
+                                "No folders selected. Click Add Folder to begin."
+                        );
+
+                        rootsBox.getChildren().add(emptyLabel);
+                        return;
+                }
+
+                for (Path path : roots) {
+
+                        Label pathLabel = new Label(path.toString());
+
+                        pathLabel.setWrapText(true);
+                        pathLabel.setMinWidth(0);
+                        pathLabel.setMaxWidth(Double.MAX_VALUE);
+
+                        HBox.setHgrow(
+                                pathLabel,
+                                Priority.ALWAYS
+                        );
+
+                        Button removeButton = new Button("Remove");
+
+                        removeButton.getStyleClass().add(
+                                "secondary-button"
+                        );
+
+                        removeButton.setOnAction(event -> {
+
+                        workspace.removeRoot(path);
+
+                        refreshScanWorkspaceRows(
+                                rootsBox,
+                                countLabel,
+                                workspace
+                        );
+                        });
+
+                        HBox folderRow = new HBox(
+                                12,
+                                pathLabel,
+                                removeButton
+                        );
+
+                        folderRow.setAlignment(Pos.CENTER_LEFT);
+
+                        folderRow.setStyle(
+                                "-fx-padding: 10;"
+                                + "-fx-background-color: #F5F8FD;"
+                                + "-fx-background-radius: 8;"
+                        );
+
+                        rootsBox.getChildren().add(folderRow);
                 }
         }
 
