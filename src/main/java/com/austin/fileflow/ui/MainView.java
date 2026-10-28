@@ -2786,26 +2786,38 @@ public class MainView {
                         );
 
                         // Only files can be selected for future bulk actions
-                        boolean showCheckbox =
-                                fileSelectionMode && !item.isDirectory();
+                        boolean showCheckbox = fileSelectionMode;
 
                         selectCheckBox.setVisible(showCheckbox);
                         selectCheckBox.setManaged(showCheckbox);
 
                         selectCheckBox.setOnAction(event -> {
 
-                                if (selectCheckBox.isSelected()) {
+                                boolean selected = selectCheckBox.isSelected();
+
+                                if (selected) {
                                         selectedFilePaths.add(selectionPath);
                                 } else {
                                         selectedFilePaths.remove(selectionPath);
                                 }
 
                                 selectedCountLabel.setText(
-                                        selectedFilePaths.size() + " files selected"
+                                        selectedFilePaths.size() + " items selected"
                                 );
 
-                                getListView().getSelectionModel().clearSelection();
-                                getListView().refresh();
+                                // Update only this row instead of refreshing the ListView
+                                if (selectCheckBox.getParent() instanceof HBox row) {
+
+                                        row.getStyleClass().remove(
+                                                "file-row-multi-selected"
+                                        );
+
+                                        if (selected) {
+                                                row.getStyleClass().add(
+                                                        "file-row-multi-selected"
+                                                );
+                                        }
+                                }
 
                                 event.consume();
                         });
@@ -2842,6 +2854,68 @@ public class MainView {
                                 event.consume();
                         });
 
+                        fileRow.addEventFilter(
+                                MouseEvent.MOUSE_PRESSED,
+                                event -> {
+
+                                if (!fileSelectionMode
+                                        || event.getButton() != MouseButton.PRIMARY) {
+                                        return;
+                                }
+
+                                // Do not interfere with buttons or checkboxes
+                                Node clickedNode =
+                                        event.getPickResult().getIntersectedNode();
+
+                                while (clickedNode != null
+                                        && clickedNode != fileRow) {
+
+                                        if (clickedNode instanceof Button
+                                                || clickedNode instanceof CheckBox) {
+                                        return;
+                                        }
+
+                                        clickedNode = clickedNode.getParent();
+                                }
+
+                                // The second press of a double-click is handled
+                                // by the existing folder navigation logic.
+                                if (event.getClickCount() != 1) {
+                                        return;
+                                }
+
+                                boolean selected;
+
+                                if (selectedFilePaths.contains(selectionPath)) {
+                                        selectedFilePaths.remove(selectionPath);
+                                        selected = false;
+                                } else {
+                                        selectedFilePaths.add(selectionPath);
+                                        selected = true;
+                                }
+
+                                // Keep checkbox and row appearance synchronized
+                                selectCheckBox.setSelected(selected);
+
+                                fileRow.getStyleClass().remove(
+                                        "file-row-multi-selected"
+                                );
+
+                                if (selected) {
+                                        fileRow.getStyleClass().add(
+                                                "file-row-multi-selected"
+                                        );
+                                }
+
+                                selectedCountLabel.setText(
+                                        selectedFilePaths.size() + " items selected"
+                                );
+
+                                quickInfoDelay.stop();
+
+                                event.consume();
+                        });
+
                         fileRow.setOnMouseClicked(event -> {
 
                                 if (event.getButton() != MouseButton.PRIMARY) {
@@ -2859,26 +2933,6 @@ public class MainView {
                                         }
 
                                         clickedNode = clickedNode.getParent();
-                                }
-
-                                if (fileSelectionMode && !item.isDirectory()) {
-
-                                        if (event.getClickCount() == 1) {
-
-                                                if (!selectedFilePaths.add(selectionPath)) {
-                                                selectedFilePaths.remove(selectionPath);
-                                                }
-
-                                                selectedCountLabel.setText(
-                                                        selectedFilePaths.size() + " files selected"
-                                                );
-
-                                                getListView().getSelectionModel().clearSelection();
-                                                getListView().refresh();
-                                        }
-
-                                        event.consume();
-                                        return;
                                 }
 
                                 if (event.getClickCount() == 2) {
@@ -2908,7 +2962,8 @@ public class MainView {
                                                         sortBy.getValue()
                                                 );
 
-                                        } else if (!item.isDirectory()) {
+                                        } else if (!item.isDirectory()
+                                                && !fileSelectionMode) {
 
                                                 openFile(item.getPath());
                                         }
