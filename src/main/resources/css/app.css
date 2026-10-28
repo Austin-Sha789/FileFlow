@@ -2644,3 +2644,67 @@
     -fx-border-color: #E2E8F2;
     -fx-border-radius: 14;
 }
+
+/* =====================================
+   Similar Images - Group Header
+   ===================================== */
+
+.similar-image-group-card {
+    -fx-padding: 10 14 12 14;
+    -fx-spacing: 12;
+}
+
+/* Header */
+
+.similar-image-group-header {
+    -fx-alignment: center-left;
+    -fx-spacing: 12;
+
+    -fx-padding: 2 0 10 0;
+
+    -fx-border-color: transparent transparent #E8EDF5 transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+/* Group title */
+
+.similar-group-title {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #20334F;
+}
+
+/* Image count badge */
+
+.similar-group-count {
+    -fx-background-color: #EDF3FA;
+    -fx-background-radius: 7;
+
+    -fx-padding: 6 10;
+
+    -fx-text-fill: #61758F;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+}
+
+/* Resolve button */
+
+.similar-image-group-header .similar-group-resolve-button {
+    -fx-background-color: #EDF4FF;
+    -fx-background-radius: 8;
+
+    -fx-border-color: #D0E1FA;
+    -fx-border-radius: 8;
+
+    -fx-text-fill: #3975D9;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+
+    -fx-padding: 8 15;
+    -fx-cursor: hand;
+}
+
+.similar-image-group-header .similar-group-resolve-button:hover {
+    -fx-background-color: #DFEBFF;
+    -fx-border-color: #B8D0F5;
+}

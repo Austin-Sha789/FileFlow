@@ -6689,14 +6689,22 @@ public class MainView {
 
                 for (SimilarImageGroup group : groups) {
 
+                        // Group title
                         Label groupTitle = new Label(
-                                "Similar Group " + groupNumber
-                                        + " · " + group.files().size()
-                                        + " images"
+                                String.format("Similar Group %02d", groupNumber)
                         );
 
                         groupTitle.getStyleClass().add(
-                                "duplicate-group-summary"
+                                "similar-group-title"
+                        );
+
+                        // Image count badge
+                        Label groupCount = new Label(
+                                group.files().size() + " images"
+                        );
+
+                        groupCount.getStyleClass().add(
+                                "similar-group-count"
                         );
 
                         // Responsive image grid
@@ -6872,8 +6880,13 @@ public class MainView {
 
                         Button resolveButton = new Button("Resolve");
 
-                        resolveButton.getStyleClass().add(
-                                "secondary-button"
+                        resolveButton.getStyleClass().addAll(
+                                "secondary-button",
+                                "similar-group-resolve-button"
+                        );
+
+                        resolveButton.setMinWidth(
+                                Region.USE_PREF_SIZE
                         );
 
                         resolveButton.setOnAction(event -> {
@@ -6972,8 +6985,13 @@ public class MainView {
                         HBox groupHeader = new HBox(
                                 12,
                                 groupTitle,
+                                groupCount,
                                 headerSpacer,
                                 resolveButton
+                        );
+
+                        groupHeader.getStyleClass().add(
+                                "similar-image-group-header"
                         );
 
                         groupHeader.setAlignment(Pos.CENTER_LEFT);
