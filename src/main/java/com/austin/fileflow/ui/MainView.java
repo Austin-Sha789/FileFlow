@@ -179,6 +179,8 @@ public class MainView {
     private static final String CONFIRM_BEFORE_DELETE_KEY = "confirmBeforePermanentDelete";
     private final Preferences preferences = Preferences.userNodeForPackage(MainView.class);
     private FilesViewMode filesViewMode = FilesViewMode.BROWSE;
+    private boolean fileSelectionMode = false;
+    private final Set<Path> selectedFilePaths = new HashSet<>();
     private boolean duplicateAnalysisCompleted;
     private final Map<Path, FileItem> scannedItemsByPath =
         new HashMap<>();
@@ -1963,6 +1965,10 @@ public class MainView {
     }
 
     private VBox createFilesContent() {
+
+        fileSelectionMode = false;
+        selectedFilePaths.clear();
+
         VBox filesContent = new VBox();
 
         filesContent.setMaxHeight(
@@ -1983,6 +1989,9 @@ public class MainView {
         ToggleButton allFilesButton = new ToggleButton("All Files");
         ToggleButton categoriesButton =
                 new ToggleButton("Categories");
+
+        Button selectFilesButton = new Button("Select Files");
+        selectFilesButton.getStyleClass().add("secondary-button");
 
         ToggleGroup viewGroup = new ToggleGroup();
 
@@ -2066,11 +2075,16 @@ public class MainView {
         typeFilter.setPrefWidth(155);
         sortBy.setPrefWidth(180);
 
+        Region viewSpacer = new Region();
+        HBox.setHgrow(viewSpacer, Priority.ALWAYS);
+
         HBox viewBar = new HBox(
                 10,
                 browseButton,
                 allFilesButton,
-                categoriesButton
+                categoriesButton,
+                viewSpacer,
+                selectFilesButton
         );
 
         viewBar.setAlignment(Pos.CENTER_LEFT);
@@ -2215,11 +2229,66 @@ public class MainView {
         PauseTransition quickInfoDelay =
                 new PauseTransition(Duration.millis(280));
 
+        Label selectedCountLabel = new Label("0 files selected");
+
+        Button clearSelectionButton = new Button("Clear");
+        clearSelectionButton.getStyleClass().add("secondary-button");
+
+        Region selectionSpacer = new Region();
+        HBox.setHgrow(selectionSpacer, Priority.ALWAYS);
+
+        HBox selectionBar = new HBox(
+                12,
+                selectedCountLabel,
+                selectionSpacer,
+                clearSelectionButton
+        );
+
+        selectionBar.setAlignment(Pos.CENTER_LEFT);
+        selectionBar.getStyleClass().add("file-selection-bar");
+
+        selectionBar.setVisible(false);
+        selectionBar.setManaged(false);
+
+        clearSelectionButton.setOnAction(event -> {
+
+                selectedFilePaths.clear();
+                selectedCountLabel.setText("0 files selected");
+
+                fileList.getSelectionModel().clearSelection();
+                fileList.refresh();
+        });
+
+        selectFilesButton.setOnAction(event -> {
+
+                fileSelectionMode = !fileSelectionMode;
+
+                selectedFilePaths.clear();
+
+                quickInfoDelay.stop();
+                fileList.getSelectionModel().clearSelection();
+
+                selectionBar.setVisible(fileSelectionMode);
+                selectionBar.setManaged(fileSelectionMode);
+
+                selectFilesButton.setText(
+                        fileSelectionMode ? "Done" : "Select Files"
+                );
+
+                selectedCountLabel.setText("0 files selected");
+
+                fileList.refresh();
+        });
+
         fileList.getSelectionModel()
                 .selectedItemProperty()
                 .addListener((observable, oldItem, newItem) -> {
 
                 quickInfoDelay.stop();
+
+                if (fileSelectionMode) {
+                        return;
+                }
 
                 if (newItem == null) {
                         return;
@@ -2703,8 +2772,47 @@ public class MainView {
                         // Keep the action buttons at their preferred size
                         actionsBox.setMinWidth(Region.USE_PREF_SIZE);
 
+                        Path selectionPath = item.getPath()
+                                .toAbsolutePath()
+                                .normalize();
+
+                        CheckBox selectCheckBox = new CheckBox();
+
+                        selectCheckBox.getStyleClass().add("file-select-checkbox");
+                        selectCheckBox.setFocusTraversable(false);
+
+                        selectCheckBox.setSelected(
+                                selectedFilePaths.contains(selectionPath)
+                        );
+
+                        // Only files can be selected for future bulk actions
+                        boolean showCheckbox =
+                                fileSelectionMode && !item.isDirectory();
+
+                        selectCheckBox.setVisible(showCheckbox);
+                        selectCheckBox.setManaged(showCheckbox);
+
+                        selectCheckBox.setOnAction(event -> {
+
+                                if (selectCheckBox.isSelected()) {
+                                        selectedFilePaths.add(selectionPath);
+                                } else {
+                                        selectedFilePaths.remove(selectionPath);
+                                }
+
+                                selectedCountLabel.setText(
+                                        selectedFilePaths.size() + " files selected"
+                                );
+
+                                getListView().getSelectionModel().clearSelection();
+                                getListView().refresh();
+
+                                event.consume();
+                        });
+
                         HBox fileRow = new HBox(
                                 12,
+                                selectCheckBox,
                                 filePreview,
                                 fileInfo,
                                 tagContainer,
@@ -2736,62 +2844,91 @@ public class MainView {
 
                         fileRow.setOnMouseClicked(event -> {
 
-                        if (event.getButton() != MouseButton.PRIMARY) {
-                                return;
-                        }
-
-                        Node clickedNode =
-                                event.getPickResult().getIntersectedNode();
-
-                        while (clickedNode != null && clickedNode != fileRow) {
-
-                                if (clickedNode instanceof Button) {
-                                return;
+                                if (event.getButton() != MouseButton.PRIMARY) {
+                                        return;
                                 }
 
-                                clickedNode = clickedNode.getParent();
-                        }
+                                Node clickedNode =
+                                        event.getPickResult().getIntersectedNode();
 
-                        if (event.getClickCount() == 2) {
+                                while (clickedNode != null && clickedNode != fileRow) {
 
-                                quickInfoDelay.stop();
+                                        if (clickedNode instanceof Button
+                                                || clickedNode instanceof CheckBox) {
+                                                return;
+                                        }
 
-                                if (filesViewMode == FilesViewMode.BROWSE
-                                        && item.isDirectory()) {
-
-                                currentFolder = item.getPath()
-                                        .toAbsolutePath()
-                                        .normalize();
-
-                                updateBrowseHeader(
-                                        backButton,
-                                        breadcrumbBar,
-                                        getListView(),
-                                        searchField,
-                                        typeFilter,
-                                        sortBy
-                                );
-
-                                populateFileList(
-                                        getListView(),
-                                        searchField.getText(),
-                                        typeFilter.getValue(),
-                                        sortBy.getValue()
-                                );
-
-                                } else if (!item.isDirectory()) {
-
-                                openFile(item.getPath());
+                                        clickedNode = clickedNode.getParent();
                                 }
 
-                                event.consume();
+                                if (fileSelectionMode && !item.isDirectory()) {
 
-                        }
-                });
+                                        if (event.getClickCount() == 1) {
+
+                                                if (!selectedFilePaths.add(selectionPath)) {
+                                                selectedFilePaths.remove(selectionPath);
+                                                }
+
+                                                selectedCountLabel.setText(
+                                                        selectedFilePaths.size() + " files selected"
+                                                );
+
+                                                getListView().getSelectionModel().clearSelection();
+                                                getListView().refresh();
+                                        }
+
+                                        event.consume();
+                                        return;
+                                }
+
+                                if (event.getClickCount() == 2) {
+
+                                        quickInfoDelay.stop();
+
+                                        if (filesViewMode == FilesViewMode.BROWSE
+                                                && item.isDirectory()) {
+
+                                                currentFolder = item.getPath()
+                                                        .toAbsolutePath()
+                                                        .normalize();
+
+                                                updateBrowseHeader(
+                                                        backButton,
+                                                        breadcrumbBar,
+                                                        getListView(),
+                                                        searchField,
+                                                        typeFilter,
+                                                        sortBy
+                                                );
+
+                                                populateFileList(
+                                                        getListView(),
+                                                        searchField.getText(),
+                                                        typeFilter.getValue(),
+                                                        sortBy.getValue()
+                                                );
+
+                                        } else if (!item.isDirectory()) {
+
+                                                openFile(item.getPath());
+                                        }
+
+                                        event.consume();
+
+                                }
+                        });
 
                         fileRow.setAlignment(Pos.CENTER_LEFT);
                         fileRow.setMaxWidth(Double.MAX_VALUE);
                         fileRow.getStyleClass().add("file-row");
+
+                        if (fileSelectionMode
+                                && selectedFilePaths.contains(selectionPath)) {
+
+                                fileRow.getStyleClass().add(
+                                        "file-row-multi-selected"
+                                );
+                        }
 
                         setText(null);
                         setGraphic(fileRow);
@@ -2852,6 +2989,7 @@ public class MainView {
             }  
         );
 
+        filesContent.getChildren().add(selectionBar);
         filesContent.getChildren().add(fileList);
 
         return filesContent;

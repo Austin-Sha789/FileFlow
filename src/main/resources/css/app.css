@@ -3021,3 +3021,36 @@
     -fx-padding: 4 14 14 14;
     -fx-spacing: 6;
 }
+
+/* File multi-selection */
+
+.file-selection-bar {
+    -fx-background-color: #EAF2FF;
+    -fx-background-radius: 10;
+    -fx-border-color: #C8D9F5;
+    -fx-border-radius: 10;
+    -fx-padding: 10 14;
+}
+
+.file-select-checkbox {
+    -fx-cursor: hand;
+}
+
+.file-select-checkbox .box {
+    -fx-background-color: white;
+    -fx-border-color: #B8CBE8;
+    -fx-border-radius: 5;
+    -fx-background-radius: 5;
+}
+
+.file-select-checkbox:selected .box {
+    -fx-background-color: #4779F5;
+    -fx-border-color: #4779F5;
+}
+
+.files-list-view .file-row-multi-selected {
+    -fx-background-color: #EDF4FF;
+    -fx-background-radius: 10;
+    -fx-border-color: #B5CAF4;
+    -fx-border-radius: 10;
+}
