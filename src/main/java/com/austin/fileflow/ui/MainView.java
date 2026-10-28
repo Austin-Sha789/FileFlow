@@ -51,6 +51,8 @@ import javafx.scene.input.KeyCodeCombination;
 import javafx.scene.input.KeyCombination;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
+import javafx.scene.input.Dragboard;
+import javafx.scene.input.TransferMode;
 
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
@@ -6030,7 +6032,8 @@ public class MainView {
                 );
 
                 Label description = new Label(
-                        "Choose folders for your scan workspace. "
+                        "Add folders individually, or select multiple folders "
+                        + "in Windows File Explorer and drag them into the list below. "
                         + "Saving does not start a scan."
                 );
                 description.setWrapText(true);
@@ -6054,6 +6057,63 @@ public class MainView {
 
                 Label feedbackLabel = new Label();
                 feedbackLabel.setWrapText(true);
+
+                // Allow multiple folders to be dragged from Windows Explorer
+                rootsScroll.setOnDragOver(event -> {
+
+                        Dragboard dragboard = event.getDragboard();
+
+                        if (dragboard.hasFiles()
+                                && dragboard.getFiles().stream()
+                                        .anyMatch(File::isDirectory)) {
+
+                                event.acceptTransferModes(TransferMode.COPY);
+                        }
+
+                        event.consume();
+                });
+
+                rootsScroll.setOnDragDropped(event -> {
+
+                        Dragboard dragboard = event.getDragboard();
+
+                        int added = 0;
+                        int skipped = 0;
+
+                        if (dragboard.hasFiles()) {
+
+                                for (File droppedFile : dragboard.getFiles()) {
+
+                                        // Only folders can be scan roots
+                                        if (!droppedFile.isDirectory()) {
+                                                skipped++;
+                                                continue;
+                                        }
+
+                                        Path path = droppedFile.toPath();
+
+                                        if (draft.addRoot(path)) {
+                                                added++;
+                                        } else {
+                                                skipped++;
+                                        }
+                                }
+                        }
+
+                        refreshScanWorkspaceRows(
+                                rootsBox,
+                                countLabel,
+                                draft
+                        );
+
+                        feedbackLabel.setText(
+                                added + " folder(s) added, "
+                                        + skipped + " skipped."
+                        );
+
+                        event.setDropCompleted(added > 0);
+                        event.consume();
+                });
 
                 Button addButton = new Button("Add Folder");
                 addButton.getStyleClass().add("secondary-button");
