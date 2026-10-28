@@ -6371,6 +6371,15 @@ public class MainView {
                         WorkspaceScanSnapshot refreshed =
                                 workspaceTask.getValue();
 
+                        // Do not replace the current view if a new workspace
+                        // scan produced no successfully completed folders.
+                        if (!refreshExisting
+                                && refreshed.resultsByRoot().isEmpty()) {
+
+                                showWorkspaceScanSummary(refreshed);
+                                return;
+                        }
+
                         // Record only roots actually scanned successfully.
                         // A cancelled refresh does not create a new history entry.
                         if (!(refreshExisting && refreshed.cancelled())) {
