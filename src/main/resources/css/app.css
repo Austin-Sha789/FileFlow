@@ -2493,3 +2493,59 @@
     -fx-padding: 7 12;
     -fx-font-size: 12px;
 }
+
+/* =====================================
+   Exact Duplicates - Expanded File Rows
+   ===================================== */
+
+.exact-duplicate-file-row {
+    -fx-background-color: #F8FAFD;
+    -fx-background-radius: 9;
+
+    -fx-border-color: #E8EDF5;
+    -fx-border-radius: 9;
+    -fx-border-width: 1;
+
+    -fx-padding: 10 12;
+    -fx-spacing: 12;
+    -fx-alignment: center-left;
+}
+
+.exact-duplicate-file-row:hover {
+    -fx-background-color: #F0F5FC;
+    -fx-border-color: #D5E3F5;
+}
+
+.exact-duplicate-file-row .file-name {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #243852;
+}
+
+.exact-duplicate-file-row .duplicate-file-path {
+    -fx-font-size: 11px;
+    -fx-text-fill: #8190A6;
+}
+
+/* More actions button */
+
+.exact-duplicate-file-row .more-button {
+    -fx-min-width: 34;
+    -fx-pref-width: 34;
+    -fx-max-width: 34;
+
+    -fx-min-height: 34;
+    -fx-pref-height: 34;
+    -fx-max-height: 34;
+
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 8;
+
+    -fx-border-color: #DCE5F2;
+    -fx-border-radius: 8;
+}
+
+.exact-duplicate-file-row .more-button:hover {
+    -fx-background-color: #E8F1FF;
+    -fx-border-color: #BFD4F6;
+}

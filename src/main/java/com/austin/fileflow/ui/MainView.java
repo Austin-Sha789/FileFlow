@@ -7315,35 +7315,64 @@ public class MainView {
                                 pathLabel
                         );
 
+                        // Prevent long names and paths from expanding the row
+                        nameLabel.setMinWidth(0);
+                        nameLabel.setMaxWidth(Double.MAX_VALUE);
+                        nameLabel.setTextOverrun(
+                                javafx.scene.control.OverrunStyle.ELLIPSIS
+                        );
+
+                        pathLabel.setMinWidth(0);
+                        pathLabel.setMaxWidth(Double.MAX_VALUE);
+                        pathLabel.setTextOverrun(
+                                javafx.scene.control.OverrunStyle.ELLIPSIS
+                        );
+
+                        // Show complete information on hover
+                        nameLabel.setTooltip(
+                                new javafx.scene.control.Tooltip(item.getName())
+                        );
+
+                        pathLabel.setTooltip(
+                                new javafx.scene.control.Tooltip(item.getPath().toString())
+                        );
+
+                        // Let the information area use remaining horizontal space
+                        fileInfo.setMinWidth(0);
+                        fileInfo.setMaxWidth(Double.MAX_VALUE);
+
+                        HBox.setHgrow(fileInfo, Priority.ALWAYS);
+
                         Node filePreview =
                                 createUnifiedFilePreview(item);
 
                         Region spacer = new Region();
 
-                        HBox.setHgrow(
-                                spacer,
-                                Priority.ALWAYS
+                        Button moreButton = createFileActionsButton(
+                                item.getPath()
                         );
 
-                        Button moreButton =
-                                createFileActionsButton(
-                                        item.getPath()
-                                );
+                        // Keep the action button at a fixed size
+                        moreButton.setMinWidth(Region.USE_PREF_SIZE);
 
+                        // The file information now handles remaining space
                         HBox fileRow = new HBox(
                                 12,
                                 filePreview,
                                 fileInfo,
-                                spacer,
                                 moreButton
                         );
+
+                        fileRow.setMinWidth(0);
+                        fileRow.setMaxWidth(Double.MAX_VALUE);
 
                         fileRow.setAlignment(
                                 Pos.CENTER_LEFT
                         );
 
-                        fileRow.getStyleClass().add(
-                                "duplicate-file-row"
+                        fileRow.getStyleClass().addAll(
+                                "duplicate-file-row",
+                                "exact-duplicate-file-row"
                         );
 
                         fileList.getChildren().add(
