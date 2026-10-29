@@ -3243,3 +3243,68 @@
     -fx-background-color: #DBEAFE;
 }
 
+
+/* ===== FileFlow Global Scrollbar ===== */
+
+/* Vertical and horizontal scrollbar dimensions */
+.scroll-pane .scroll-bar:vertical,
+.list-view .scroll-bar:vertical {
+    -fx-pref-width: 9px;
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+}
+
+.scroll-pane .scroll-bar:horizontal,
+.list-view .scroll-bar:horizontal {
+    -fx-pref-height: 9px;
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+}
+
+/* Minimal track */
+.scroll-pane .scroll-bar .track,
+.list-view .scroll-bar .track,
+.scroll-pane .scroll-bar .track-background,
+.list-view .scroll-bar .track-background {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+}
+
+/* Rounded thumb */
+.scroll-pane .scroll-bar .thumb,
+.list-view .scroll-bar .thumb {
+    -fx-background-color: #C6D3E7;
+    -fx-background-radius: 100px;
+    -fx-background-insets: 2px;
+}
+
+/* Hover feedback */
+.scroll-pane .scroll-bar .thumb:hover,
+.list-view .scroll-bar .thumb:hover {
+    -fx-background-color: #8CAAE0;
+}
+
+/* Remove old-fashioned arrow buttons */
+.scroll-pane .scroll-bar .increment-button,
+.scroll-pane .scroll-bar .decrement-button,
+.list-view .scroll-bar .increment-button,
+.list-view .scroll-bar .decrement-button {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+.scroll-pane .scroll-bar .increment-arrow,
+.scroll-pane .scroll-bar .decrement-arrow,
+.list-view .scroll-bar .increment-arrow,
+.list-view .scroll-bar .decrement-arrow {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+/* Scrollbar corner */
+.scroll-pane .corner,
+.list-view .corner {
+    -fx-background-color: transparent;
+}
+
+

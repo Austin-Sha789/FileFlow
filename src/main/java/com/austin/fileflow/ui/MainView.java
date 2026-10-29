@@ -282,6 +282,19 @@ public class MainView {
                                                 return;
                                         }
 
+                                        if (newWindow instanceof javafx.stage.Stage stage) {
+
+                                                var iconUrl = MainView.class.getResource(
+                                                        "/icons/fileflow.png"
+                                                );
+
+                                                if (iconUrl != null) {
+                                                        stage.getIcons().setAll(
+                                                                new Image(iconUrl.toExternalForm())
+                                                        );
+                                                }
+                                        }
+
                                         newWindow.addEventHandler(
                                                 WindowEvent.WINDOW_HIDDEN,
                                                 event -> {
@@ -375,6 +388,21 @@ public class MainView {
 
         Label logo = new Label("FileFlow");
         logo.getStyleClass().add("logo");
+
+        ImageView logoImage = new ImageView(
+                new Image(
+                        MainView.class.getResource(
+                                "/icons/fileflow.png"
+                        ).toExternalForm()
+                )
+        );
+
+        logoImage.setFitWidth(32);
+        logoImage.setFitHeight(32);
+        logoImage.setPreserveRatio(true);
+
+        logo.setGraphic(logoImage);
+        logo.setGraphicTextGap(12);
 
         Label home = new Label("Home");
         home.getStyleClass().add("nav-item");
