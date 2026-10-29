@@ -545,8 +545,9 @@ public class MainView {
 
         storageRootLabel.getStyleClass().add("sidebar-storage-root");
 
-        Button storageVolumesButton = new Button("›");
+        Button storageVolumesButton = new Button();
         storageVolumesButton.getStyleClass().add("sidebar-storage-volumes-button");
+        storageVolumesButton.setGraphic(createChevronRightIcon());
 
         HBox storageHeader = new HBox(
                 8,
@@ -677,9 +678,7 @@ public class MainView {
                                                 false
                                         );
 
-                                        storageVolumesButton.setText(
-                                                "›"
-                                        );
+                                        storageVolumesButton.setGraphic(createChevronRightIcon());
                                 }
                         );
 
@@ -699,8 +698,10 @@ public class MainView {
                         expanding
                 );
 
-                storageVolumesButton.setText(
-                        expanding ? "⌄" : "›"
+                storageVolumesButton.setGraphic(
+                        expanding
+                                ? createChevronDownIcon()
+                                : createChevronRightIcon()
                 );
         });
 
@@ -2020,8 +2021,14 @@ public class MainView {
         }
 
 
-        Button backButton = new Button("←");
+        Button backButton = new Button();
+
+        SVGPath backArrow = createChevronRightIcon();
+        backArrow.setRotate(180);
+
+        backButton.setGraphic(backArrow);
         backButton.getStyleClass().add("breadcrumb-back");
+
         HBox breadcrumbBar = new HBox(6);
 
         HBox browseHeader = new HBox(
@@ -4571,12 +4578,28 @@ public class MainView {
                         Priority.ALWAYS
                 );
 
-                HBox historyActions =
-                        new HBox(
-                                10,
-                                historySpacer,
-                                clearHistoryButton
-                        );
+                Label historyTitle = new Label("Previous scans");
+                historyTitle.getStyleClass().add("history-page-title");
+
+                Label historyCount = new Label(
+                        historyEntries.size() == 1
+                                ? "1 scan in your history"
+                                : historyEntries.size() + " scans in your history"
+                );
+                historyCount.getStyleClass().add("history-page-subtitle");
+
+                VBox historyHeading = new VBox(
+                        4,
+                        historyTitle,
+                        historyCount
+                );
+
+                HBox historyActions = new HBox(
+                        12,
+                        historyHeading,
+                        historySpacer,
+                        clearHistoryButton
+                );
 
                 historyActions.setAlignment(
                         Pos.CENTER_RIGHT
@@ -4641,6 +4664,44 @@ public class MainView {
                                         pathLabel,
                                         detailsLabel
                                 );
+                                
+                        fileInfo.setMinWidth(0);
+                        fileInfo.setMaxWidth(Double.MAX_VALUE);
+                        HBox.setHgrow(fileInfo, Priority.ALWAYS);
+
+                        folderNameLabel.setMinWidth(0);
+                        folderNameLabel.setTextOverrun(
+                                javafx.scene.control.OverrunStyle.ELLIPSIS
+                        );
+
+                        pathLabel.setMinWidth(0);
+                        pathLabel.setTextOverrun(
+                                javafx.scene.control.OverrunStyle.ELLIPSIS
+                        );
+                        pathLabel.setTooltip(
+                                new Tooltip(entry.getFolderPath().toString())
+                        );
+
+                        SVGPath historyFolderIcon = new SVGPath();
+                        historyFolderIcon.setContent(
+                                "M3 7 V19 Q3 21 5 21 H19 "
+                                + "Q21 21 21 19 V9 Q21 7 19 7 "
+                                + "H12 L10 5 H5 Q3 5 3 7 Z"
+                        );
+                        historyFolderIcon.getStyleClass().add(
+                                "history-folder-icon"
+                        );
+
+                        StackPane historyIconBox =
+                                new StackPane(historyFolderIcon);
+
+                        historyIconBox.setMinSize(44, 44);
+                        historyIconBox.setPrefSize(44, 44);
+                        historyIconBox.setMaxSize(44, 44);
+
+                        historyIconBox.getStyleClass().add(
+                                "history-icon-box"
+                        );
 
                         Button scanAgainButton = new Button("Scan Again");
 
@@ -4738,36 +4799,26 @@ public class MainView {
                                 )
                         );
 
-                        Region spacer =
-                                new Region();
-
-                        HBox.setHgrow(
-                                spacer,
-                                Priority.ALWAYS
+                        HBox actionsRow = new HBox(
+                                10,
+                                scanAgainButton,
+                                moreButton
                         );
 
-                        HBox actionsRow =
-                                new HBox(
-                                        10,
-                                        spacer,
-                                        scanAgainButton,
-                                        moreButton
-                                );
+                        actionsRow.setAlignment(Pos.CENTER_RIGHT);
 
-                        actionsRow.setAlignment(
-                                Pos.CENTER_RIGHT
+                        HBox historyCard = new HBox(
+                                16,
+                                historyIconBox,
+                                fileInfo,
+                                actionsRow
                         );
 
-                        VBox historyCard =
-                                new VBox(
-                                        8,
-                                        fileInfo,
-                                        actionsRow
-                                );
+                        historyCard.setAlignment(Pos.CENTER_LEFT);
+                        historyCard.setMinWidth(0);
+                        historyCard.setMaxWidth(Double.MAX_VALUE);
 
-                        historyCard.getStyleClass().add(
-                                "history-card"
-                        );
+                        historyCard.getStyleClass().add("history-card");
 
                         content.getChildren().add(
                                 historyCard
@@ -5838,7 +5889,7 @@ public class MainView {
                         );
 
                         // Expansion indicator
-                        Label expandArrow = new Label("›");
+                        Label expandArrow = new Label();
 
                         expandArrow.getStyleClass().add(
                                 "tag-expand-arrow"
@@ -5865,8 +5916,10 @@ public class MainView {
                         fileList.setVisible(expanded);
                         fileList.setManaged(expanded);
 
-                        expandArrow.setText(
-                                expanded ? "⌄" : "›"
+                        expandArrow.setGraphic(
+                                expanded
+                                        ? createChevronDownIcon()
+                                        : createChevronRightIcon()
                         );
 
                         tagHeader.setOnMouseClicked(event -> {
@@ -5880,8 +5933,10 @@ public class MainView {
                                 fileList.setVisible(shouldExpand);
                                 fileList.setManaged(shouldExpand);
 
-                                expandArrow.setText(
-                                        shouldExpand ? "⌄" : "›"
+                                expandArrow.setGraphic(
+                                        shouldExpand
+                                                ? createChevronDownIcon()
+                                                : createChevronRightIcon()
                                 );
 
                                 if (shouldExpand) {
@@ -6781,7 +6836,7 @@ public class MainView {
                 Dialog<ButtonType> dialog = new Dialog<>();
 
                 dialog.setTitle("Manage Scan Folders");
-                dialog.setHeaderText("Scan Workspace");
+                dialog.setHeaderText(null);
 
                 dialog.initOwner(root.getScene().getWindow());
 
@@ -6802,9 +6857,7 @@ public class MainView {
                 );
 
                 Label description = new Label(
-                        "Add folders individually, or drag multiple folders "
-                        + "from Windows File Explorer into the drop zone. "
-                        + "Saving does not start a scan."
+                        "Drag folders here, or use Add Folder to select them."
                 );
                 description.setWrapText(true);
 
@@ -6819,8 +6872,12 @@ public class MainView {
                 );
 
                 ScrollPane rootsScroll = new ScrollPane(rootsBox);
+
+                rootsScroll.getStyleClass().add("workspace-roots-scroll");
+                rootsBox.getStyleClass().add("workspace-roots-box");
+
                 rootsScroll.setFitToWidth(true);
-                rootsScroll.setPrefViewportHeight(240);
+                rootsScroll.setPrefViewportHeight(150);
                 rootsScroll.setHbarPolicy(
                         ScrollPane.ScrollBarPolicy.NEVER
                 );
@@ -6854,7 +6911,7 @@ public class MainView {
                 );
 
                 dropZone.setAlignment(Pos.CENTER);
-                dropZone.setMinHeight(125);
+                dropZone.setMinHeight(100);
                 dropZone.setMaxWidth(Double.MAX_VALUE);
                 dropZone.getStyleClass().add("workspace-drop-zone");
                 
@@ -7023,17 +7080,35 @@ public class MainView {
                         }
                 });
 
+                HBox workspaceToolbar = new HBox();
+                workspaceToolbar.setAlignment(Pos.CENTER_LEFT);
+                workspaceToolbar.setSpacing(12);
+
+                Region toolbarSpacer = new Region();
+                HBox.setHgrow(toolbarSpacer, Priority.ALWAYS);
+
+                workspaceToolbar.getChildren().addAll(
+                        countLabel,
+                        toolbarSpacer,
+                        addButton
+                );
+
+                workspaceToolbar.getStyleClass().add("workspace-toolbar");
+                countLabel.getStyleClass().add("workspace-count-label");
+                addButton.getStyleClass().add("secondary-button");
+
                 VBox dialogContent = new VBox(
                         12,
                         description,
                         dropZone,
-                        countLabel,
+                        workspaceToolbar,
                         rootsScroll,
-                        addButton,
                         feedbackLabel
                 );
 
-                dialogContent.setPrefWidth(520);
+                dialogContent.getStyleClass().add("workspace-dialog-content");
+
+                dialogContent.setPrefWidth(560);
 
                 dialog.getDialogPane().setContent(dialogContent);
 
@@ -7093,6 +7168,11 @@ public class MainView {
 
                         Label pathLabel = new Label(path.toString());
 
+                        pathLabel.setStyle(
+                                "-fx-font-size: 13px;"
+                                + "-fx-text-fill: #324866;"
+                        );
+
                         pathLabel.setWrapText(true);
                         pathLabel.setMinWidth(0);
                         pathLabel.setMaxWidth(Double.MAX_VALUE);
@@ -7110,13 +7190,13 @@ public class MainView {
 
                         removeButton.setOnAction(event -> {
 
-                        workspace.removeRoot(path);
+                                workspace.removeRoot(path);
 
-                        refreshScanWorkspaceRows(
-                                rootsBox,
-                                countLabel,
-                                workspace
-                        );
+                                refreshScanWorkspaceRows(
+                                        rootsBox,
+                                        countLabel,
+                                        workspace
+                                );
                         });
 
                         HBox folderRow = new HBox(
@@ -7128,9 +7208,12 @@ public class MainView {
                         folderRow.setAlignment(Pos.CENTER_LEFT);
 
                         folderRow.setStyle(
-                                "-fx-padding: 10;"
-                                + "-fx-background-color: #F5F8FD;"
-                                + "-fx-background-radius: 8;"
+                                "-fx-padding: 12 16;"
+                                + "-fx-background-color: #FFFFFF;"
+                                + "-fx-background-radius: 10;"
+                                + "-fx-border-color: #DFE8F5;"
+                                + "-fx-border-radius: 10;"
+                                + "-fx-border-width: 1;"
                         );
 
                         rootsBox.getChildren().add(folderRow);
@@ -7594,6 +7677,48 @@ public class MainView {
                 );
 
                 return moreButton;
+        }
+
+        private SVGPath createChevronRightIcon() {
+                SVGPath icon = new SVGPath();
+
+                icon.setContent(
+                        "M8.22 5.22"
+                        + "a.75.75 0 0 1 1.06 0"
+                        + "l5.25 5.25"
+                        + "a.75.75 0 0 1 0 1.06"
+                        + "l-5.25 5.25"
+                        + "a.75.75 0 1 1-1.06-1.06"
+                        + "L12.94 11"
+                        + "L8.22 6.28"
+                        + "a.75.75 0 0 1 0-1.06z"
+                );
+
+                icon.getStyleClass().add("ff-chevron-icon");
+                icon.setStyle("-fx-fill: #5D89F6;");
+
+                return icon;
+        }
+
+        private SVGPath createChevronDownIcon() {
+                SVGPath icon = new SVGPath();
+
+                icon.setContent(
+                        "M5.22 8.22"
+                        + "a.75.75 0 0 1 1.06 0"
+                        + "L11 12.94"
+                        + "l4.72-4.72"
+                        + "a.75.75 0 1 1 1.06 1.06"
+                        + "l-5.25 5.25"
+                        + "a.75.75 0 0 1-1.06 0"
+                        + "L5.22 9.28"
+                        + "a.75.75 0 0 1 0-1.06z"
+                );
+
+                icon.getStyleClass().add("ff-chevron-icon");
+                icon.setStyle("-fx-fill: #5D89F6;");
+
+                return icon;
         }
 
         private void openFile(
@@ -8200,8 +8325,12 @@ public class MainView {
                 Path accumulatedPath = scanRootPath;
 
                 for (Path part : relativePath) {
-                        Label separator = new Label(">");
-                        separator.getStyleClass().add("breadcrumb-separator");
+                        SVGPath separator = createChevronRightIcon();
+
+                        separator.setStyle("-fx-fill: #A3B1C5;");
+                        separator.setScaleX(0.72);
+                        separator.setScaleY(0.72);
+                        separator.setMouseTransparent(true);
 
                         accumulatedPath = accumulatedPath.resolve(part);
                         
@@ -8423,7 +8552,8 @@ public class MainView {
                         );
                         sizeLabel.getStyleClass().add("category-size");
 
-                        Label arrowLabel = new Label("›");
+                        Label arrowLabel = new Label();
+                        arrowLabel.setGraphic(createChevronRightIcon());
                         arrowLabel.getStyleClass().add("category-arrow");
 
                         Region spacer = new Region();
@@ -8479,7 +8609,8 @@ public class MainView {
                 int itemCount,
                 VBox content
         ) {
-        Label arrowLabel = new Label("›");
+        Label arrowLabel = new Label();
+        arrowLabel.setGraphic(createChevronRightIcon());
 
         Label titleLabel = new Label(
                 title + " (" + itemCount + ")"
@@ -8517,8 +8648,10 @@ public class MainView {
                 content.setVisible(!expanded);
                 content.setManaged(!expanded);
 
-                arrowLabel.setText(
-                        expanded ? "›" : "⌄"
+                arrowLabel.setGraphic(
+                        expanded
+                                ? createChevronRightIcon()
+                                : createChevronDownIcon()
                 );
         });
 
@@ -9176,7 +9309,8 @@ public class MainView {
                         fileList.setVisible(false);
                         fileList.setManaged(false);
 
-                        Label arrowLabel = new Label("›");
+                        Label arrowLabel = new Label();
+                        arrowLabel.setGraphic(createChevronRightIcon());
 
                         arrowLabel.getStyleClass().add("duplicate-group-arrow");
 
@@ -9378,8 +9512,10 @@ public class MainView {
                                         !expanded
                                 );
 
-                                arrowLabel.setText(
-                                        expanded ? "›" : "⌄"
+                                arrowLabel.setGraphic(
+                                        expanded
+                                                ? createChevronRightIcon()
+                                                : createChevronDownIcon()
                                 );
                         });
 

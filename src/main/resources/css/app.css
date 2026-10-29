@@ -3153,3 +3153,93 @@
     -fx-text-fill: #667C9C;
     -fx-alignment: center;
 }
+
+.ff-chevron-icon {
+    -fx-fill: #7DA2F8;
+    -fx-scale-x: 1.05;
+    -fx-scale-y: 1.05;
+}
+
+
+/* ===== FileFlow History Polish ===== */
+
+.history-scroll {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+}
+
+.history-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+.history-content {
+    -fx-spacing: 14px;
+    -fx-padding: 8 4 20 4;
+}
+
+.history-page-title {
+    -fx-font-size: 21px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #1F3352;
+}
+
+.history-page-subtitle {
+    -fx-font-size: 12px;
+    -fx-text-fill: #8796AC;
+}
+
+.history-card {
+    -fx-padding: 14 18;
+    -fx-spacing: 16px;
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 14px;
+    -fx-border-color: #DFE8F5;
+    -fx-border-width: 1px;
+    -fx-border-radius: 14px;
+}
+
+.history-card:hover {
+    -fx-background-color: #F8FBFF;
+    -fx-border-color: #C9DDFB;
+}
+
+.history-icon-box {
+    -fx-background-color: #EEF4FF;
+    -fx-background-radius: 12px;
+}
+
+.history-folder-icon {
+    -fx-fill: #5D89F6;
+}
+
+.history-folder-name {
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #23395D;
+}
+
+.history-path {
+    -fx-font-size: 12px;
+    -fx-text-fill: #7D90AA;
+}
+
+.history-details {
+    -fx-font-size: 12px;
+    -fx-text-fill: #8796AC;
+}
+
+.history-scan-again-button {
+    -fx-background-color: #EDF4FF;
+    -fx-text-fill: #356BC2;
+    -fx-background-radius: 9px;
+    -fx-border-radius: 9px;
+    -fx-border-color: #D6E5FA;
+    -fx-padding: 9 16;
+    -fx-cursor: hand;
+}
+
+.history-scan-again-button:hover {
+    -fx-background-color: #DBEAFE;
+}
+
