@@ -3105,3 +3105,51 @@
 .file-select-checkbox:selected > .box > .mark {
     -fx-background-color: transparent;
 }
+
+
+/* Manage Folders - Drag and Drop */
+
+.workspace-drop-zone {
+    -fx-padding: 20 16;
+    -fx-background-color: #F4F8FF;
+    -fx-background-radius: 12;
+
+    -fx-border-color: #9BBBF3;
+    -fx-border-width: 2;
+    -fx-border-style: dashed;
+    -fx-border-radius: 12;
+}
+
+.workspace-drop-zone-active {
+    -fx-background-color: #E4F0FF;
+    -fx-border-color: #3478F6;
+
+    -fx-effect: dropshadow(
+        gaussian,
+        rgba(52, 120, 246, 0.25),
+        16,
+        0.15,
+        0,
+        0
+    );
+}
+
+.workspace-drop-icon {
+    -fx-fill: transparent;
+    -fx-stroke: #3478F6;
+    -fx-stroke-width: 2.2;
+    -fx-stroke-linecap: round;
+    -fx-stroke-linejoin: round;
+}
+
+.workspace-drop-title {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #255EBC;
+}
+
+.workspace-drop-hint {
+    -fx-font-size: 12px;
+    -fx-text-fill: #667C9C;
+    -fx-alignment: center;
+}

@@ -56,6 +56,8 @@ import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.input.Dragboard;
 import javafx.scene.input.TransferMode;
+import javafx.scene.input.DragEvent;
+import java.util.function.Function;
 
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
@@ -6800,8 +6802,8 @@ public class MainView {
                 );
 
                 Label description = new Label(
-                        "Add folders individually, or select multiple folders "
-                        + "in Windows File Explorer and drag them into the list below. "
+                        "Add folders individually, or drag multiple folders "
+                        + "from Windows File Explorer into the drop zone. "
                         + "Saving does not start a scan."
                 );
                 description.setWrapText(true);
@@ -6826,45 +6828,55 @@ public class MainView {
                 Label feedbackLabel = new Label();
                 feedbackLabel.setWrapText(true);
 
-                // Allow multiple folders to be dragged from Windows Explorer
-                rootsScroll.setOnDragOver(event -> {
+                
+                SVGPath dropIcon = new SVGPath();
+                dropIcon.setContent(
+                        "M12 3 V15 "
+                        + "M7 10 L12 15 L17 10 "
+                        + "M4 17 V21 H20 V17"
+                );
+                dropIcon.getStyleClass().add("workspace-drop-icon");
 
-                        Dragboard dragboard = event.getDragboard();
+                Label dropTitle = new Label("Drop folders here");
+                dropTitle.getStyleClass().add("workspace-drop-title");
 
-                        if (dragboard.hasFiles()
-                                && dragboard.getFiles().stream()
-                                        .anyMatch(File::isDirectory)) {
+                Label dropHint = new Label(
+                        "Drag one or multiple folders from File Explorer"
+                );
+                dropHint.getStyleClass().add("workspace-drop-hint");
+                dropHint.setWrapText(true);
 
-                                event.acceptTransferModes(TransferMode.COPY);
-                        }
+                VBox dropZone = new VBox(
+                        8,
+                        dropIcon,
+                        dropTitle,
+                        dropHint
+                );
 
-                        event.consume();
-                });
-
-                rootsScroll.setOnDragDropped(event -> {
-
-                        Dragboard dragboard = event.getDragboard();
+                dropZone.setAlignment(Pos.CENTER);
+                dropZone.setMinHeight(125);
+                dropZone.setMaxWidth(Double.MAX_VALUE);
+                dropZone.getStyleClass().add("workspace-drop-zone");
+                
+                // Shared folder-drop logic for the list and drop zone
+                Function<List<File>, Integer> addDroppedFolders = files -> {
 
                         int added = 0;
                         int skipped = 0;
 
-                        if (dragboard.hasFiles()) {
+                        for (File droppedFile : files) {
 
-                                for (File droppedFile : dragboard.getFiles()) {
+                                if (!droppedFile.isDirectory()) {
+                                        skipped++;
+                                        continue;
+                                }
 
-                                        // Only folders can be scan roots
-                                        if (!droppedFile.isDirectory()) {
-                                                skipped++;
-                                                continue;
-                                        }
+                                Path path = droppedFile.toPath();
 
-                                        Path path = droppedFile.toPath();
-
-                                        if (draft.addRoot(path)) {
-                                                added++;
-                                        } else {
-                                                skipped++;
-                                        }
+                                if (draft.addRoot(path)) {
+                                        added++;
+                                } else {
+                                        skipped++;
                                 }
                         }
 
@@ -6879,9 +6891,82 @@ public class MainView {
                                         + skipped + " skipped."
                         );
 
+                        return added;
+                };
+
+                // Accept folders from Windows File Explorer
+                EventHandler<DragEvent> dragOverHandler = event -> {
+
+                        Dragboard dragboard = event.getDragboard();
+
+                        boolean containsFolders =
+                                dragboard.hasFiles()
+                                && dragboard.getFiles().stream()
+                                        .anyMatch(File::isDirectory);
+
+                        if (containsFolders) {
+                                event.acceptTransferModes(TransferMode.COPY);
+                        }
+
+                        event.consume();
+                };
+
+                // Handle the actual drop
+                EventHandler<DragEvent> dropHandler = event -> {
+
+                        Dragboard dragboard = event.getDragboard();
+
+                        int added = 0;
+
+                        if (dragboard.hasFiles()) {
+                                added = addDroppedFolders.apply(
+                                        dragboard.getFiles()
+                                );
+                        }
+
+                        dropZone.getStyleClass().remove(
+                                "workspace-drop-zone-active"
+                        );
+
                         event.setDropCompleted(added > 0);
                         event.consume();
+                };
+
+                // Preserve existing drag-and-drop on the folder list
+                rootsScroll.setOnDragOver(dragOverHandler);
+                rootsScroll.setOnDragDropped(dropHandler);
+
+                // Enable the dedicated drop zone
+                dropZone.setOnDragOver(event -> {
+
+                        dragOverHandler.handle(event);
+
+                        Dragboard dragboard = event.getDragboard();
+
+                        if (dragboard.hasFiles()
+                                && dragboard.getFiles().stream()
+                                        .anyMatch(File::isDirectory)) {
+
+                                if (!dropZone.getStyleClass().contains(
+                                        "workspace-drop-zone-active"
+                                )) {
+                                        dropZone.getStyleClass().add(
+                                                "workspace-drop-zone-active"
+                                        );
+                                }
+                        }
                 });
+
+                dropZone.setOnDragExited(event -> {
+
+                        dropZone.getStyleClass().remove(
+                                "workspace-drop-zone-active"
+                        );
+
+                        event.consume();
+                });
+
+                dropZone.setOnDragDropped(dropHandler);
 
                 Button addButton = new Button("Add Folder");
                 addButton.getStyleClass().add("secondary-button");
@@ -6919,7 +7004,7 @@ public class MainView {
                                 feedbackLabel.setText(
                                         "This folder is already included "
                                         + "in another selected folder."
-                        );
+                                );
                                 return;
                         }
 
@@ -6932,7 +7017,7 @@ public class MainView {
                         if (draft.size() <= previousCount) {
                                 feedbackLabel.setText(
                                         "Parent folder added. Covered child folders removed."
-                        );
+                                );
                         } else {
                                 feedbackLabel.setText("Folder added.");
                         }
@@ -6941,6 +7026,7 @@ public class MainView {
                 VBox dialogContent = new VBox(
                         12,
                         description,
+                        dropZone,
                         countLabel,
                         rootsScroll,
                         addButton,
