@@ -925,6 +925,85 @@ public class MainView {
                 "secondary-button"
         );
 
+        // Global command search
+        SVGPath commandSearchIcon = new SVGPath();
+        commandSearchIcon.setContent(
+                "M21 21 L16.6 16.6 "
+                + "M19 11 A8 8 0 1 1 3 11 "
+                + "A8 8 0 1 1 19 11"
+        );
+        commandSearchIcon.getStyleClass().add("ff-command-search-icon");
+
+        TextField commandSearch = new TextField();
+        commandSearch.setPromptText("Search files, folders...");
+        commandSearch.getStyleClass().add("ff-command-search-field");
+
+        Button clearCommandSearchButton = new Button("×");
+
+        clearCommandSearchButton.setFocusTraversable(false);
+        clearCommandSearchButton.setStyle(
+                "-fx-background-color: transparent;"
+                + "-fx-text-fill: #A5B9DC;"
+                + "-fx-font-size: 20px;"
+                + "-fx-cursor: hand;"
+                + "-fx-padding: 0 4;"
+        );
+
+        // Show only when text exists
+        clearCommandSearchButton.visibleProperty().bind(
+                commandSearch.textProperty().isNotEmpty()
+        );
+
+        clearCommandSearchButton.managedProperty().bind(
+                clearCommandSearchButton.visibleProperty()
+        );
+
+        clearCommandSearchButton.setOnAction(event -> {
+                commandSearch.clear();
+                commandSearch.requestFocus();
+        });
+
+        commandSearch.setOnAction(event -> {
+        String query = commandSearch.getText().trim();
+
+        selectNavItem(filesNavItem, "Files");
+
+        if (searchField != null) {
+                searchField.setText(query);
+                searchField.requestFocus();
+        }
+        });
+
+        HBox commandSearchBox = new HBox(
+                12,
+                commandSearchIcon,
+                commandSearch,
+                clearCommandSearchButton
+        );
+
+        commandSearchBox.setAlignment(Pos.CENTER_LEFT);
+        commandSearchBox.getStyleClass().add("ff-command-search-box");
+        commandSearchBox.setPrefWidth(460);
+        commandSearchBox.setMaxWidth(560);
+
+        HBox.setHgrow(commandSearch, Priority.ALWAYS);
+
+        Region commandLeftSpacer = new Region();
+        Region commandRightSpacer = new Region();
+
+        HBox.setHgrow(commandLeftSpacer, Priority.ALWAYS);
+        HBox.setHgrow(commandRightSpacer, Priority.ALWAYS);
+
+        HBox commandBar = new HBox(
+                12,
+                commandLeftSpacer,
+                commandSearchBox,
+                commandRightSpacer
+        );
+
+        commandBar.setAlignment(Pos.CENTER_LEFT);
+        commandBar.getStyleClass().add("ff-command-bar");
+
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
@@ -940,12 +1019,28 @@ public class MainView {
         );
         topBar.getStyleClass().add("top-bar");
 
-        content.getChildren().addAll(
+        VBox pageBody = new VBox(
+                18,
                 topBar,
                 pageContent
         );
 
+        pageBody.getStyleClass().add("ff-page-body");
+
         VBox.setVgrow(pageContent, Priority.ALWAYS);
+        VBox.setVgrow(pageBody, Priority.ALWAYS);
+
+        VBox.setMargin(
+                pageBody,
+                new Insets(8, 10, 10, 8)
+        );
+
+        content.getStyleClass().add("ff-dark-shell");
+
+        content.getChildren().addAll(
+                commandBar,
+                pageBody
+        );
 
         return content;
     }
@@ -1024,8 +1119,13 @@ public class MainView {
                 );
         }
 
-            case "Favourites" ->
-                    pageContent.getChildren().add(createFavouritesContent());
+           case "Favourites" -> {
+                VBox favouritesContent = createFavouritesContent();
+
+                pageContent.getChildren().add(favouritesContent);
+
+                VBox.setVgrow(favouritesContent, Priority.ALWAYS);
+            }
 
             case "Duplicates" -> {
 
@@ -1216,6 +1316,8 @@ public class MainView {
                     "Scan a folder to view file statistics."
             );
 
+            emptyLabel.getStyleClass().add("dashboard-empty-state");
+
             dashboardContent.getChildren().add(emptyLabel);
             return dashboardPage;
         }
@@ -1237,7 +1339,7 @@ public class MainView {
                 .count();
 
 
-        HBox summaryRow = new HBox();
+        HBox summaryRow = new HBox(14);
         summaryRow.getStyleClass().add("summary-grid");
 
         VBox filesCard = createSummaryCard(
@@ -1260,20 +1362,21 @@ public class MainView {
                 String.valueOf(latestScanResult.getIssues().size())
         );
 
-        filesCard.getStyleClass().add("summary-card-files");
-        storageCard.getStyleClass().add("summary-card-storage");
-        foldersCard.getStyleClass().add("summary-card-folders");
-        issuesCard.getStyleClass().add("summary-card-issues");
+        for (VBox card : List.of(
+                filesCard,
+                storageCard,
+                foldersCard,
+                issuesCard
+        )) {
+                card.getStyleClass().add("dashboard-glass-card");
+        }
 
-        HBox.setHgrow(filesCard, Priority.ALWAYS);
-        HBox.setHgrow(storageCard, Priority.ALWAYS);
-        HBox.setHgrow(foldersCard, Priority.ALWAYS);
-        HBox.setHgrow(issuesCard, Priority.ALWAYS);
-
-        filesCard.setMaxWidth(Double.MAX_VALUE);
-        storageCard.setMaxWidth(Double.MAX_VALUE);
-        foldersCard.setMaxWidth(Double.MAX_VALUE);
-        issuesCard.setMaxWidth(Double.MAX_VALUE);
+        for (VBox card : List.of(filesCard, storageCard, foldersCard, issuesCard)) {
+                HBox.setHgrow(card, Priority.ALWAYS);
+                card.setMaxWidth(Double.MAX_VALUE);
+                card.setMinWidth(0);
+                card.setPrefWidth(0);
+        }
 
         summaryRow.getChildren().addAll(
                 filesCard,
@@ -2008,7 +2111,7 @@ public class MainView {
         fileSelectionMode = false;
         selectedFilePaths.clear();
 
-        VBox filesContent = new VBox();
+        VBox filesContent = new VBox(14);
 
         filesContent.setMaxHeight(
                 Double.MAX_VALUE
@@ -2016,6 +2119,8 @@ public class MainView {
 
         if (latestScanResult == null) {
             Label emptyLabel = new Label("No folder has been scanned yet.");
+            emptyLabel.getStyleClass().add("ff-empty-message");
+
             filesContent.getChildren().add(emptyLabel);
             return filesContent;
         }
@@ -2074,6 +2179,53 @@ public class MainView {
         searchField.setPromptText("Search files...");
         searchField.getStyleClass().add("search-field");
 
+        Button clearFileSearchButton = new Button("×");
+
+        clearFileSearchButton.setFocusTraversable(false);
+        clearFileSearchButton.setPrefSize(24, 24);
+
+        clearFileSearchButton.setStyle(
+                "-fx-background-color: transparent;"
+                + "-fx-text-fill: #8796AC;"
+                + "-fx-font-size: 19px;"
+                + "-fx-cursor: hand;"
+                + "-fx-padding: 0;"
+        );
+
+        clearFileSearchButton.visibleProperty().bind(
+                searchField.textProperty().isNotEmpty()
+        );
+
+        clearFileSearchButton.managedProperty().bind(
+                clearFileSearchButton.visibleProperty()
+        );
+
+        clearFileSearchButton.setOnAction(event -> {
+        searchField.clear();
+        searchField.requestFocus();
+        });
+
+        // Put the X inside the search field
+        StackPane searchFieldBox = new StackPane(
+                searchField,
+                clearFileSearchButton
+        );
+
+        StackPane.setAlignment(
+                clearFileSearchButton,
+                Pos.CENTER_RIGHT
+        );
+
+        StackPane.setMargin(
+                clearFileSearchButton,
+                new Insets(0, 10, 0, 0)
+        );
+
+        // Leave enough space for the X
+        searchField.setPadding(
+                new Insets(8, 40, 8, 12)
+        );
+
         ComboBox<String> typeFilter = new ComboBox<>();
         typeFilter.getItems().addAll(
                         "All",
@@ -2107,15 +2259,14 @@ public class MainView {
         HBox controlsRow = new HBox(12);
 
         controlsRow.getChildren().addAll(
-                searchField,
+                searchFieldBox,
                 typeFilter,
                 sortBy
         );
-
         searchField.setPrefWidth(280);
         searchField.setMaxWidth(Double.MAX_VALUE);
 
-        HBox.setHgrow(searchField, Priority.ALWAYS);
+        HBox.setHgrow(searchFieldBox, Priority.ALWAYS);
 
         typeFilter.setPrefWidth(155);
         sortBy.setPrefWidth(180);
@@ -2206,13 +2357,7 @@ public class MainView {
         workspaceBar.setAlignment(Pos.CENTER_LEFT);
         workspaceBar.setMaxWidth(Double.MAX_VALUE);
 
-        workspaceBar.setStyle(
-                "-fx-padding: 12 14;"
-                + "-fx-background-color: white;"
-                + "-fx-background-radius: 10;"
-                + "-fx-border-color: #E1E8F2;"
-                + "-fx-border-radius: 10;"
-        );
+       workspaceBar.getStyleClass().add("files-workspace-bar");
 
         filesContent.getChildren().add(workspaceBar);
         }
@@ -2737,6 +2882,14 @@ public class MainView {
                         );
                         favouriteButton.getStyleClass().add("favourite-button");
 
+                        favouriteButton.getStyleClass().add("is-favourite");
+
+                        favouriteButton.getStyleClass().add(
+                                favouritePaths.contains(item.getPath())
+                                        ? "is-favourite"
+                                        : "not-favourite"
+                        );
+
                         favouriteButton.setOnAction(event -> {
                                 Path filePath = item.getPath();
 
@@ -2752,6 +2905,17 @@ public class MainView {
                                                 favouritePaths.add(filePath);
                                                 favouriteButton.setText("★");
                                         }
+
+                                        favouriteButton.getStyleClass().removeAll(
+                                                "is-favourite",
+                                                "not-favourite"
+                                        );
+
+                                        favouriteButton.getStyleClass().add(
+                                                favouritePaths.contains(filePath)
+                                                        ? "is-favourite"
+                                                        : "not-favourite"
+                                        );
 
                                         updateSelectionUi.run();
                                 } catch (SQLException e) {
@@ -3262,6 +3426,9 @@ public class MainView {
     private VBox createFavouritesContent() {
 
         VBox content = new VBox(18);
+        content.setMinHeight(0);
+        content.setMaxHeight(Double.MAX_VALUE);
+
         content.getStyleClass().add("favourites-content");
 
         Label heading = new Label("Your saved files");
@@ -3379,10 +3546,21 @@ public class MainView {
                 // Store each row by its file path
                 Map<Path, HBox> rowsByPath = new HashMap<>();
 
+                VBox listContent = new VBox(10, rowsContainer, noMatchesLabel);
+
+                ScrollPane favouritesScroll = new ScrollPane(listContent);
+                favouritesScroll.getStyleClass().add("favourites-scroll");
+
+                favouritesScroll.setFitToWidth(true);
+                favouritesScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+                favouritesScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+
+                favouritesScroll.setMinHeight(0);
+                VBox.setVgrow(favouritesScroll, Priority.ALWAYS);
+
                 content.getChildren().addAll(
                         toolbar,
-                        rowsContainer,
-                        noMatchesLabel
+                        favouritesScroll
                 );
 
                 for (Path filePath : favouritePaths) {
@@ -5407,6 +5585,10 @@ public class MainView {
                 );
 
                 confirmation.setTitle("Bulk Recycle Bin");
+                applyDarkDialogStyle(confirmation);
+                confirmation.getDialogPane().setGraphic(null);
+
+                applyDarkDialogStyle(confirmation);
 
                 confirmation.setHeaderText(
                         "Move " + targets.size()
@@ -7618,9 +7800,8 @@ public class MainView {
                                 + "Folders failed: %d%n"
                                 + "Files found: %,d%n"
                                 + "Total file size: %,d bytes%n%n"
-                                + "Results are saved in memory. "
-                                + "Multi-folder browsing will be enabled "
-                                + "in the next development stage.",
+                                + "Results are available in Files. "
+                                + "Use the Workspace selector to switch between scanned folders.",
                         completed,
                         failed,
                         snapshot.fileCount(),
@@ -7877,6 +8058,25 @@ public class MainView {
                 return fileMenu;
         }
 
+        private void applyDarkDialogStyle(Dialog<?> dialog) {
+                var pane = dialog.getDialogPane();
+
+                pane.getStyleClass().add("ff-dark-dialog");
+
+                for (String css : root.getStylesheets()) {
+                        if (!pane.getStylesheets().contains(css)) {
+                                pane.getStylesheets().add(css);
+                        }
+                }
+
+                if (root.getScene() != null) {
+                        for (String css : root.getScene().getStylesheets()) {
+                                if (!pane.getStylesheets().contains(css)) {
+                                        pane.getStylesheets().add(css);
+                                }
+                        }
+                }
+        }
         
         private boolean confirmMoveToRecycleBin(Path filePath) {
 
@@ -7894,6 +8094,10 @@ public class MainView {
                 );
 
                 confirmation.setTitle("Move to Recycle Bin");
+                applyDarkDialogStyle(confirmation);
+                confirmation.getDialogPane().setGraphic(null);
+
+                applyDarkDialogStyle(confirmation);
 
                 confirmation.setHeaderText(
                         "Move this file to the Recycle Bin?"
@@ -9799,6 +10003,8 @@ public class MainView {
                 title.setStyle("-fx-font-size: 17px; -fx-font-weight: bold;");
 
                 Button closeButton = new Button("×");
+                closeButton.getStyleClass().add("quick-info-close");
+
                 closeButton.setOnAction(event -> root.setRight(null));
 
                 Region spacer = new Region();
@@ -9902,11 +10108,21 @@ public class MainView {
                 inspector.setPrefWidth(290);
                 inspector.setMinWidth(260);
 
-                inspector.setStyle(
-                        "-fx-padding: 20;" +
-                        "-fx-background-color: -fx-control-inner-background;" +
-                        "-fx-border-color: -fx-box-border;" +
-                        "-fx-border-width: 0 0 0 1;"
+                inspector.getStyleClass().add("quick-info-panel");
+
+                System.out.println(
+                        "Scene stylesheets: "
+                        + root.getScene().getStylesheets()
+                );
+
+                System.out.println(
+                        "Root stylesheets: "
+                        + root.getStylesheets()
+                );
+
+                System.out.println(
+                        "Center stylesheets: "
+                        + ((Parent) root.getCenter()).getStylesheets()
                 );
 
                 root.setRight(inspector);
@@ -9929,12 +10145,7 @@ public class MainView {
                 previewBox.setMinSize(width, height);
                 previewBox.setMaxSize(width, height);
 
-                previewBox.setStyle(
-                        "-fx-background-color: #f3f4f6;" +
-                        "-fx-background-radius: 12;" +
-                        "-fx-border-radius: 12;" +
-                        "-fx-border-color: #e5e7eb;"
-                );
+                previewBox.getStyleClass().add("quick-info-preview");
 
                 boolean isImage =
                         type.equalsIgnoreCase("Image")

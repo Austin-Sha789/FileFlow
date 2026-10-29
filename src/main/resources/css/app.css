@@ -3307,4 +3307,1498 @@
     -fx-background-color: transparent;
 }
 
+/* FileFlow - Spotify-inspired Command Bar */
 
+.ff-command-bar {
+    -fx-background-color: #0B162B;
+    -fx-padding: 12 28;
+    -fx-min-height: 64px;
+}
+
+.ff-command-search-box {
+    -fx-background-color: #1C2D4C;
+    -fx-background-radius: 24px;
+    -fx-border-color: #344D73;
+    -fx-border-radius: 24px;
+    -fx-border-width: 1px;
+    -fx-padding: 6 16;
+    -fx-min-height: 42px;
+}
+
+.ff-command-search-field {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-text-fill: #F8FAFF;
+    -fx-prompt-text-fill: #9DAEC9;
+    -fx-font-size: 13px;
+    -fx-padding: 4 0;
+}
+
+.ff-command-search-field:focused {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+}
+
+.ff-command-search-icon {
+    -fx-fill: transparent;
+    -fx-stroke: #A5B9DC;
+    -fx-stroke-width: 1.8px;
+    -fx-stroke-linecap: round;
+}
+
+
+/* ==========================================
+   FileFlow Dark Theme — Phase 1
+   Sidebar, Command Bar and Home
+   ========================================== */
+
+/* Main application shell */
+
+.content.ff-dark-shell {
+    -fx-padding: 0;
+    -fx-spacing: 0;
+    -fx-background-color: #081020;
+}
+
+.ff-page-body {
+    -fx-padding: 24 28 28 28;
+    -fx-spacing: 18;
+
+    -fx-background-color: #10203A;
+    -fx-background-radius: 18;
+
+    -fx-border-color: #223A5E;
+    -fx-border-width: 1;
+    -fx-border-radius: 18;
+}
+
+/* Sidebar */
+
+.sidebar {
+    -fx-background-color: #081426;
+    -fx-border-color: #203453;
+    -fx-border-width: 0 1 0 0;
+}
+
+.logo {
+    -fx-text-fill: #F2F6FF;
+}
+
+.nav-item {
+    -fx-text-fill: #A4B5D0;
+}
+
+.nav-item:hover {
+    -fx-background-color: #182D4E;
+    -fx-text-fill: #FFFFFF;
+}
+
+.nav-item-selected {
+    -fx-background-color: #2454A5;
+    -fx-text-fill: #FFFFFF;
+}
+
+.nav-item-selected:hover {
+    -fx-background-color: #3065BD;
+}
+
+/* Command Bar */
+
+.ff-command-bar {
+    -fx-background-color: #081426;
+    -fx-padding: 13 28;
+    -fx-min-height: 68;
+}
+
+.ff-command-search-box {
+    -fx-background-color: #1B2D49;
+    -fx-background-radius: 24;
+    -fx-border-color: #304766;
+    -fx-border-radius: 24;
+    -fx-padding: 7 16;
+}
+
+.ff-command-search-box:hover {
+    -fx-border-color: #587BAE;
+}
+
+.ff-command-search-field {
+    -fx-text-fill: #F2F6FF;
+    -fx-prompt-text-fill: #98AAC6;
+}
+
+/* Page heading */
+
+.ff-page-body .page-title {
+    -fx-text-fill: #F2F6FF;
+    -fx-font-size: 27px;
+}
+
+.ff-page-body .section-title {
+    -fx-text-fill: #ECF3FF;
+}
+
+.ff-page-body .secondary-button {
+    -fx-background-color: #1B3153;
+    -fx-border-color: #345078;
+    -fx-text-fill: #E2EDFF;
+}
+
+.ff-page-body .secondary-button:hover {
+    -fx-background-color: #284773;
+    -fx-border-color: #5376AC;
+}
+
+/* Home */
+
+.home-content {
+    -fx-spacing: 24;
+}
+
+.home-hero {
+    -fx-background-color: linear-gradient(
+        to right,
+        #102342,
+        #1D4587 65%,
+        #3676EE
+    );
+    -fx-background-radius: 18;
+    -fx-border-color: #2B5192;
+    -fx-border-radius: 18;
+    -fx-padding: 40 42;
+}
+
+.home-heading {
+    -fx-text-fill: #FFFFFF;
+}
+
+.home-subtitle {
+    -fx-text-fill: #CFDEFA;
+}
+
+.recent-scan-card {
+    -fx-background-color: #172B4B;
+    -fx-background-radius: 14;
+    -fx-border-color: #30476A;
+    -fx-border-radius: 14;
+    -fx-padding: 20 24;
+}
+
+.recent-scan-name {
+    -fx-text-fill: #F2F6FF;
+}
+
+.recent-scan-details {
+    -fx-text-fill: #A7BADA;
+}
+
+/* FileFlow - Rounded UI consistency */
+
+.home-hero {
+    -fx-background-radius: 20;
+    -fx-border-radius: 20;
+}
+
+.recent-scan-card {
+    -fx-background-radius: 16;
+    -fx-border-radius: 16;
+}
+
+.nav-item {
+    -fx-background-radius: 12;
+}
+
+.ff-page-body .secondary-button {
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+}
+
+.dashboard-empty-state {
+    -fx-text-fill: #B8CAE6;
+    -fx-font-size: 14px;
+
+    -fx-padding: 24;
+    -fx-background-color: #172B4B;
+    -fx-background-radius: 16;
+
+    -fx-border-color: #30476A;
+    -fx-border-radius: 16;
+}
+
+
+/* ==========================================
+   FileFlow Dark Theme — Phase 2
+   Shared cards, text and page controls
+   ========================================== */
+
+/* Default text inside dark page panels */
+.ff-page-body .label,
+.ff-page-body .check-box {
+    -fx-text-fill: #EDF4FF;
+}
+
+/* Section headings */
+.ff-page-body .favourites-heading,
+.ff-page-body .history-page-title,
+.ff-page-body .settings-section-title,
+.ff-page-body .duplicates-heading,
+.ff-page-body .duplicates-scan-card-title,
+.ff-page-body .similar-scan-card-title,
+.ff-page-body .duplicate-group-summary,
+.ff-page-body .exact-duplicate-group-title,
+.ff-page-body .similar-group-title,
+.ff-page-body .tag-group-title {
+    -fx-text-fill: #F2F6FF;
+}
+
+/* Secondary descriptions and metadata */
+.ff-page-body .favourites-subtitle,
+.ff-page-body .favourites-empty-description,
+.ff-page-body .history-page-subtitle,
+.ff-page-body .history-path,
+.ff-page-body .history-details,
+.ff-page-body .settings-description,
+.ff-page-body .settings-card-description,
+.ff-page-body .duplicates-subtitle,
+.ff-page-body .duplicates-mode-description,
+.ff-page-body .duplicates-status,
+.ff-page-body .dashboard-file-path,
+.ff-page-body .file-relative-path,
+.ff-page-body .tag-file-path,
+.ff-page-body .duplicate-file-path {
+    -fx-text-fill: #A7BADA;
+}
+
+/* Shared card surface */
+.ff-page-body .summary-card,
+.ff-page-body .dashboard-type-row,
+.ff-page-body .dashboard-folder-row,
+.ff-page-body .dashboard-file-row,
+.ff-page-body .current-scan-card,
+.ff-page-body .favourites-empty-state,
+.ff-page-body .favourites-file-row,
+.ff-page-body .duplicates-page-header,
+.ff-page-body .duplicates-scan-card,
+.ff-page-body .similar-scan-card,
+.ff-page-body .exact-duplicate-group-card,
+.ff-page-body .similar-image-group-card,
+.ff-page-body .history-card,
+.ff-page-body .settings-card,
+.ff-page-body .tags-content .tag-group {
+    -fx-background-color: #172B4B;
+    -fx-background-radius: 16;
+    -fx-border-color: #30476A;
+    -fx-border-radius: 16;
+    -fx-border-width: 1;
+    -fx-effect: none;
+}
+
+/* Card hover */
+.ff-page-body .history-card:hover,
+.ff-page-body .favourites-file-row:hover,
+.ff-page-body .dashboard-type-row:hover,
+.ff-page-body .dashboard-folder-row:hover {
+    -fx-background-color: #1E365A;
+    -fx-border-color: #426496;
+}
+
+/* Favourites empty state */
+.ff-page-body .favourites-empty-title {
+    -fx-text-fill: #F2F6FF;
+}
+
+.ff-page-body .favourites-empty-icon {
+    -fx-text-fill: #F2BC54;
+}
+
+.ff-page-body .favourites-file-row .file-name,
+.ff-page-body .favourites-empty-title {
+    -fx-text-fill: #F2F6FF;
+}
+
+/* Duplicates tabs */
+.ff-page-body .duplicates-mode-tabs {
+    -fx-background-color: #0C1A30;
+    -fx-background-radius: 14;
+    -fx-border-color: #30476A;
+    -fx-border-radius: 14;
+}
+
+.ff-page-body .duplicates-mode-tab {
+    -fx-background-color: transparent;
+    -fx-text-fill: #A7BADA;
+}
+
+.ff-page-body .duplicates-mode-tab:hover {
+    -fx-background-color: #203A60;
+    -fx-text-fill: #FFFFFF;
+}
+
+.ff-page-body .duplicates-mode-tab:selected {
+    -fx-background-color: #285BB1;
+    -fx-text-fill: #FFFFFF;
+    -fx-effect: none;
+}
+
+/* Expanded duplicate and similar-image rows */
+.ff-page-body .exact-duplicate-file-row,
+.ff-page-body .similar-image-card {
+    -fx-background-color: #10213C;
+    -fx-border-color: #30476A;
+}
+
+.ff-page-body .exact-duplicate-file-row:hover,
+.ff-page-body .similar-image-card:hover {
+    -fx-background-color: #203A60;
+    -fx-border-color: #426496;
+}
+
+/* Tags */
+.ff-page-body .tags-content .tag-header:hover,
+.ff-page-body .tags-content .tag-file-row:hover {
+    -fx-background-color: #203A60;
+}
+
+.ff-page-body .tag-count-badge,
+.ff-page-body .tags-content .tag-count-badge,
+.ff-page-body .similar-group-count {
+    -fx-background-color: #233D61;
+    -fx-text-fill: #B8CFFF;
+}
+
+.ff-page-body .tag-file-name,
+.ff-page-body .tags-content .tag-file-name {
+    -fx-text-fill: #F2F6FF;
+}
+
+.ff-page-body .tag-more-button {
+    -fx-text-fill: #A7BADA;
+}
+
+/* History */
+.ff-page-body .history-icon-box {
+    -fx-background-color: #244675;
+    -fx-background-radius: 12;
+}
+
+.ff-page-body .history-folder-icon {
+    -fx-fill: #6DA1FF;
+}
+
+.ff-page-body .history-folder-name {
+    -fx-text-fill: #F2F6FF;
+}
+
+/* Settings */
+.ff-page-body .settings-card-title,
+.ff-page-body .shortcut-action-label {
+    -fx-text-fill: #EDF4FF;
+}
+
+.ff-page-body .settings-warning {
+    -fx-text-fill: #FFB2A8;
+}
+
+.ff-page-body .shortcut-key-label {
+    -fx-background-color: #10213C;
+    -fx-border-color: #3A557D;
+    -fx-text-fill: #D7E5FF;
+}
+
+/* Secondary controls */
+.ff-page-body .history-scan-again-button,
+.ff-page-body .shortcut-change-button,
+.ff-page-body .shortcut-reset-button,
+.ff-page-body .exact-duplicate-resolve-button,
+.ff-page-body .similar-group-resolve-button {
+    -fx-background-color: #233D61;
+    -fx-border-color: #3C5C8B;
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+    -fx-text-fill: #DCE9FF;
+    -fx-cursor: hand;
+}
+
+.ff-page-body .history-scan-again-button:hover,
+.ff-page-body .shortcut-change-button:hover,
+.ff-page-body .shortcut-reset-button:hover,
+.ff-page-body .exact-duplicate-resolve-button:hover,
+.ff-page-body .similar-group-resolve-button:hover {
+    -fx-background-color: #2C507E;
+    -fx-border-color: #6289C4;
+}
+
+/* Scrollable page backgrounds */
+.ff-page-body .history-scroll,
+.ff-page-body .dashboard-scroll,
+.ff-page-body .duplicates-scroll,
+.ff-page-body .history-scroll > .viewport,
+.ff-page-body .dashboard-scroll > .viewport,
+.ff-page-body .duplicates-scroll > .viewport {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+
+.ff-page-body .ff-empty-message {
+    -fx-text-fill: #B8CAE6;
+    -fx-font-size: 14px;
+    -fx-padding: 22;
+    -fx-background-color: #172B4B;
+    -fx-background-radius: 14;
+    -fx-border-color: #30476A;
+    -fx-border-radius: 14;
+}
+
+
+/* ======================================
+   FileFlow Dark Theme — Phase 3A
+   Files: populated view
+   ====================================== */
+
+.ff-page-body .files-list-view {
+    -fx-background-color: transparent;
+    -fx-control-inner-background: transparent;
+    -fx-control-inner-background-alt: transparent;
+    -fx-border-color: transparent;
+}
+
+.ff-page-body .files-list-view .list-cell {
+    -fx-background-color: transparent;
+}
+
+/* File rows */
+.ff-page-body .files-list-view .file-row {
+    -fx-background-color: #172B4B;
+    -fx-background-radius: 12;
+    -fx-border-color: #30476A;
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+    -fx-padding: 10 14;
+}
+
+.ff-page-body .files-list-view .list-cell:hover .file-row {
+    -fx-background-color: #203A60;
+    -fx-border-color: #466A9B;
+}
+
+.ff-page-body .files-list-view .list-cell:filled:selected .file-row,
+.ff-page-body .files-list-view .file-row-multi-selected {
+    -fx-background-color: #244674;
+    -fx-border-color: #558AF0;
+}
+
+/* File text */
+.ff-page-body .files-list-view .file-name {
+    -fx-text-fill: #F2F6FF;
+}
+
+.ff-page-body .files-list-view .file-size,
+.ff-page-body .files-list-view .file-relative-path {
+    -fx-text-fill: #9FB3D2;
+}
+
+/* Browse / All Files / Categories */
+.ff-page-body .files-view-toggle {
+    -fx-background-color: #172B4B;
+    -fx-border-color: #30476A;
+    -fx-text-fill: #B8CAE6;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+}
+
+.ff-page-body .files-view-toggle:hover {
+    -fx-background-color: #25436C;
+    -fx-border-color: #5176AA;
+    -fx-text-fill: #FFFFFF;
+}
+
+.ff-page-body .files-view-toggle:selected {
+    -fx-background-color: #3369C4;
+    -fx-border-color: #3369C4;
+    -fx-text-fill: #FFFFFF;
+}
+
+/* Search */
+.ff-page-body .search-field {
+    -fx-background-color: #172B4B;
+    -fx-border-color: #30476A;
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+    -fx-text-fill: #FFFFFF;
+    -fx-prompt-text-fill: #91A8CA;
+}
+
+.ff-page-body .search-field:focused {
+    -fx-border-color: #558AF0;
+}
+
+/* File type and sorting controls */
+.ff-page-body .files-filter-combo {
+    -fx-background-color: #172B4B;
+    -fx-border-color: #30476A;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+}
+
+.ff-page-body .files-filter-combo > .list-cell {
+    -fx-text-fill: #E6EFFF;
+}
+
+.ff-page-body .files-filter-combo > .arrow-button > .arrow {
+    -fx-background-color: #9FB3D2;
+}
+
+/* Bulk selection */
+.ff-page-body .file-selection-bar {
+    -fx-background-color: #203A60;
+    -fx-border-color: #426496;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+}
+
+.ff-page-body .file-selection-bar .label {
+    -fx-text-fill: #F2F6FF;
+}
+
+/* Tags displayed on files */
+.ff-page-body .file-tag-pill {
+    -fx-background-color: #29466B;
+    -fx-border-color: #426496;
+    -fx-text-fill: #C8DCFF;
+}
+
+
+
+/* ======================================
+   FileFlow Dark Theme — Phase 3B
+   Dashboard: populated view
+   ====================================== */
+
+/* Statistic cards */
+.ff-page-body .summary-card {
+    -fx-background-color: #172B4B;
+    -fx-border-color: #30476A;
+    -fx-background-radius: 16;
+    -fx-border-radius: 16;
+    -fx-effect: none;
+}
+
+.ff-page-body .summary-card-title {
+    -fx-text-fill: #A7BADA;
+}
+
+.ff-page-body .summary-card-value {
+    -fx-text-fill: #F2F6FF;
+    -fx-font-size: 28px;
+}
+
+/* File/folder breakdown */
+.ff-page-body .dashboard-type-row,
+.ff-page-body .dashboard-folder-row,
+.ff-page-body .dashboard-file-row {
+    -fx-background-color: #172B4B;
+    -fx-background-radius: 12;
+    -fx-border-color: #30476A;
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+}
+
+.ff-page-body .dashboard-type-row:hover,
+.ff-page-body .dashboard-folder-row:hover,
+.ff-page-body .dashboard-file-row:hover {
+    -fx-background-color: #203A60;
+    -fx-border-color: #466A9B;
+}
+
+/* Dashboard names */
+.ff-page-body .dashboard-type-name,
+.ff-page-body .dashboard-folder-name,
+.ff-page-body .dashboard-file-row .file-name,
+.ff-page-body .current-scan-name {
+    -fx-text-fill: #F2F6FF;
+}
+
+/* Metadata */
+.ff-page-body .dashboard-type-meta,
+.ff-page-body .dashboard-folder-meta,
+.ff-page-body .dashboard-file-path,
+.ff-page-body .dashboard-modified-time,
+.ff-page-body .current-scan-path,
+.ff-page-body .current-scan-summary {
+    -fx-text-fill: #A7BADA;
+}
+
+.ff-page-body .dashboard-type-percentage,
+.ff-page-body .dashboard-folder-percentage {
+    -fx-text-fill: #C5D8F5;
+}
+
+/* Current scan card */
+.ff-page-body .current-scan-card {
+    -fx-background-color: #172B4B;
+    -fx-border-color: #30476A;
+    -fx-background-radius: 16;
+    -fx-border-radius: 16;
+}
+
+/* Progress bars */
+.ff-page-body .dashboard-type-progress > .track,
+.ff-page-body .dashboard-folder-progress > .track {
+    -fx-background-color: #30476A;
+}
+
+.ff-page-body .dashboard-type-progress > .bar {
+    -fx-background-color: #477BFA;
+}
+
+.ff-page-body .dashboard-folder-progress > .bar {
+    -fx-background-color: #679BFF;
+}
+
+/* Collapsible sections */
+.ff-page-body .collapsible-section-title {
+    -fx-text-fill: #F2F6FF;
+}
+
+.ff-page-body .collapsible-section-header:hover {
+    -fx-background-color: #203A60;
+    -fx-background-radius: 10;
+}
+
+
+/* ======================================
+   FileFlow Dark Theme — Phase 3C
+   Contrast and control polish
+   ====================================== */
+
+/* Breadcrumb navigation */
+
+.ff-page-body .breadcrumb-button {
+    -fx-text-fill: #BFD1EC;
+    -fx-background-color: transparent;
+    -fx-padding: 4 7;
+}
+
+.ff-page-body .breadcrumb-button:hover {
+    -fx-background-color: #24416A;
+    -fx-background-radius: 7;
+    -fx-text-fill: #FFFFFF;
+}
+
+/* Files: Add Tag button */
+
+.ff-page-body .files-list-view
+.files-row-actions .add-tag-button {
+    -fx-background-color: #263F62;
+    -fx-border-color: #45638E;
+    -fx-border-radius: 9;
+    -fx-background-radius: 9;
+    -fx-text-fill: #DCEAFF;
+}
+
+.ff-page-body .files-list-view
+.files-row-actions .add-tag-button:hover {
+    -fx-background-color: #345989;
+    -fx-border-color: #6A94CE;
+    -fx-text-fill: #FFFFFF;
+}
+
+/* Files: Favourite and More buttons */
+
+.ff-page-body .files-list-view
+.files-row-actions .favourite-button,
+.ff-page-body .files-list-view
+.files-row-actions .more-button {
+    -fx-text-fill: #B4C6E4;
+}
+
+.ff-page-body .files-list-view
+.files-row-actions .favourite-button:hover,
+.ff-page-body .files-list-view
+.files-row-actions .more-button:hover {
+    -fx-background-color: #294A76;
+    -fx-text-fill: #FFFFFF;
+}
+
+/* Duplicates: Reclaimable space badge */
+
+.ff-page-body .exact-duplicate-reclaimable-badge {
+    -fx-background-color: #173E38;
+    -fx-text-fill: #86EDBE;
+    -fx-background-radius: 9;
+    -fx-padding: 7 11;
+}
+
+/* Scanning progress bar */
+
+.ff-page-body .top-bar .progress-bar {
+    -fx-pref-height: 8;
+    -fx-pref-width: 150;
+    -fx-accent: #4B83FF;
+}
+
+.ff-page-body .top-bar .progress-bar > .track {
+    -fx-background-color: #2A4266;
+    -fx-background-radius: 999;
+    -fx-background-insets: 0;
+}
+
+.ff-page-body .top-bar .progress-bar > .bar {
+    -fx-background-color: #4B83FF;
+    -fx-background-radius: 999;
+    -fx-background-insets: 0;
+}
+
+
+/* ===== Dashboard: Dark Macaron Glass ===== */
+
+.ff-page-body .summary-card {
+    -fx-padding: 20 22;
+    -fx-background-radius: 16;
+    -fx-border-radius: 16;
+    -fx-effect: dropshadow(
+        gaussian,
+        rgba(0, 0, 0, 0.12),
+        12, 0, 0, 3
+    );
+}
+
+
+/* Dashboard - Dark Macaron Cards */
+
+.ff-page-body .summary-card-files {
+    -fx-background-color: linear-gradient(
+        to bottom right, #2B528B, #1B3458
+    );
+    -fx-border-color: #4269A0;
+}
+
+.ff-page-body .summary-card-storage {
+    -fx-background-color: linear-gradient(
+        to bottom right, #50417E, #302B4F
+    );
+    -fx-border-color: #685995;
+}
+
+.ff-page-body .summary-card-folders {
+    -fx-background-color: linear-gradient(
+        to bottom right, #28675B, #1B403F
+    );
+    -fx-border-color: #3B8073;
+}
+
+.ff-page-body .summary-card-issues {
+    -fx-background-color: linear-gradient(
+        to bottom right, #695334, #40362E
+    );
+    -fx-border-color: #84704C;
+}
+
+.ff-page-body .summary-card-title {
+    -fx-text-fill: #C7D5EB;
+}
+
+.ff-page-body .summary-card-value {
+    -fx-text-fill: #FFFFFF;
+}
+
+
+/* ===== Tags: Soft Glass ===== */
+
+.ff-page-body .tags-content .tag-group {
+    -fx-background-color: linear-gradient(
+        to bottom right,
+        rgba(45, 69, 105, 0.88),
+        rgba(23, 42, 69, 0.94)
+    );
+
+    -fx-background-radius: 16;
+    -fx-border-radius: 16;
+    -fx-border-color: rgba(156, 190, 238, 0.25);
+    -fx-border-width: 1;
+    -fx-padding: 0;
+
+    -fx-effect: dropshadow(
+        gaussian,
+        rgba(0, 0, 0, 0.16),
+        14, 0, 0, 4
+    );
+}
+
+.ff-page-body .tags-content .tag-header:hover,
+.ff-page-body .tags-content .tag-file-row:hover {
+    -fx-background-color: rgba(122, 164, 231, 0.12);
+    -fx-background-radius: 12;
+}
+
+.ff-page-body .tags-content .tag-group-title,
+.ff-page-body .tags-content .tag-file-name {
+    -fx-text-fill: #F2F6FF;
+}
+
+.ff-page-body .tags-content .tag-count-badge {
+    -fx-background-color: rgba(107, 151, 218, 0.18);
+    -fx-text-fill: #C8DAFA;
+    -fx-background-radius: 8;
+}
+
+
+/* ===== FileFlow: Progress Bar Polish ===== */
+
+/* Shared track */
+.ff-page-body .progress-bar > .track,
+.sidebar .progress-bar > .track {
+    -fx-background-color: #304664;
+    -fx-background-insets: 0;
+    -fx-background-radius: 999;
+}
+
+/* Shared fill */
+.ff-page-body .progress-bar > .bar,
+.sidebar .progress-bar > .bar {
+    -fx-background-color: linear-gradient(
+        to right, #397BFA, #58A6FF
+    );
+    -fx-background-insets: 0;
+    -fx-background-radius: 999;
+    -fx-padding: 0;
+}
+
+/* Analysis progress */
+.ff-page-body .duplicates-progress {
+    -fx-pref-height: 8;
+    -fx-min-height: 8;
+}
+
+/* Dashboard progress */
+.ff-page-body .dashboard-type-progress,
+.ff-page-body .dashboard-folder-progress {
+    -fx-pref-height: 8;
+    -fx-min-height: 8;
+}
+
+/* Top scanning progress */
+.ff-page-body .top-bar .progress-bar {
+    -fx-pref-height: 8;
+    -fx-min-height: 8;
+}
+
+/* Sidebar storage */
+.sidebar .sidebar-storage-progress {
+    -fx-pref-height: 7;
+    -fx-min-height: 7;
+}
+
+/* Duplicate reclaimable badge */
+.ff-page-body .exact-duplicate-reclaimable-badge {
+    -fx-background-color: #19453D;
+    -fx-text-fill: #9CF0C8;
+    -fx-background-radius: 9;
+}
+
+.summary-card {
+    -fx-background-color:
+        linear-gradient(
+            to bottom,
+            rgba(255,255,255,0.18) 0%,
+            rgba(255,255,255,0.10) 10%,
+            rgba(255,255,255,0.04) 18%,
+            rgba(255,255,255,0.01) 100%
+        ),
+        linear-gradient(
+            to bottom right,
+            rgba(39, 62, 101, 0.92),
+            rgba(27, 45, 76, 0.96)
+        );
+
+    -fx-background-insets: 0, 1;
+    -fx-background-radius: 18, 17;
+
+    -fx-border-color: rgba(122, 154, 219, 0.34);
+    -fx-border-radius: 18;
+    -fx-border-width: 1;
+
+    -fx-padding: 22 24;
+    -fx-spacing: 14;
+
+    -fx-effect: dropshadow(
+        gaussian,
+        rgba(0, 0, 0, 0.22),
+        18, 0.18, 0, 5
+    );
+}
+
+.summary-card-title {
+    -fx-font-size: 13px;
+    -fx-font-weight: 700;
+    -fx-text-fill: rgba(225, 236, 255, 0.88);
+}
+
+.summary-card-value {
+    -fx-font-size: 29px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #F8FBFF;
+}
+
+.summary-card-accent {
+    -fx-min-width: 8;
+    -fx-pref-width: 8;
+    -fx-max-width: 8;
+
+    -fx-min-height: 8;
+    -fx-pref-height: 8;
+    -fx-max-height: 8;
+
+    -fx-background-radius: 999;
+}
+
+/* 四张卡统一底色，只保留小圆点区别 */
+.summary-card-files,
+.summary-card-storage,
+.summary-card-folders,
+.summary-card-issues {
+    -fx-background-color:
+        linear-gradient(
+            to bottom,
+            rgba(255,255,255,0.18) 0%,
+            rgba(255,255,255,0.10) 10%,
+            rgba(255,255,255,0.04) 18%,
+            rgba(255,255,255,0.01) 100%
+        ),
+        linear-gradient(
+            to bottom right,
+            rgba(39, 62, 101, 0.92),
+            rgba(27, 45, 76, 0.96)
+        );
+
+    -fx-background-insets: 0, 1;
+    -fx-background-radius: 18, 17;
+
+    -fx-border-color: rgba(122, 154, 219, 0.34);
+    -fx-border-radius: 18;
+}
+
+/* 只让小圆点区分类型 */
+.summary-card-files .summary-card-accent {
+    -fx-background-color: #5E8CFF;
+}
+
+.summary-card-storage .summary-card-accent {
+    -fx-background-color: #9B7CFF;
+}
+
+.summary-card-folders .summary-card-accent {
+    -fx-background-color: #33C4A4;
+}
+
+.summary-card-issues .summary-card-accent {
+    -fx-background-color: #F2B24D;
+}
+
+
+/* ======================================
+   FileFlow - Unified Glass Cards
+   Dashboard summary only
+   ====================================== */
+
+.ff-page-body .summary-card.dashboard-glass-card {
+    -fx-background-color:
+        linear-gradient(
+            to bottom,
+            rgba(190, 217, 255, 0.44) 0%,
+            rgba(145, 178, 225, 0.13) 25%,
+            rgba(60, 93, 155, 0.06) 100%
+        ),
+        linear-gradient(
+            to bottom right,
+            #2B466A 0%,
+            #213859 55%,
+            #1A2E4B 100%
+        ),
+        linear-gradient(
+            to bottom,
+            rgba(255, 255, 255, 0.19) 0%,
+            rgba(255, 255, 255, 0.07) 13%,
+            transparent 48%
+        );
+
+    -fx-background-insets: 0, 1, 1;
+    -fx-background-radius: 18, 17, 17;
+
+    -fx-border-color: rgba(179, 209, 251, 0.30);
+    -fx-border-width: 1;
+    -fx-border-radius: 18;
+
+    -fx-padding: 22 24;
+    -fx-spacing: 14;
+
+    -fx-effect: dropshadow(
+        gaussian,
+        rgba(0, 0, 0, 0.20),
+        15, 0.12, 0, 4
+    );
+}
+
+.ff-page-body .dashboard-glass-card .summary-card-title {
+    -fx-text-fill: #B9CAE5;
+}
+
+.ff-page-body .dashboard-glass-card .summary-card-value {
+    -fx-text-fill: #FFFFFF;
+}
+
+.ff-page-body .dashboard-glass-card .summary-card-accent {
+    -fx-background-color: #69A0FF;
+    -fx-background-radius: 999;
+}
+
+
+/* =====================================
+   FileFlow - Unified Dark Progress Bars
+   ===================================== */
+
+.ff-page-body .progress-bar {
+    -fx-pref-height: 7px;
+    -fx-min-height: 7px;
+    -fx-max-height: 7px;
+
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+}
+
+/* Dark pill-shaped track */
+.ff-page-body .progress-bar > .track {
+    -fx-background-color: #2A3E5D;
+    -fx-background-radius: 999;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+/* Clean blue fill */
+.ff-page-body .progress-bar > .bar {
+    -fx-background-color: #5688F7;
+    -fx-background-radius: 999;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+
+/* =====================================
+   FileFlow - Refined Tags Surface
+   ===================================== */
+
+.ff-page-body .tags-content .tag-group {
+    -fx-background-color: linear-gradient(
+        to bottom right,
+        #203652,
+        #192C47
+    );
+    -fx-background-radius: 15;
+    -fx-border-color: #38516F;
+    -fx-border-radius: 15;
+    -fx-border-width: 1;
+    -fx-effect: none;
+}
+
+.ff-page-body .tags-content .tag-header:hover {
+    -fx-background-color: #294360;
+    -fx-background-radius: 14;
+}
+
+.ff-page-body .tags-content .tag-group-title {
+    -fx-text-fill: #F3F7FF;
+}
+
+.ff-page-body .tags-content .tag-count-badge {
+    -fx-background-color: #304969;
+    -fx-background-radius: 8;
+    -fx-text-fill: #BDCEF0;
+}
+
+.ff-page-body .tags-content .tag-file-row:hover {
+    -fx-background-color: #294360;
+    -fx-background-radius: 9;
+}
+
+.ff-page-body .tags-content .tag-file-name {
+    -fx-text-fill: #F3F7FF;
+}
+
+.ff-page-body .tags-content .tag-file-path {
+    -fx-text-fill: #9BB2D2;
+}
+
+/* Actions inside expanded tag groups */
+.ff-page-body .tags-content .tags-row-actions .button {
+    -fx-background-color: #263F60;
+    -fx-border-color: #405B80;
+    -fx-text-fill: #DCE9FF;
+    -fx-background-radius: 9;
+    -fx-border-radius: 9;
+}
+
+
+/* ===== FileFlow Phase 4A: Favourites ===== */
+
+/* Search and sort controls */
+.ff-page-body .favourites-search-field,
+.ff-page-body .favourites-sort-box {
+    -fx-background-color: #1B3050;
+    -fx-border-color: #365478;
+    -fx-background-radius: 11;
+    -fx-border-radius: 11;
+    -fx-text-fill: #F2F6FF;
+}
+
+.ff-page-body .favourites-search-field {
+    -fx-prompt-text-fill: #96ABC9;
+    -fx-padding: 11 14;
+}
+
+.ff-page-body .favourites-search-field:focused {
+    -fx-border-color: #6395EE;
+}
+
+.ff-page-body .favourites-sort-box > .list-cell {
+    -fx-text-fill: #E5EFFF;
+    -fx-background-color: transparent;
+}
+
+.ff-page-body .favourites-sort-box > .arrow-button > .arrow {
+    -fx-background-color: #A9BFDF;
+}
+
+/* File cards */
+.ff-page-body .favourites-file-row {
+    -fx-background-color: #1A2E4C;
+    -fx-border-color: #345173;
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-effect: none;
+}
+
+.ff-page-body .favourites-file-row:hover {
+    -fx-background-color: #223B5F;
+    -fx-border-color: #5275A5;
+}
+
+.ff-page-body .favourites-file-row .file-name {
+    -fx-text-fill: #F4F7FF;
+}
+
+.ff-page-body .favourites-file-row .file-path,
+.ff-page-body .favourites-count,
+.ff-page-body .favourites-no-results {
+    -fx-text-fill: #A8BCDA;
+}
+
+/* Star and more menu */
+.ff-page-body .favourites-row-actions .favourite-button,
+.ff-page-body .favourites-row-actions .more-button {
+    -fx-background-color: #263E60;
+    -fx-border-color: #405E84;
+}
+
+.ff-page-body .favourites-row-actions .favourite-button {
+    -fx-text-fill: #F3C469;
+}
+
+.ff-page-body .favourites-row-actions .more-button {
+    -fx-text-fill: #C5D7F1;
+}
+
+.ff-page-body .favourites-row-actions .button:hover {
+    -fx-background-color: #335784;
+    -fx-border-color: #6B91C8;
+}
+
+/* ===== FileFlow Phase 4B: History ===== */
+
+.ff-page-body .history-page-title {
+    -fx-text-fill: #F4F7FF;
+}
+
+.ff-page-body .history-page-subtitle,
+.ff-page-body .history-path,
+.ff-page-body .history-details {
+    -fx-text-fill: #A8BCDA;
+}
+
+.ff-page-body .history-scan-again-button {
+    -fx-background-color: #263E60;
+    -fx-border-color: #405E84;
+    -fx-text-fill: #E6F0FF;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+}
+
+.ff-page-body .history-scan-again-button:hover {
+    -fx-background-color: #335784;
+    -fx-border-color: #6B91C8;
+}
+
+
+/* ===== FileFlow Phase 4C: Settings ===== */
+
+.ff-page-body .settings-section-title,
+.ff-page-body .settings-card-title,
+.ff-page-body .shortcut-action-label {
+    -fx-text-fill: #F2F6FF;
+}
+
+.ff-page-body .settings-description,
+.ff-page-body .settings-card-description {
+    -fx-text-fill: #A8BCDA;
+}
+
+/* Safety checkbox */
+.ff-page-body .settings-content .check-box {
+    -fx-text-fill: #E6F0FF;
+}
+
+.ff-page-body .settings-content .check-box > .box {
+    -fx-background-color: #203957;
+    -fx-border-color: #6480A7;
+    -fx-background-radius: 5;
+    -fx-border-radius: 5;
+}
+
+.ff-page-body .settings-content .check-box:selected > .box {
+    -fx-background-color: #477BFA;
+    -fx-border-color: #477BFA;
+}
+
+.ff-page-body .settings-content .check-box:selected > .box > .mark {
+    -fx-background-color: white;
+}
+
+/* Keyboard shortcut labels */
+.ff-page-body .shortcut-key-label {
+    -fx-background-color: #10223B;
+    -fx-border-color: #405B80;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-text-fill: #C9DAF4;
+}
+
+/* Change / Reset buttons */
+.ff-page-body .shortcut-change-button,
+.ff-page-body .shortcut-reset-button {
+    -fx-background-color: #263E60;
+    -fx-border-color: #405E84;
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+    -fx-text-fill: #E6F0FF;
+    -fx-cursor: hand;
+}
+
+.ff-page-body .shortcut-change-button:hover,
+.ff-page-body .shortcut-reset-button:hover {
+    -fx-background-color: #335784;
+    -fx-border-color: #6B91C8;
+}
+
+
+/* ===== FileFlow Dark Dialog ===== */
+
+
+/* FileFlow - Dark Dialog */
+
+.dialog-pane.ff-dark-dialog {
+    -fx-background-color: #10203A;
+    -fx-border-color: #345174;
+    -fx-border-width: 1;
+}
+
+.ff-dark-dialog > .header-panel {
+    -fx-background-color: #192E4D;
+    -fx-padding: 18 22;
+}
+
+.ff-dark-dialog > .header-panel .label {
+    -fx-text-fill: #F4F7FF;
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+}
+
+.ff-dark-dialog .label,
+.ff-dark-dialog .check-box {
+    -fx-text-fill: #D9E6FA;
+}
+
+.ff-dark-dialog .button-bar .button {
+    -fx-background-color: #263F63;
+    -fx-background-radius: 10;
+    -fx-border-color: #416187;
+    -fx-border-radius: 10;
+    -fx-text-fill: #EDF4FF;
+    -fx-padding: 9 17;
+}
+
+.ff-dark-dialog .button-bar .button:hover {
+    -fx-background-color: #345782;
+}
+
+.ff-dark-dialog .button-bar .button:default {
+    -fx-background-color: #477BFA;
+    -fx-text-fill: #FFFFFF;
+}
+
+.ff-dark-dialog .text-area,
+.ff-dark-dialog .text-area .content {
+    -fx-control-inner-background: #142844;
+    -fx-background-color: #142844;
+    -fx-text-fill: #EAF2FF;
+}
+
+.ff-dark-dialog .check-box > .box {
+    -fx-background-color: #243F63;
+    -fx-border-color: #6683AC;
+    -fx-border-radius: 5;
+    -fx-background-radius: 5;
+}
+
+/* FileFlow - Favourites and Categories final dark polish */
+
+/* Favourites selected star */
+.ff-page-body .favourites-row-actions .favourite-button {
+    -fx-text-fill: #8FB5E8;
+    -fx-background-color: #233B5B;
+    -fx-border-color: #3B587D;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+}
+
+.ff-page-body .favourites-row-actions .favourite-button:hover {
+    -fx-text-fill: #C5DCFF;
+    -fx-background-color: #31527B;
+}
+
+/* Favourites toolbar */
+.ff-page-body .favourites-content .favourites-search-field,
+.ff-page-body .favourites-content .favourites-sort-box {
+    -fx-background-color: #1B3050;
+    -fx-border-color: #365478;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-text-fill: #EDF4FF;
+}
+
+.ff-page-body .favourites-content .favourites-search-field {
+    -fx-prompt-text-fill: #9AAECB;
+}
+
+.ff-page-body .favourites-content .favourites-sort-box > .list-cell {
+    -fx-text-fill: #EDF4FF;
+    -fx-background-color: transparent;
+}
+
+/* Files Categories */
+.ff-page-body .category-row {
+    -fx-background-color: #1B3050;
+    -fx-border-color: #344F75;
+    -fx-background-radius: 13;
+    -fx-border-radius: 13;
+}
+
+.ff-page-body .category-row:hover {
+    -fx-background-color: #253F64;
+    -fx-border-color: #547BB2;
+}
+
+.ff-page-body .category-name {
+    -fx-text-fill: #F2F6FF;
+}
+
+.ff-page-body .category-count,
+.ff-page-body .category-size,
+.ff-page-body .category-percentage {
+    -fx-text-fill: #A8BFE0;
+}
+
+
+/* FileFlow - Quick Info Panel */
+
+.quick-info-panel {
+    -fx-padding: 24;
+    -fx-spacing: 14;
+    -fx-background-color: #10203A;
+    -fx-border-color: #304B70;
+    -fx-border-width: 0 0 0 1;
+}
+
+.quick-info-panel .label {
+    -fx-text-fill: #DCE9FF;
+}
+
+.quick-info-panel .separator .line {
+    -fx-border-color: #355174;
+}
+
+.quick-info-close {
+    -fx-background-color: #223B5D;
+    -fx-text-fill: #B9CEEB;
+    -fx-background-radius: 9;
+    -fx-border-color: #385779;
+    -fx-border-radius: 9;
+    -fx-cursor: hand;
+}
+
+.quick-info-close:hover {
+    -fx-background-color: #33557F;
+    -fx-text-fill: #FFFFFF;
+}
+
+.quick-info-preview {
+    -fx-background-color: #1B3050;
+    -fx-background-radius: 12;
+    -fx-border-color: #385577;
+    -fx-border-radius: 12;
+}
+
+.files-workspace-bar {
+    -fx-padding: 12 18;
+    -fx-background-color: #1B3050;
+    -fx-background-radius: 13;
+    -fx-border-color: #365478;
+    -fx-border-radius: 13;
+    -fx-border-width: 1;
+}
+
+.files-workspace-bar .section-title {
+    -fx-text-fill: #E5EFFF;
+    -fx-font-size: 14px;
+}
+
+.favourites-scroll,
+.favourites-scroll > .viewport {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+
+.favourites-scroll {
+    -fx-padding: 0;
+}
+
+.files-row-actions .favourite-button.not-favourite {
+    -fx-text-fill: #8297B8;
+    -fx-background-color: transparent;
+}
+
+.files-row-actions .favourite-button.is-favourite,
+.favourites-row-actions .favourite-button.is-favourite {
+    -fx-text-fill: #79B0FF;
+    -fx-background-color: #28476D;
+    -fx-border-color: #4A6A98;
+    -fx-background-radius: 9;
+    -fx-border-radius: 9;
+}
+
+.files-row-actions .favourite-button.is-favourite:hover,
+.favourites-row-actions .favourite-button.is-favourite:hover {
+    -fx-text-fill: #C7E0FF;
+    -fx-background-color: #345987;
+}
