@@ -82,6 +82,7 @@ import java.nio.file.AccessDeniedException;
 import java.nio.file.NoSuchFileException;
 import java.util.prefs.Preferences;
 import java.nio.file.Path;
+import java.nio.file.LinkOption;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -111,6 +112,7 @@ import com.austin.fileflow.service.ShortcutManager;
 import com.austin.fileflow.model.SimilarImageGroup;
 import com.austin.fileflow.model.WorkspaceScanSnapshot;
 import com.austin.fileflow.service.WorkspaceScanService;
+import com.austin.fileflow.platform.RecycleBinService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javafx.scene.input.KeyEvent;
 
@@ -159,6 +161,8 @@ public class MainView {
     private final ProgressBar scanProgressBar;
     private final Label scanStatusLabel;
     private final FilePlatformService filePlatformService;
+    private final RecycleBinService recycleBinService =
+        new RecycleBinService();
     private Path scanRootPath;
     private final ScanWorkspace scanWorkspace = new ScanWorkspace();
     // Tracks cancellation of a multi-folder scan
@@ -176,7 +180,8 @@ public class MainView {
     private Label storageRootLabel;
     private Path currentStorageRoot;
     private Path currentFolder;
-    private static final String CONFIRM_BEFORE_DELETE_KEY = "confirmBeforePermanentDelete";
+    private static final String CONFIRM_BEFORE_DELETE_KEY =
+        "confirmBeforeRecycleBinMove";
     private final Preferences preferences = Preferences.userNodeForPackage(MainView.class);
     private FilesViewMode filesViewMode = FilesViewMode.BROWSE;
     private boolean fileSelectionMode = false;
@@ -2247,6 +2252,12 @@ public class MainView {
         // No items selected initially
         bulkTagButton.setDisable(true);
 
+        Button bulkDeleteButton =
+                new Button("Move to Recycle Bin");
+
+        bulkDeleteButton.getStyleClass().add("danger-button");
+        bulkDeleteButton.setDisable(true);
+
         Button clearSelectionButton = new Button("Clear");
         clearSelectionButton.getStyleClass().add("secondary-button");
 
@@ -2259,6 +2270,7 @@ public class MainView {
                 selectionSpacer,
                 bulkTagButton,
                 bulkFavouriteButton,
+                bulkDeleteButton,
                 clearSelectionButton
         );
 
@@ -2282,6 +2294,7 @@ public class MainView {
 
                 bulkTagButton.setDisable(nothingSelected);
                 bulkFavouriteButton.setDisable(nothingSelected);
+                bulkDeleteButton.setDisable(nothingSelected);
                 clearSelectionButton.setDisable(nothingSelected);
 
                 boolean allFavourites = !nothingSelected
@@ -2394,6 +2407,13 @@ public class MainView {
 
                 result.showAndWait();
         });
+
+        bulkDeleteButton.setOnAction(event ->
+                showBulkRecycleBinDialog(
+                        fileList,
+                        updateSelectionUi
+                )
+        );
 
         clearSelectionButton.setOnAction(event -> {
 
@@ -4771,7 +4791,7 @@ public class MainView {
 
         CheckBox confirmDeleteCheckBox =
                 new CheckBox(
-                        "Confirm before permanently deleting files"
+                        "Confirm before moving files to Recycle Bin"
                 );
 
         boolean confirmBeforeDelete =
@@ -4784,11 +4804,10 @@ public class MainView {
                 confirmBeforeDelete
         );
 
-        Label confirmDeleteDescription =
-                new Label(
-                        "When enabled, FileFlow asks for confirmation "
-                                + "before permanently deleting a file."
-                );
+        Label confirmDeleteDescription = new Label(
+                "When enabled, FileFlow asks for confirmation "
+                + "before moving an individual file to the Recycle Bin."
+        );
 
         confirmDeleteDescription.setWrapText(
                 true
@@ -4800,11 +4819,11 @@ public class MainView {
                         "settings-description"
         );
 
-        Label deleteWarning =
-                new Label(
-                        "Deleted files are not moved to the Recycle Bin "
-                                + "and cannot be restored by FileFlow."
-                );
+        Label deleteWarning = new Label(
+                "Files moved to the Recycle Bin can be restored "
+                + "while they remain there. Disk space may not "
+                + "be freed until the Recycle Bin is emptied."
+        );
 
         deleteWarning.setWrapText(
                 true
@@ -5218,6 +5237,215 @@ public class MainView {
                 activeShortcutCaptureLabel = null;
                 activeShortcutCaptureButton = null;
                 activeShortcutOriginalText = null;
+        }
+
+        
+        private void showBulkRecycleBinDialog(
+                ListView<FileItem> fileList,
+                Runnable updateSelectionUi
+        ) {
+
+                if (selectedFilePaths.isEmpty()) {
+                        return;
+                }
+
+                if (scanning || duplicateScanning
+                        || currentSimilarTask != null) {
+                        showStatusWarning(
+                                "Please finish the current scan or analysis first."
+                        );
+                        return;
+                }
+
+                List<Path> targets = selectedFilePaths.stream()
+                        .map(path -> path.toAbsolutePath().normalize())
+                        .distinct()
+                        .sorted(Comparator.comparing(Path::toString))
+                        .toList();
+
+                // First version: prevent bulk removal of directories
+                for (Path path : targets) {
+
+                        if (Files.isDirectory(
+                                path,
+                                LinkOption.NOFOLLOW_LINKS
+                        )) {
+                        showFileActionError(
+                                "Folder Selected",
+                                "Bulk Recycle Bin currently supports files only.",
+                                "Remove folders from your selection before retrying:\n"
+                                        + path
+                        );
+                        return;
+                        }
+                }
+
+                // Validate the entire selection before moving anything
+                long totalBytes = 0;
+
+                for (Path path : targets) {
+
+                        if (!Files.isRegularFile(
+                                path,
+                                LinkOption.NOFOLLOW_LINKS
+                        )) {
+                        showFileActionError(
+                                "Invalid Selection",
+                                "An item is missing or is not a regular file.",
+                                path.toString()
+                        );
+                        return;
+                        }
+
+                        try {
+                        totalBytes = Math.addExact(
+                                totalBytes,
+                                Files.size(path)
+                        );
+                        } catch (IOException | ArithmeticException exception) {
+
+                        showFileActionError(
+                                "Unable to Validate Selection",
+                                "The selected files could not be verified.",
+                                path + "\n" + exception.getMessage()
+                        );
+                        return;
+                        }
+                }
+
+                // Confirmation is mandatory for bulk operations
+                Alert confirmation = new Alert(
+                        Alert.AlertType.WARNING
+                );
+
+                confirmation.setTitle("Bulk Recycle Bin");
+
+                confirmation.setHeaderText(
+                        "Move " + targets.size()
+                                + " files to the Recycle Bin?"
+                );
+
+                confirmation.setContentText(
+                        "Selected size: "
+                                + FileSizeFormatter.format(totalBytes)
+                                + "\n\nFiles can be restored from the Windows "
+                                + "Recycle Bin while they remain there."
+                                + "\n\nFileFlow tags and favourites for moved "
+                                + "files will be removed and are not "
+                                + "automatically restored."
+                );
+
+                TextArea details = new TextArea(
+                        String.join(
+                                "\n",
+                                targets.stream()
+                                        .map(Path::toString)
+                                        .toList()
+                        )
+                );
+
+                details.setEditable(false);
+                details.setWrapText(false);
+                details.setPrefRowCount(8);
+                details.setPrefColumnCount(60);
+
+                confirmation.getDialogPane()
+                        .setExpandableContent(details);
+
+                confirmation.getDialogPane().setExpanded(true);
+
+                ButtonType moveButtonType = new ButtonType(
+                        "Move to Recycle Bin",
+                        ButtonBar.ButtonData.OK_DONE
+                );
+
+                confirmation.getButtonTypes().setAll(
+                        ButtonType.CANCEL,
+                        moveButtonType
+                );
+
+                ButtonType answer = confirmation.showAndWait()
+                        .orElse(ButtonType.CANCEL);
+
+                if (answer != moveButtonType) {
+                        return;
+                }
+
+                List<Path> moved = new ArrayList<>();
+                List<String> failures = new ArrayList<>();
+
+                for (Path path : targets) {
+
+                        try {
+
+                        // Recheck at execution time
+                        if (!Files.isRegularFile(
+                                path,
+                                LinkOption.NOFOLLOW_LINKS
+                        )) {
+                                throw new IOException(
+                                        "File is missing or has changed type."
+                                );
+                        }
+
+                        // Never use permanent delete as a fallback
+                        recycleBinService.moveToRecycleBin(path);
+
+                        moved.add(path);
+
+                        filePreviewFactory.invalidate(path);
+
+                        cleanupDeletedFileReferences(path);
+
+                        } catch (IOException exception) {
+
+                        failures.add(
+                                path + ": " + exception.getMessage()
+                        );
+
+                        exception.printStackTrace();
+                        }
+                }
+
+                // Keep failed items selected for easier retry
+                selectedFilePaths.removeAll(moved);
+
+                updateSelectionUi.run();
+
+                fileList.getSelectionModel().clearSelection();
+                fileList.refresh();
+
+                // Refresh the scan once, not after every file
+                if (!moved.isEmpty()) {
+                        refreshAfterDelete();
+                }
+
+                Alert result = new Alert(
+                        failures.isEmpty()
+                                ? Alert.AlertType.INFORMATION
+                                : Alert.AlertType.WARNING
+                );
+
+                result.setTitle("Bulk Recycle Bin Results");
+
+                result.setHeaderText(
+                        moved.size() + " file(s) moved to Recycle Bin"
+                );
+
+                String message =
+                        "Moved: " + moved.size()
+                        + "\nFailed: " + failures.size();
+
+                if (!failures.isEmpty()) {
+                        message += "\n\nFailed items:\n"
+                                + String.join(
+                                        "\n",
+                                        failures.stream().limit(5).toList()
+                                );
+                }
+
+                result.setContentText(message);
+                result.showAndWait();
         }
 
     
@@ -7319,7 +7547,7 @@ public class MainView {
                 if (!Files.isDirectory(filePath)) {
 
                         MenuItem deleteItem =
-                                new MenuItem("Delete");
+                                new MenuItem("Move to Recycle Bin");
 
                         deleteItem.getStyleClass().add(
                                 "danger-menu-item"
@@ -7381,74 +7609,62 @@ public class MainView {
                 return fileMenu;
         }
 
-        private boolean confirmPermanentDelete(Path filePath) {
-                boolean confirmBeforeDelete = preferences.getBoolean(CONFIRM_BEFORE_DELETE_KEY, true);
+        
+        private boolean confirmMoveToRecycleBin(Path filePath) {
+
+                boolean confirmBeforeDelete = preferences.getBoolean(
+                        CONFIRM_BEFORE_DELETE_KEY,
+                        true
+                );
 
                 if (!confirmBeforeDelete) {
                         return true;
                 }
 
                 Alert confirmation = new Alert(
-                        Alert.AlertType.WARNING
+                        Alert.AlertType.CONFIRMATION
                 );
 
-                confirmation.setTitle("Delete File");
+                confirmation.setTitle("Move to Recycle Bin");
 
-                confirmation.setHeaderText("Delete this file permanently?");
+                confirmation.setHeaderText(
+                        "Move this file to the Recycle Bin?"
+                );
 
-                ButtonType deleteButtonType = new ButtonType(
-                        "Delete Permanently",
+                confirmation.setContentText(
+                        filePath.getFileName()
+                        + "\n\nYou can restore this file from the "
+                        + "Windows Recycle Bin while it remains there."
+                );
+
+                ButtonType moveButtonType = new ButtonType(
+                        "Move to Recycle Bin",
                         ButtonBar.ButtonData.OK_DONE
                 );
 
-                ButtonType cancelButtonType =
-                        new ButtonType(
-                                "Cancel",
-                                ButtonBar.ButtonData.CANCEL_CLOSE
+                ButtonType cancelButtonType = new ButtonType(
+                        "Cancel",
+                        ButtonBar.ButtonData.CANCEL_CLOSE
                 );
 
                 confirmation.getButtonTypes().setAll(
                         cancelButtonType,
-                        deleteButtonType
+                        moveButtonType
                 );
 
-                Label warningLabel = new Label(
-                        filePath.getFileName()
-                            + "\n\n"
-                            + "This action cannot be undone. "
-                            + "FileFlow will permanently delete "
-                            + "this file instead of moving it "
-                            + "to the Recycle Bin."
-                );
+                CheckBox dontAskAgain =
+                        new CheckBox("Don't ask me again");
 
-                warningLabel.setWrapText(true);
-
-                CheckBox dontAskAgain = new CheckBox("Don't ask me again");
-
-                VBox confirmationContent = new VBox(
-                        12,
-                        warningLabel,
+                confirmation.getDialogPane().setExpandableContent(
                         dontAskAgain
                 );
 
-                confirmation.getDialogPane()
-                        .setContent(
-                                confirmationContent
-                        );
+                confirmation.getDialogPane().setExpanded(true);
 
-                Button deleteButton = (Button) confirmation
-                                                .getDialogPane()
-                                                .lookupButton(deleteButtonType);
+                ButtonType result = confirmation.showAndWait()
+                        .orElse(cancelButtonType);
 
-                deleteButton
-                        .getStyleClass()
-                        .add("danger-button");
-
-                ButtonType result = confirmation
-                                        .showAndWait()
-                                        .orElse(cancelButtonType);
-
-                if (result != deleteButtonType) {
+                if (result != moveButtonType) {
                         return false;
                 }
 
@@ -7483,12 +7699,12 @@ public class MainView {
                         return;
                 }
 
-                if (!confirmPermanentDelete(filePath)) {
+                if (!confirmMoveToRecycleBin(filePath)) {
                         return;
                 }
 
                 try {
-                        filePlatformService.deleteFile(filePath);
+                        recycleBinService.moveToRecycleBin(filePath);
 
                         filePreviewFactory.invalidate(filePath);
 
@@ -8288,7 +8504,7 @@ public class MainView {
                 confirmation.setTitle("Resolve Similar Images");
 
                 confirmation.setHeaderText(
-                        "Permanently delete " + toDelete.size() + " image(s)?"
+                        "Move " + toDelete.size() + " image(s) to Recycle Bin?"
                 );
 
                 confirmation.setContentText(
@@ -8296,7 +8512,8 @@ public class MainView {
                                 + "\nImages to delete: " + toDelete.size()
                                 + "\nSpace to reclaim: "
                                 + FileSizeFormatter.format(reclaimableBytes)
-                                + "\n\nThese files will NOT go to the Recycle Bin."
+                                + "\n\nImages will be moved to the Recycle Bin. "
+                                + "You can restore them while they remain there."
                 );
 
                 TextArea details = new TextArea(
@@ -8313,7 +8530,7 @@ public class MainView {
                 confirmation.getDialogPane().setExpanded(true);
 
                 ButtonType deleteButton = new ButtonType(
-                        "Delete Permanently",
+                        "Move to Recycle Bin",
                         ButtonBar.ButtonData.OK_DONE
                 );
 
@@ -8355,7 +8572,7 @@ public class MainView {
                                 );
                         }
 
-                        filePlatformService.deleteFile(path);
+                        recycleBinService.moveToRecycleBin(path);
 
                         deletedPaths.add(path);
 
@@ -8915,8 +9132,8 @@ public class MainView {
                                 confirmation.setContentText(
                                         String.format(
                                                 "FileFlow will keep:%n%n%s%n%n"
-                                                        + "and permanently delete %,d duplicate copy/copies.%n"
-                                                        + "About %s will be reclaimed.",
+                                                        + "and move %,d duplicate copy/copies to the Recycle Bin.%n"
+                                                        + "About %s may be freed after the Recycle Bin is emptied.",
                                                 pathToKeep,
                                                 copiesToDelete,
                                                 FileSizeFormatter.format(
@@ -8927,7 +9144,7 @@ public class MainView {
 
                                 ButtonType resolveButtonType =
                                         new ButtonType(
-                                                "Delete Duplicates",
+                                                "Move to Recycle Bin",
                                                 ButtonBar.ButtonData.OK_DONE
                                         );
 
@@ -8955,6 +9172,17 @@ public class MainView {
                                         return;
                                 }
 
+                                if (!Files.isRegularFile(pathToKeep)) {
+
+                                        showFileActionError(
+                                                "Resolve Cancelled",
+                                                "The copy you chose to keep is no longer available.",
+                                                pathToKeep.toString()
+                                        );
+
+                                        return;
+                                }
+
                                 for (Path duplicatePath : duplicatePaths) {
 
                                         if (duplicatePath.equals(pathToKeep)) {
@@ -8963,9 +9191,7 @@ public class MainView {
 
                                         try {
 
-                                                filePlatformService.deleteFile(
-                                                        duplicatePath
-                                                );
+                                                recycleBinService.moveToRecycleBin(duplicatePath);
 
                                                 filePreviewFactory.invalidate(
                                                         duplicatePath
