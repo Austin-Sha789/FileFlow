@@ -3054,3 +3054,54 @@
     -fx-border-color: #B5CAF4;
     -fx-border-radius: 10;
 }
+
+
+/* FileFlow - Selection Checkbox */
+
+.file-select-checkbox {
+    -fx-cursor: hand;
+    -fx-padding: 2px;
+}
+
+/* Unselected square */
+.file-select-checkbox > .box {
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 5px;
+
+    -fx-border-color: #BCC9DC;
+    -fx-border-width: 1.5px;
+    -fx-border-radius: 5px;
+
+    -fx-min-width: 19px;
+    -fx-min-height: 19px;
+    -fx-pref-width: 19px;
+    -fx-pref-height: 19px;
+
+    -fx-padding: 0;
+}
+
+/* Hover effect */
+.file-select-checkbox:hover > .box {
+    -fx-border-color: #4B91FF;
+    -fx-background-color: #F0F6FF;
+}
+
+/* Selected blue square */
+.file-select-checkbox:selected > .box {
+    -fx-background-color: #3478F6;
+    -fx-border-color: #3478F6;
+
+    -fx-effect: dropshadow(
+        gaussian,
+        rgba(52, 120, 246, 0.32),
+        10,
+        0.18,
+        0,
+        0
+    );
+}
+
+/* Hide the default checkmark */
+.file-select-checkbox:selected > .box > .mark {
+    -fx-background-color: transparent;
+}

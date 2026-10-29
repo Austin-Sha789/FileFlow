@@ -1,5 +1,8 @@
 package com.austin.fileflow.ui;
 
+import javafx.animation.PauseTransition;
+import javafx.animation.ScaleTransition;
+
 import javafx.scene.Node;
 import javafx.scene.shape.SVGPath;
 import javafx.scene.Parent;
@@ -2972,6 +2975,8 @@ public class MainView {
 
                                 updateSelectionUi.run();
 
+                                animateFileSelection(selectCheckBox);
+
                                 // Update only this row instead of refreshing the ListView
                                 if (selectCheckBox.getParent() instanceof HBox row) {
 
@@ -3063,6 +3068,8 @@ public class MainView {
 
                                 // Keep checkbox and row appearance synchronized
                                 selectCheckBox.setSelected(selected);
+
+                                animateFileSelection(selectCheckBox);
 
                                 fileRow.getStyleClass().remove(
                                         "file-row-multi-selected"
@@ -5446,6 +5453,28 @@ public class MainView {
 
                 result.setContentText(message);
                 result.showAndWait();
+        }
+
+        
+        private void animateFileSelection(CheckBox checkBox) {
+
+                if (!checkBox.isSelected()) {
+                        return;
+                }
+
+                ScaleTransition animation =
+                        new ScaleTransition(
+                                Duration.millis(140),
+                                checkBox
+                        );
+
+                animation.setFromX(0.85);
+                animation.setFromY(0.85);
+
+                animation.setToX(1.0);
+                animation.setToY(1.0);
+
+                animation.playFromStart();
         }
 
     
