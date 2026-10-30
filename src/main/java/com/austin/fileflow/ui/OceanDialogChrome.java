@@ -18,8 +18,17 @@ import javafx.stage.StageStyle;
 public final class OceanDialogChrome {
     private OceanDialogChrome() { }
     public static void install(Dialog<?> dialog) {
+        install(dialog, OceanWindowChrome.isMac());
+    }
+
+    static void install(Dialog<?> dialog, boolean mac) {
         var pane = dialog.getDialogPane();
         if (pane.getProperties().putIfAbsent("ocean-chrome", Boolean.TRUE) != null) return;
+        if (mac) {
+            dialog.initStyle(StageStyle.DECORATED);
+            // Native macOS titlebar owns its controls; preserve the dialog's content/header.
+            return;
+        }
         dialog.initStyle(StageStyle.UNDECORATED);
         Label caption = new Label(dialog.getTitle());
         caption.getStyleClass().add("ocean-dialog-caption");

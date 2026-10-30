@@ -169,6 +169,15 @@ class FileTableVirtualizationTest {
         catch (ReflectiveOperationException error) { throw new AssertionError(error); }
     }
     private com.austin.fileflow.ui.MainView createWorkspaceView(Path directory) {
+        return createWorkspaceView(directory, null);
+    }
+    private static void installChrome(Stage window, Scene scene, boolean mac) {
+        try {
+            var method = com.austin.fileflow.ui.OceanWindowChrome.class.getDeclaredMethod("install", Stage.class, Scene.class, boolean.class);
+            method.setAccessible(true); method.invoke(null, window, scene, mac);
+        } catch (ReflectiveOperationException error) { throw new AssertionError(error); }
+    }
+    private com.austin.fileflow.ui.MainView createWorkspaceView(Path directory, Boolean mac) {
         try {
             var db = new com.austin.fileflow.database.DatabaseManager("jdbc:sqlite:" + directory.resolve("workspace-ui.db")); db.initialiseDatabase();
             var view = new com.austin.fileflow.ui.MainView(new com.austin.fileflow.repository.FavouriteRepo(db),
@@ -178,6 +187,7 @@ class FileTableVirtualizationTest {
                     new com.austin.fileflow.service.StorageService(), new FilePreviewFactory());
             stage = new Stage(); stage.setScene(new Scene(view.getView(), 1280, 800));
             stage.getScene().getStylesheets().addAll(getClass().getResource("/css/app.css").toExternalForm(), getClass().getResource("/css/ocean.css").toExternalForm());
+            if (mac != null) installChrome(stage, stage.getScene(), mac);
             stage.show(); stage.getScene().getRoot().applyCss(); stage.getScene().getRoot().layout(); return view;
         } catch (Exception error) { throw new AssertionError(error); }
     }
@@ -308,13 +318,60 @@ class FileTableVirtualizationTest {
             javafx.scene.layout.HBox bar = new javafx.scene.layout.HBox(); bar.getStyleClass().add("ff-command-bar");
             javafx.scene.layout.BorderPane root = new javafx.scene.layout.BorderPane(); root.setTop(bar); root.getStyleClass().add("ocean-app");
             stage = new Stage(); Scene scene = new Scene(root, 700, 300); scene.getStylesheets().add(getClass().getResource("/css/ocean.css").toExternalForm());
-            com.austin.fileflow.ui.OceanWindowChrome.install(stage, scene); stage.setScene(scene); stage.show();
+            installChrome(stage, scene, false); stage.setScene(scene); stage.show();
             minimize.set((Button) root.lookup(".ocean-caption-button")); minimize.get().fire();
         });
         onFx(() -> { stage.setIconified(false); stage.requestFocus(); });
         onFx(() -> {
             assertFalse(minimize.get().isFocusTraversable()); assertFalse(minimize.get().isArmed());
             assertFalse(minimize.get().isPressed()); assertFalse(minimize.get().isHover());
+        });
+    }
+    @Test void macChromeUsesNativeDecorationsAndBrandStaysOnRightAfterLanguageChange(@org.junit.jupiter.api.io.TempDir Path directory) throws Exception {
+        onFx(() -> {
+            createWorkspaceView(directory, true);
+            var root = stage.getScene().getRoot();
+            assertNotEquals(javafx.stage.StageStyle.UNDECORATED, stage.getStyle());
+            assertTrue(root.getStyleClass().contains("ocean-platform-mac"));
+            assertNull(root.lookup(".ocean-window-controls")); assertNull(root.lookup(".ocean-caption-button"));
+            var bar = (javafx.scene.layout.HBox) root.lookup(".ff-command-bar");
+            Node brand = root.lookup(".ocean-brand-box");
+            assertSame(brand, bar.getChildren().get(bar.getChildren().size()-1));
+            assertTrue(brand.getBoundsInParent().getMinX() > bar.getWidth()/2);
+            var oldLanguage = com.austin.fileflow.i18n.I18n.instance().language();
+            try {
+                com.austin.fileflow.i18n.I18n.instance().setLanguage(com.austin.fileflow.i18n.AppLanguage.SIMPLIFIED_CHINESE);
+                assertSame(brand, bar.getChildren().get(bar.getChildren().size()-1));
+                assertNull(root.lookup(".ocean-caption-button"));
+            } finally { com.austin.fileflow.i18n.I18n.instance().setLanguage(oldLanguage); }
+        });
+    }
+    @Test void windowsChromeKeepsBrandLeftAndAllThreeCaptionButtons(@org.junit.jupiter.api.io.TempDir Path directory) throws Exception {
+        onFx(() -> {
+            createWorkspaceView(directory, false);
+            var root = stage.getScene().getRoot();
+            assertEquals(javafx.stage.StageStyle.UNDECORATED, stage.getStyle());
+            assertFalse(root.getStyleClass().contains("ocean-platform-mac"));
+            assertEquals(3, root.lookupAll(".ocean-caption-button").size());
+            var bar = (javafx.scene.layout.HBox) root.lookup(".ff-command-bar");
+            assertSame(root.lookup(".ocean-brand-box"), bar.getChildren().get(0));
+        });
+    }
+    @Test void macDialogsKeepNativeTitlebarAndTheirOriginalContent() throws Exception {
+        onFx(() -> {
+            var dialog = new Dialog<ButtonType>(); dialog.setTitle("Native Mac dialog");
+            dialog.setHeaderText("Original heading"); dialog.setContentText("Original content");
+            dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+            try {
+                var method = com.austin.fileflow.ui.OceanDialogChrome.class.getDeclaredMethod("install", Dialog.class, boolean.class);
+                method.setAccessible(true); method.invoke(null, dialog, true);
+                method.invoke(null, dialog, true); // Repeated styling must not add custom controls.
+                assertEquals(javafx.stage.StageStyle.DECORATED, ((Stage) dialog.getDialogPane().getScene().getWindow()).getStyle());
+                assertEquals("Original heading", dialog.getHeaderText()); assertEquals("Original content", dialog.getContentText());
+                assertNull(dialog.getDialogPane().lookup(".ocean-dialog-titlebar"));
+                assertNull(dialog.getDialogPane().lookup(".ocean-dialog-close"));
+            } catch (ReflectiveOperationException error) { throw new AssertionError(error); }
+            finally { dialog.close(); }
         });
     }
     @Test void comboBoxPopupStatesHaveDarkBackgroundsAndReadableText() throws Exception {

@@ -505,3 +505,7 @@
 .ocean-app .update-release-link, .ocean-app .update-release-link:visited { -fx-text-fill: #91bfff; -fx-border-color: transparent; -fx-padding: 3 0; }
 .ocean-app .update-release-link:hover { -fx-text-fill: #d1e6ff; }
 .ocean-app .update-notes, .ocean-app .update-notes .content { -fx-background-color: #122239; -fx-text-fill: #d8e8ff; }
+
+/* macOS supplies the real window frame and traffic lights. */
+.ocean-app.ocean-platform-mac { -fx-border-width: 0; }
+.ocean-app.ocean-platform-mac .ocean-brand-box { -fx-alignment: center-right; }

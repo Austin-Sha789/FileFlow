@@ -902,6 +902,7 @@ public class MainView {
     private HBox createOceanCommandBar() {
         Label brand = OceanComponents.label("FileFlow", "ocean-brand");
         HBox brandBox = new HBox(11, AppIcon.view(40), brand);
+        brandBox.getStyleClass().add("ocean-brand-box");
         brandBox.setAlignment(Pos.CENTER_LEFT);
         brandBox.setMinWidth(192);
         brandBox.setPrefWidth(192);

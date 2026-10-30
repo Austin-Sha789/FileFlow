@@ -3,6 +3,9 @@ package com.austin.fileflow.ui;
 import static com.austin.fileflow.i18n.I18n.tr;
 
 import javafx.css.PseudoClass;
+import javafx.application.Platform;
+import javafx.application.ConditionalFeature;
+import java.util.Locale;
 import javafx.geometry.Rectangle2D;
 import javafx.scene.Cursor;
 import javafx.scene.Node;
@@ -20,16 +23,38 @@ import javafx.scene.shape.SVGPath;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 
-/** Dark, draggable desktop chrome with resize, minimize, maximize and close. */
+/** Native macOS decorations; dark draggable caption controls on other desktops. */
 public final class OceanWindowChrome {
     private static final double EDGE = 6;
     private OceanWindowChrome() { }
 
     public static void install(Stage stage, Scene scene) {
-        stage.initStyle(StageStyle.UNDECORATED);
-        scene.setFill(Color.web("#070c15"));
+        install(stage, scene, isMac());
+    }
+
+    public static boolean isMac() {
+        return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("mac");
+    }
+
+    // Platform policy is injectable so both layouts can be verified without spoofing os.name.
+    static void install(Stage stage, Scene scene, boolean mac) {
         Node top = scene.getRoot().lookup(".ff-command-bar");
         if (!(top instanceof HBox bar)) throw new IllegalStateException("FileFlow command bar is missing");
+        if (mac) {
+            stage.initStyle(Platform.isSupported(ConditionalFeature.UNIFIED_WINDOW) ? StageStyle.UNIFIED : StageStyle.DECORATED);
+            scene.setFill(Color.TRANSPARENT);
+            scene.getRoot().getStyleClass().add("ocean-platform-mac");
+            Node brand = bar.lookup(".ocean-brand-box");
+            if (brand != null && bar.getChildren().remove(brand)) {
+                if (brand instanceof HBox box) box.setAlignment(javafx.geometry.Pos.CENTER_RIGHT);
+                bar.getChildren().add(brand);
+            }
+            // Cocoa owns traffic lights, zoom/full screen, dragging and resizing.
+            // Do not attach Windows caption buttons or competing resize filters.
+            return;
+        }
+        stage.initStyle(StageStyle.UNDECORATED);
+        scene.setFill(Color.web("#070c15"));
         Button minimize = control(tr("ui.minimize"), "M3 8 H15", () -> stage.setIconified(true));
         Button maximize = control(tr("ui.maximize"), "M3 3 H15 V15 H3 Z", () -> stage.setMaximized(!stage.isMaximized()));
         Button close = control(tr("common.close"), "M4 4 L14 14 M14 4 L4 14", stage::close);
