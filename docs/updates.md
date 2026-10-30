@@ -1,47 +1,68 @@
-# 软件更新与发布
+# Updates and publishing
 
-Settings → Software updates（设置 → 软件更新）支持手动检查正式版、下载对应系统与架构的安装包，以及用户确认后启动安装。网络请求、下载和校验均在后台执行；离开设置页不会中断下载。下载完成不会自动运行安装包，点击安装后再次校验，打开成功才退出 FileFlow。macOS 的 DMG 会打开磁盘映像，后续按系统流程安装。
+Settings → Software updates supports manual stable-release checks, installer downloads for the current system and architecture, and installation after an explicit confirmation. Network requests, downloads and integrity checks run on a background worker. Leaving Settings does not interrupt a download.
 
-## 更新来源与版本
+Downloads do not run automatically. Clicking Install update rechecks the file and asks the OS to open it; FileFlow exits only after that request succeeds. On macOS, opening a DMG mounts the disk image; the user completes the normal app installation steps.
 
-- 来源固定为本仓库 GitHub Releases 的 latest API，仅接受正式发布，跳过草稿和预发布。
-- `pom.xml` 的 `project.version` 是版本来源；构建时仅过滤 `app-version.properties`，程序读取该资源进行语义版本比较。首个安装包版本为 `1.0.0`。
-- 推送代码不会自动公开更新。通过 GitHub Actions 的 `Release installers` 手动运行发布，三个目标平台全部构建、自检并校验成功后才公开 Release。
-- 原生安装包流水线位于 `.github/workflows/release.yml`，构建脚本为 `scripts/package-release.py`。当前输出 Windows x64 MSI、Mac Apple Silicon DMG、Mac Intel DMG，均内置 Java 运行环境和高清图标。
+## Release source and version
 
-## 安装包名称
+- The endpoint is fixed to this repository's GitHub Releases `latest` API. Drafts and prereleases are ignored.
+- `pom.xml` supplies `project.version`. Maven filters only `app-version.properties`, and the app reads that resource for semantic version comparison.
+- A source push does not publish an update. Run **Actions → Release installers → Run workflow** to build and publish a release.
+- `.github/workflows/release.yml` calls `scripts/package-release.py` on Windows x64, Mac Apple Silicon and Mac Intel runners. Installers include a Java runtime and native icons.
 
-Release 标签使用 `v1.1.0` 这样的版本号，安装包文件名中的版本必须匹配标签：
+## Installer names
 
-| 平台 | 示例 |
+The version in each filename must match the release tag, such as `v1.1.0`.
+
+| Platform or format | Example |
 | --- | --- |
 | Windows x64 | `FileFlow-1.1.0-windows-x64.msi` |
 | Windows ARM64 | `FileFlow-1.1.0-windows-arm64.msi` |
-| Windows EXE 安装器 | `FileFlow-1.1.0-windows-x64-setup.exe` |
+| Windows EXE installer | `FileFlow-1.1.0-windows-x64-setup.exe` |
 | Mac Apple Silicon | `FileFlow-1.1.0-macos-arm64.dmg` |
 | Mac Intel | `FileFlow-1.1.0-macos-x64.dmg` |
-| Mac 通用 | `FileFlow-1.1.0-macos-universal.dmg` |
+| Mac universal | `FileFlow-1.1.0-macos-universal.dmg` |
 
-Mac 也支持 `.pkg`。优先匹配当前架构，再考虑 Mac 通用包；Windows 优先 MSI。普通便携 EXE、ZIP 和源码包不会作为安装包运行。更新器识别 Mac 包不代表应用的 macOS 移植已完成。
+The updater also accepts Mac `.pkg` files. It prefers an exact architecture match, then a Mac universal package. Windows prefers MSI. Portable EXE files, ZIP archives and source bundles are not selected as installers.
 
-## 校验与存储
+The current build workflow produces Windows x64 MSI and separate Mac ARM64/x64 DMGs. Other names in this table describe updater support, not additional published builds.
 
-安装包必须来自本仓库的 Release 下载地址，HTTPS 跳转限制在 GitHub 及其下载域名。使用 GitHub API 返回的 `digest` 字段（`sha256:...`），同时检查文件大小；下载后及安装前各校验一次。没有 SHA-256 的附件不会启用应用内安装，可重新上传附件以生成校验值。
+## Integrity and download storage
 
-下载使用临时 `.part` 文件，成功后才转为安装包；取消或失败清理临时文件。Windows 缓存位于 `%LOCALAPPDATA%\FileFlow\Updates`；Mac 位于 `~/Library/Caches/FileFlow/Updates`。缓存中完整且校验通过的包可复用。最大包大小 2 GiB，网络请求超时 15 秒，下载总时长限制 30 分钟。
+Installer URLs must belong to this repository's GitHub release downloads. HTTPS redirects are restricted to GitHub and its download hosts. The app uses the API's `digest` field (`sha256:...`) and expected file size to verify downloads, and verifies the file again before opening it. Assets without SHA-256 metadata are not offered for in-app installation.
 
-## 以后发布新版本
+Downloads use unique temporary `.part` files and are published to the cache only after validation. Cancellation and failure clean up partial files. A complete cached installer can be reused if it still verifies.
 
-1. 修改 `pom.xml` 为正式版本，例如 `1.1.0`，添加 `docs/releases/1.1.0.md` 发布说明，运行回归测试并推送。
-2. 在 GitHub Actions → `Release installers` → Run workflow 中填写版本号（不带 v）。
-3. 流水线在 Windows、Mac ARM、Mac Intel 上运行测试、生成自带 Java 的应用并启动自检，随后生成安装包。
-4. 三个任务全部成功后，发布任务核对附件与 SHA-256，创建目标提交的标签和草稿 Release，附件上传成功才公开。失败时查看 Actions 日志，修复后重试；不要用相同版本覆盖已经公开的包。
-5. 老版本用户点击“检查更新”即可下载；下载完成后点击“安装更新”并确认。正式分发前仍应人工验证安装、卸载和跨版本升级。
+- Windows: `%LOCALAPPDATA%/FileFlow/Updates`
+- macOS: `~/Library/Caches/FileFlow/Updates`
 
-数据库已移至稳定用户目录：Windows `%LOCALAPPDATA%/FileFlow`，Mac `~/Library/Application Support/FileFlow`。从旧源码运行目录启动时会用 SQLite 一致性复制迁移旧库并保留原文件，已有目标库不会被覆盖。Windows 使用固定升级 UUID，Mac 应用标识为 `com.austin.fileflow`。
+The maximum installer size is 2 GiB. Connections and reads have a 15-second timeout; downloads have a 30-minute total limit.
 
-首版未进行开发者身份签名，Mac 只有运行所需的 ad-hoc 签名、未经 Apple 公证，首次启动可能受到系统安全检查限制。签名与公证需要后续配置证书。MOV 缩略图的已知问题记录在 Issue #1。原生包在各自目标系统构建，不能在 Windows 上直接生成 Mac 原生安装包。
+## Publish a new version
 
-## 验证
+1. Set the stable version in `pom.xml`, for example `1.1.0`, and add `docs/releases/1.1.0.md`.
+2. Run regression tests, review known issues, and push the source.
+3. Open **Actions → Release installers → Run workflow**, then enter the version without the `v` prefix.
+4. The workflow tests each target, creates a self-contained application image, launches it for a startup check, and builds the native installer.
+5. After all three builds succeed, the publish job verifies the expected assets and checksums. It creates a tag and draft release for the build's source commit, uploads the assets, then makes the release public.
+6. Check the published downloads and updater behaviour. Do not replace a public installer with a different file under the same version; publish a new version instead.
 
-新增版本、网络和 JavaFX 流程测试，覆盖架构匹配、无 Release、限流、超时、取消、校验失败、损坏包拒绝、安装前篡改、切换设置页保留任务，以及明确点击安装才调用安装器。测试使用本地 HTTP 附件和注入的安装回调，不执行真实安装器。
+Startup checks cover the packaged runtime, JavaFX main window, version resource and SQLite. Manual installation, uninstall and cross-version upgrade checks remain necessary. Native packages must be built on their target operating systems.
+
+## Application data and installer identity
+
+The database is stored outside the installation directory:
+
+- Windows: `%LOCALAPPDATA%/FileFlow/fileflow.db`
+- macOS: `~/Library/Application Support/FileFlow/fileflow.db`
+
+When launched from a legacy source directory containing `fileflow.db`, FileFlow uses SQLite to make a consistent copy into the user data directory. The original is retained and an existing destination database is never replaced. An installed app does not search old source directories automatically. For manual migration, exit FileFlow, back up both databases, and copy the legacy file to the appropriate user data directory.
+
+The Windows installer uses a fixed upgrade UUID. The Mac application identifier is `com.austin.fileflow`.
+
+The first release has no developer identity signature. Mac builds have an ad-hoc signature and are not notarised by Apple, so first launch may be restricted by the OS. Developer signing and notarisation require a future certificate setup. The known MOV thumbnail issue is tracked in [Issue #1](https://github.com/Austin-Sha789/FileFlow/issues/1).
+
+## Test coverage
+
+Version, network and JavaFX tests cover architecture matching, no published release, rate limits, timeouts, cancellation, invalid packages, checksum failures, file changes before installation, retained tasks across Settings navigation, and the explicit install action. Tests use a local HTTP fixture and injected installer callbacks; they do not execute a real installer.
