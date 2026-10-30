@@ -2921,6 +2921,7 @@ public class MainView {
         duplicateGroupsTitle.setManaged(false);
         
         ScrollPane resultsScrollPane = new ScrollPane(resultsContainer);
+        resultsScrollPane.setId("exact-results-scroll");
 
         resultsScrollPane.setFitToWidth(true);
 
@@ -3295,6 +3296,7 @@ public class MainView {
         ScrollPane similarResultsScroll =
                 new ScrollPane(similarResults);
 
+        similarResultsScroll.setId("similar-results-scroll");
         similarResultsScroll.setMinHeight(0);
 
         VBox.setVgrow(
@@ -6746,15 +6748,11 @@ public class MainView {
                                         && snapshot.resultsByRoot()
                                                 .containsKey(scanRootPath)) {
 
-                                latestScanResult =
-                                        snapshot.resultsByRoot().get(scanRootPath);
-
-                                // Clear analysis results based on old scan data
-                                latestDuplicateGroups = List.of();
-                                duplicateAnalysisCompleted = false;
-
-                                latestSimilarPairs = List.of();
-                                similarAnalysisCompleted = false;
+                                ScanResult previousActiveScan = latestScanResult;
+                                latestScanResult = snapshot.resultsByRoot().get(scanRootPath);
+                                // A removal-only workspace refresh can keep the remaining valid groups.
+                                reconcileExactDuplicatesAfterRefresh(previousActiveScan, latestScanResult);
+                                reconcileSimilarResultsAfterRefresh(previousActiveScan, latestScanResult);
 
                                 filePreviewFactory.clearCache();
 
@@ -7500,8 +7498,11 @@ public class MainView {
 
         private void refreshCurrentPage() {
                 String currentTitle = pageTitle.getText();
+                var position = "Duplicates".equals(currentTitle)
+                        ? com.austin.fileflow.ui.component.ResultScrollPosition.capture(root) : null;
                 navItems.stream().filter(item -> currentTitle.equals(item.getUserData())).findFirst()
                         .ifPresent(item -> selectNavItem(item, currentTitle));
+                if (position != null) position.restore(root);
         }
 
         private void hideRefreshStatus() {
@@ -8497,6 +8498,8 @@ public class MainView {
                                 "similar-image-group-card"
                         );
 
+                        com.austin.fileflow.ui.component.ResultScrollPosition.markGroup(groupCard,
+                                group.files().stream().map(FileItem::getPath).toList(), null, null);
                         container.getChildren().add(groupCard);
 
                         groupNumber++;
@@ -8803,6 +8806,12 @@ public class MainView {
                                 "exact-duplicate-group-card"
                         );
 
+                        com.austin.fileflow.ui.component.ResultScrollPosition.markGroup(groupCard,
+                                group.getFiles().stream().map(FileItem::getPath).toList(), () -> {
+                                    if (fileList.getChildren().isEmpty()) populateDuplicateGroupFiles(fileList, group);
+                                    fileList.setVisible(true); fileList.setManaged(true);
+                                    arrowLabel.setGraphic(createChevronDownIcon());
+                                }, fileList::isVisible);
                         resultsContainer.getChildren().add(groupCard);
 
                         groupNumber++;

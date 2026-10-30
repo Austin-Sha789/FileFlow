@@ -448,6 +448,108 @@ class FileTableVirtualizationTest {
             }
         });
     }
+    private static void setViewField(Object view, String name, Object value) {
+        try { var field = view.getClass().getDeclaredField(name); field.setAccessible(true); field.set(view, value); }
+        catch (ReflectiveOperationException error) { throw new AssertionError(error); }
+    }
+    private static javafx.scene.input.MouseEvent click(Node node) {
+        return new javafx.scene.input.MouseEvent(javafx.scene.input.MouseEvent.MOUSE_CLICKED, 0, 0, 0, 0,
+                javafx.scene.input.MouseButton.PRIMARY, 1, false, false, false, false, false, false, false, false, false, true,
+                new javafx.scene.input.PickResult(node, 0, 0));
+    }
+    @Test void exactResultsKeepTheCurrentGroupAndExpansionAcrossRefresh(@org.junit.jupiter.api.io.TempDir Path directory) throws Exception {
+        checkResultPosition(directory, false, false);
+    }
+    @Test void similarResultsStayNearTheNextGroupWhenTheCurrentGroupDisappears(@org.junit.jupiter.api.io.TempDir Path directory) throws Exception {
+        checkResultPosition(directory, true, true);
+    }
+    @Test void lastExactGroupRemovalClampsToTheBottomInsteadOfReturningToTheTop(@org.junit.jupiter.api.io.TempDir Path directory) throws Exception {
+        checkResultPosition(directory, false, true);
+    }
+    private void checkResultPosition(Path directory, boolean similar, boolean removeVisible) throws Exception {
+        onFx(() -> {
+            var view = createWorkspaceView(directory);
+            List<FileItem> items = new ArrayList<>(); List<com.austin.fileflow.model.DuplicateGroup> groups = new ArrayList<>();
+            List<com.austin.fileflow.model.SimilarImagePair> pairs = new ArrayList<>();
+            var time = LocalDateTime.of(2026, 1, 1, 0, 0);
+            for (int index = 0; index < 24; index++) {
+                FileItem one = new FileItem(directory.resolve("group-" + index + "-a.jpg"), "group-" + index + "-a.jpg", "jpg", 100, time, time, FileType.IMAGE, false, false, Set.of());
+                FileItem two = new FileItem(directory.resolve("group-" + index + "-b.jpg"), "group-" + index + "-b.jpg", "jpg", 100, time, time, FileType.IMAGE, false, false, Set.of());
+                items.add(one); items.add(two); groups.add(new com.austin.fileflow.model.DuplicateGroup(List.of(one, two), 100)); pairs.add(new com.austin.fileflow.model.SimilarImagePair(one, two, 0));
+            }
+            setViewField(view, "latestScanResult", new com.austin.fileflow.model.ScanResult(items, List.of())); setViewField(view, "scanRootPath", directory);
+            setViewField(view, "latestDuplicateGroups", groups); setViewField(view, "duplicateAnalysisCompleted", true);
+            setViewField(view, "latestSimilarPairs", pairs); setViewField(view, "similarAnalysisCompleted", true); setViewField(view, "similarTabSelected", similar);
+            invokeView(view, "navigateOcean", new Class<?>[]{String.class}, "Duplicates");
+            var root = stage.getScene().getRoot(); root.applyCss(); root.layout();
+            String id = similar ? "#similar-results-scroll" : "#exact-results-scroll";
+            ScrollPane scroll = (ScrollPane) root.lookup(id);
+            var container = (javafx.scene.layout.VBox) scroll.getContent();
+            int anchorIndex = similar ? 12 : removeVisible ? 23 : 12;
+            Node anchor = container.getChildren().get(anchorIndex);
+            if (!similar && !removeVisible) {
+                Node header = ((javafx.scene.layout.VBox) anchor).getChildren().get(0); header.fireEvent(click(header)); root.applyCss(); root.layout();
+            }
+            double overflow = container.getLayoutBounds().getHeight() - scroll.getViewportBounds().getHeight();
+            scroll.setVvalue(removeVisible && !similar ? 1 : anchor.getBoundsInParent().getMinY() / overflow); root.layout();
+            double before = anchor.localToScene(anchor.getBoundsInLocal()).getMinY();
+            if (removeVisible) {
+                if (similar) setViewField(view, "latestSimilarPairs", java.util.stream.IntStream.range(0, pairs.size()).filter(i -> i != anchorIndex).mapToObj(pairs::get).toList());
+                else setViewField(view, "latestDuplicateGroups", groups.subList(0, groups.size() - 1));
+            } else setViewField(view, "latestDuplicateGroups", groups.subList(1, groups.size()));
+            invokeView(view, "refreshCurrentPage", new Class<?>[]{}); root.applyCss(); root.layout();
+            ScrollPane refreshed = (ScrollPane) root.lookup(id); var newRows = (javafx.scene.layout.VBox) refreshed.getContent();
+            assertTrue(refreshed.getVvalue() > .2, "Resolve refresh must not jump to the top");
+            if (!removeVisible) {
+                Node same = newRows.getChildren().get(anchorIndex - 1);
+                assertEquals(before, same.localToScene(same.getBoundsInLocal()).getMinY(), 3);
+                assertTrue(((javafx.scene.layout.VBox) same).getChildren().get(1).isVisible(), "Previously expanded group should stay expanded");
+                // The metadata refresh rebuilds the page a second time.
+                invokeView(view, "refreshCurrentPage", new Class<?>[]{}); root.applyCss(); root.layout();
+                Node again = ((javafx.scene.layout.VBox) ((ScrollPane) root.lookup(id)).getContent()).getChildren().get(anchorIndex - 1);
+                assertEquals(before, again.localToScene(again.getBoundsInLocal()).getMinY(), 3);
+            } else if (similar) {
+                Node next = newRows.getChildren().get(anchorIndex);
+                assertEquals(before, next.localToScene(next.getBoundsInLocal()).getMinY(), 3);
+            } else assertEquals(1, refreshed.getVvalue(), .01);
+        });
+    }
+    @Test void workspaceRefreshAfterRemovalKeepsRemainingAnalysisResults(@org.junit.jupiter.api.io.TempDir Path directory) throws Exception {
+        Path first = java.nio.file.Files.createDirectory(directory.resolve("First"));
+        Path second = java.nio.file.Files.createDirectory(directory.resolve("Second"));
+        for (int i = 0; i < 8; i++) javax.imageio.ImageIO.write(new java.awt.image.BufferedImage(16, 16, java.awt.image.BufferedImage.TYPE_INT_RGB), "png", first.resolve("image-" + i + ".png").toFile());
+        java.util.concurrent.atomic.AtomicReference<com.austin.fileflow.ui.MainView> reference = new java.util.concurrent.atomic.AtomicReference<>();
+        java.util.concurrent.atomic.AtomicReference<javafx.animation.Timeline> dismissRef = new java.util.concurrent.atomic.AtomicReference<>();
+        var scanner = new com.austin.fileflow.service.FileScanService(); var scan = scanner.scan(first); var otherScan = scanner.scan(second);
+        onFx(() -> {
+            var view = createWorkspaceView(directory); reference.set(view);
+            var items = scan.getItems().stream().filter(item -> !item.isDirectory()).toList();
+            var groups = List.of(new com.austin.fileflow.model.DuplicateGroup(items.subList(0, 2), items.get(0).getSizeBytes()), new com.austin.fileflow.model.DuplicateGroup(items.subList(2, 4), items.get(2).getSizeBytes()));
+            setViewField(view, "latestScanResult", scan); setViewField(view, "scanRootPath", first); setViewField(view, "currentFolder", first);
+            setViewField(view, "lastWorkspaceScanSnapshot", com.austin.fileflow.model.WorkspaceScanSnapshot.withRoot(null, first, scan, second, otherScan));
+            var folders = (com.austin.fileflow.service.ScanWorkspace) viewField(view, "scanWorkspace"); folders.clear(); folders.addRoot(first); folders.addRoot(second);
+            setViewField(view, "latestDuplicateGroups", groups); setViewField(view, "duplicateAnalysisCompleted", true);
+            setViewField(view, "latestSimilarPairs", List.of(new com.austin.fileflow.model.SimilarImagePair(items.get(4), items.get(5), 0))); setViewField(view, "similarAnalysisCompleted", true);
+            invokeView(view, "navigateOcean", new Class<?>[]{String.class}, "Duplicates");
+            try { java.nio.file.Files.delete(items.get(6).getPath()); } catch (Exception error) { throw new AssertionError(error); }
+            // Close the summary dialog produced by the asynchronous batch refresh.
+            javafx.animation.Timeline dismiss = new javafx.animation.Timeline(new javafx.animation.KeyFrame(javafx.util.Duration.millis(100), event -> {
+                for (var window : new ArrayList<>(javafx.stage.Window.getWindows())) if (window != stage && window.isShowing() && window.getScene().getRoot() instanceof DialogPane pane) {
+                    window.hide();
+                }
+            })); dismissRef.set(dismiss); dismiss.setCycleCount(50); dismiss.play();
+            invokeView(view, "refreshAfterDelete", new Class<?>[]{boolean.class}, false);
+        });
+        awaitCondition(() -> Boolean.FALSE.equals(viewField(reference.get(), "scanning")));
+        onFx(() -> {
+            dismissRef.get().stop();
+            for (var window : new ArrayList<>(javafx.stage.Window.getWindows())) if (window != stage && window.isShowing() && window.getScene().getRoot() instanceof DialogPane) window.hide();
+            assertEquals(true, viewField(reference.get(), "duplicateAnalysisCompleted"));
+            assertEquals(true, viewField(reference.get(), "similarAnalysisCompleted"));
+            assertEquals(2, ((List<?>) viewField(reference.get(), "latestDuplicateGroups")).size());
+            assertEquals(1, ((List<?>) viewField(reference.get(), "latestSimilarPairs")).size());
+        });
+    }
     private static final class EmptyActions implements FileRowCell.Actions {
         public Node preview(FileItem item) { return new Label("TXT"); }
         public String location(FileItem item) { return "fixture"; }
