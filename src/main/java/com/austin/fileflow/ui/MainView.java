@@ -594,6 +594,12 @@ public class MainView {
         Label workspaceTitle = OceanComponents.label(tr("ui.your_workspace"), "ocean-sidebar-caption");
         workspaceTitle.textProperty().bind(I18n.binding("ui.your_workspace"));
         oceanWorkspaceRoots = new com.austin.fileflow.ui.component.WorkspaceFolderList();
+        oceanWorkspaceRoots.setContextMenuFactory(path -> {
+            MenuItem remove = new MenuItem(tr("workspace.remove"));
+            remove.getStyleClass().add("danger-menu-item"); remove.setDisable(scanning);
+            remove.setOnAction(event -> removeWorkspaceFolder(path));
+            return oceanMenu(remove);
+        });
         VBox.setVgrow(oceanWorkspaceRoots, Priority.ALWAYS);
         Button manage = OceanComponents.action(tr("ui.manage_folders"), "plus", "ocean-folder-shortcut", this::showScanWorkspaceDialog);
         manage.textProperty().bind(I18n.binding("ui.manage_folders"));
@@ -640,7 +646,7 @@ public class MainView {
 
         Button storageVolumesButton = new Button();
         storageVolumesButton.getStyleClass().add("sidebar-storage-volumes-button");
-        storageVolumesButton.setGraphic(createChevronRightIcon());
+        storageVolumesButton.setGraphic(createChevronDownIcon());
 
         HBox storageHeader = new HBox(
                 8,
@@ -686,18 +692,13 @@ public class MainView {
                 "sidebar-storage-card"
         );
 
+        com.austin.fileflow.ui.component.VolumePicker picker = new com.austin.fileflow.ui.component.VolumePicker(storageVolumesButton, this::createStorageVolumeCard);
+        picker.showingProperty().addListener((observable, before, showing) -> storageVolumesButton.setGraphic(
+                showing ? createChevronRightIcon() : createChevronDownIcon()));
         storageVolumesButton.setOnAction(event -> {
-                ContextMenu menu = oceanMenu();
-                for (StorageVolume volume : storageService.getAvailableVolumes()) {
-                        javafx.scene.control.RadioMenuItem item = new javafx.scene.control.RadioMenuItem(
-                                volume.getName() + "  (" + volume.getRootPath() + ")");
-                        item.setSelected(volume.getRootPath().equals(currentStorageRoot));
-                        item.setOnAction(selected -> updateStorageCard(volume.getRootPath()));
-                        menu.getItems().add(item);
-                }
-                storageVolumesButton.setGraphic(createChevronDownIcon());
-                menu.setOnHidden(hidden -> storageVolumesButton.setGraphic(createChevronRightIcon()));
-                menu.show(storageVolumesButton, Side.RIGHT, 8, 0);
+                if (picker.isShowing()) picker.hide();
+                else picker.toggle(storageService.getAvailableVolumes(), currentStorageRoot,
+                        volume -> updateStorageCard(volume.getRootPath()));
         });
 
         Path initialPath = 
@@ -1297,10 +1298,13 @@ public class MainView {
             Label value = OceanComponents.label(FileSizeFormatter.format(bytes), "dashboard-type-meta");
             Region spacer = new Region();
             HBox.setHgrow(spacer, Priority.ALWAYS);
-            HBox line = new HBox(8, name, spacer, value);
+            javafx.scene.shape.Circle swatch = new javafx.scene.shape.Circle(4, javafx.scene.paint.Color.web(OceanComponents.typeColor(type)));
+            HBox line = new HBox(8, swatch, name, spacer, value);
+            line.setAlignment(Pos.CENTER_LEFT);
             ProgressBar bar = new ProgressBar(fraction);
             bar.setMaxWidth(Double.MAX_VALUE);
             bar.getStyleClass().add("dashboard-type-progress");
+            bar.setStyle("-fx-accent: " + OceanComponents.typeColor(type) + "; -file-type-color: " + OceanComponents.typeColor(type) + ";");
             VBox row = new VBox(5, line, bar);
             Tooltip.install(row, new Tooltip(String.format(tr("ui.d_files_1f_of_size"), countByType.get(type), fraction * 100)));
             types.getChildren().add(row);
@@ -6161,13 +6165,17 @@ public class MainView {
                 rootsBox.getStyleClass().add("workspace-roots-box");
 
                 rootsScroll.setFitToWidth(true);
-                rootsScroll.setPrefViewportHeight(150);
+                rootsScroll.setPrefViewportHeight(280);
+                rootsScroll.setMinHeight(120);
+                VBox.setVgrow(rootsScroll, Priority.ALWAYS);
                 rootsScroll.setHbarPolicy(
                         ScrollPane.ScrollBarPolicy.NEVER
                 );
 
                 Label feedbackLabel = new Label();
                 feedbackLabel.setWrapText(true);
+                feedbackLabel.managedProperty().bind(feedbackLabel.textProperty().isNotEmpty());
+                feedbackLabel.visibleProperty().bind(feedbackLabel.managedProperty());
 
                 
                 SVGPath dropIcon = new SVGPath();
@@ -6195,7 +6203,7 @@ public class MainView {
                 );
 
                 dropZone.setAlignment(Pos.CENTER);
-                dropZone.setMinHeight(100);
+                dropZone.setMinHeight(96); dropZone.setPrefHeight(100); dropZone.setMaxHeight(104);
                 dropZone.setMaxWidth(Double.MAX_VALUE);
                 dropZone.getStyleClass().add("workspace-drop-zone");
                 
@@ -6391,7 +6399,10 @@ public class MainView {
 
                 dialogContent.getStyleClass().add("workspace-dialog-content");
 
-                dialogContent.setPrefWidth(560);
+                dialogContent.setPrefWidth(620);
+                dialogContent.setPrefHeight(510);
+                dialogContent.setMinHeight(360);
+                dialog.setResizable(true);
 
                 dialog.getDialogPane().setContent(dialogContent);
 
@@ -6425,6 +6436,13 @@ public class MainView {
         }
 
         
+        private void removeWorkspaceFolder(Path path) {
+                if (scanning || !scanWorkspace.removeRoot(path)) return;
+                saveWorkspaceFolders();
+                reconcileSavedWorkspaceRoots(scanWorkspace.getRoots());
+                updateOceanStatus();
+        }
+
         private void saveWorkspaceFolders() {
                 if (!workspaceFoldersStore.save(scanWorkspace.getRoots())) showStatusWarning(tr("workspace.save_failed"));
         }
@@ -6479,10 +6497,7 @@ public class MainView {
 
                         Label pathLabel = new Label(path.toString());
 
-                        pathLabel.setStyle(
-                                "-fx-font-size: 13px;"
-                                + "-fx-text-fill: #324866;"
-                        );
+                        pathLabel.getStyleClass().add("workspace-folder-path");
 
                         pathLabel.setWrapText(true);
                         pathLabel.setMinWidth(0);
@@ -6494,6 +6509,7 @@ public class MainView {
                         );
 
                         Button removeButton = new Button(tr("ui.remove"));
+                        removeButton.setMinWidth(Region.USE_PREF_SIZE);
 
                         removeButton.getStyleClass().add(
                                 "secondary-button"
@@ -6518,14 +6534,7 @@ public class MainView {
 
                         folderRow.setAlignment(Pos.CENTER_LEFT);
 
-                        folderRow.setStyle(
-                                "-fx-padding: 12 16;"
-                                + "-fx-background-color: #FFFFFF;"
-                                + "-fx-background-radius: 10;"
-                                + "-fx-border-color: #DFE8F5;"
-                                + "-fx-border-radius: 10;"
-                                + "-fx-border-width: 1;"
-                        );
+                        folderRow.getStyleClass().add("workspace-folder-row");
 
                         rootsBox.getChildren().add(folderRow);
                 }

@@ -165,6 +165,19 @@ public final class OceanComponents {
         return art;
     }
 
+    /** Stable semantic colors, independent of slice order, amounts and display language. */
+    public static String typeColor(FileType type) {
+        return switch (type) {
+            case IMAGE -> "#4fd1b5";
+            case VIDEO -> "#af8bfa";
+            case AUDIO -> "#f480ae";
+            case DOCUMENT -> "#5ba7ff";
+            case ARCHIVE -> "#f2bb65";
+            case CODE -> "#66d2ed";
+            case OTHER -> "#8b9dbb";
+        };
+    }
+
     public static StackPane donut(Map<FileType, Long> bytesByType, String total) {
         PieChart chart = new PieChart();
         chart.setLegendVisible(false);
@@ -173,7 +186,13 @@ public final class OceanComponents {
         chart.setStartAngle(90);
         bytesByType.entrySet().stream().sorted(Map.Entry.<FileType, Long>comparingByValue().reversed())
                 .filter(entry -> entry.getValue() > 0)
-                .forEach(entry -> chart.getData().add(new PieChart.Data(entry.getKey().name(), entry.getValue())));
+                .forEach(entry -> {
+                    PieChart.Data data = new PieChart.Data(entry.getKey().name(), entry.getValue());
+                    String style = "-fx-pie-color: " + typeColor(entry.getKey()) + ";";
+                    data.nodeProperty().addListener((observable, before, after) -> { if (after != null) after.setStyle(style); });
+                    chart.getData().add(data);
+                    if (data.getNode() != null) data.getNode().setStyle(style);
+                });
         if (chart.getData().isEmpty()) chart.getData().add(new PieChart.Data(tr("ui.empty"), 1));
         chart.getStyleClass().add("ocean-donut");
         chart.setMinSize(150, 150);

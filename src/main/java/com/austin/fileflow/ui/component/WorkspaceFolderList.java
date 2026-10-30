@@ -17,7 +17,7 @@ import javafx.util.Duration;
 
 /** Only the saved-folder area scrolls; the dot rail maps one marker to each folder. */
 public final class WorkspaceFolderList extends HBox {
-    private static final double ROW_HEIGHT = 32;
+    private static final double ROW_HEIGHT = 29;
     private static final PseudoClass ACTIVE = PseudoClass.getPseudoClass("active");
     private final VBox rows = new VBox();
     private final ScrollPane scroll = new ScrollPane(rows);
@@ -32,6 +32,8 @@ public final class WorkspaceFolderList extends HBox {
     private List<Path> folders = List.of();
     private Path active;
     private Consumer<Path> activate = path -> { };
+    private java.util.function.Function<Path, ContextMenu> contextMenuFactory = path -> null;
+    public void setContextMenuFactory(java.util.function.Function<Path, ContextMenu> factory) { contextMenuFactory = factory; }
     private int hovered = -1;
     private boolean scrolling;
 
@@ -66,6 +68,11 @@ public final class WorkspaceFolderList extends HBox {
                 Button button = OceanComponents.action(name, "folder", "ocean-folder-shortcut", () -> activate.accept(path));
                 button.setMinHeight(ROW_HEIGHT); button.setPrefHeight(ROW_HEIGHT); button.setMaxHeight(ROW_HEIGHT);
                 button.setMinWidth(0); button.setMaxWidth(Double.MAX_VALUE); button.setTooltip(new Tooltip(path.toString()));
+                button.setOnContextMenuRequested(event -> {
+                    ContextMenu menu = contextMenuFactory.apply(path);
+                    if (menu != null) menu.show(button, event.getScreenX(), event.getScreenY());
+                    event.consume();
+                });
                 button.hoverProperty().addListener((observable, before, after) -> { hovered = after ? position : -1; updateDots(); });
                 Circle dot = new Circle(2, Color.web("#617e9f"));
                 dot.getStyleClass().add("workspace-folder-dot"); dot.setFocusTraversable(true); dot.setAccessibleRole(AccessibleRole.BUTTON);

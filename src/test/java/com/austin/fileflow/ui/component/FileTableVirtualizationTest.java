@@ -295,6 +295,159 @@ class FileTableVirtualizationTest {
             assertFalse(minimize.get().isPressed()); assertFalse(minimize.get().isHover());
         });
     }
+    @Test void comboBoxPopupStatesHaveDarkBackgroundsAndReadableText() throws Exception {
+        List<ComboBox<?>> boxes = new ArrayList<>();
+        onFx(() -> {
+            ComboBox<String> choices = new ComboBox<>(); choices.getItems().addAll("Images", "Videos", "Documents");
+            com.austin.fileflow.i18n.I18n.localizeChoices(choices); choices.getSelectionModel().selectFirst();
+            ComboBox<Path> paths = new ComboBox<>(); paths.getItems().addAll(Path.of("Photos"), Path.of("Projects")); paths.getSelectionModel().selectFirst();
+            boxes.add(choices); boxes.add(paths);
+            javafx.scene.layout.HBox root = new javafx.scene.layout.HBox(choices, paths); root.getStyleClass().add("ocean-app");
+            stage = new Stage(); Scene scene = new Scene(root, 650, 300);
+            scene.getStylesheets().addAll(getClass().getResource("/css/app.css").toExternalForm(), getClass().getResource("/css/ocean.css").toExternalForm());
+            stage.setScene(scene); stage.show();
+        });
+        for (ComboBox<?> box : boxes) {
+            onFx(box::show);
+            onFx(() -> {
+                int checked = 0;
+                for (var window : new ArrayList<>(javafx.stage.Window.getWindows())) {
+                    if (!(window instanceof javafx.stage.PopupWindow) || !window.isShowing()) continue;
+                    var root = window.getScene().getRoot(); root.applyCss(); root.layout();
+                    for (Node node : root.lookupAll(".list-cell")) if (node instanceof ListCell<?> cell && !cell.isEmpty()) {
+                        for (String state : List.of("hover", "selected", "focused")) {
+                            cell.pseudoClassStateChanged(javafx.css.PseudoClass.getPseudoClass(state), true); root.applyCss();
+                            var color = (javafx.scene.paint.Color) cell.getBackground().getFills().get(0).getFill();
+                            assertTrue(color.getBrightness() < .9, "Light popup background in " + state);
+                            assertTrue(((javafx.scene.paint.Color) cell.getTextFill()).getBrightness() > .7, "Unreadable popup text");
+                            cell.pseudoClassStateChanged(javafx.css.PseudoClass.getPseudoClass(state), false); checked++;
+                        }
+                    }
+                }
+                assertTrue(checked >= 3); box.hide();
+            });
+        }
+    }
+    @Test void workspaceRemovalKeepsFilesOnDiskAndOtherSavedFolders(@org.junit.jupiter.api.io.TempDir Path directory) throws Exception {
+        Path first = java.nio.file.Files.createDirectory(directory.resolve("RemoveThisShortcut"));
+        Path other = java.nio.file.Files.createDirectory(directory.resolve("KeepThisShortcut"));
+        Path file = java.nio.file.Files.writeString(first.resolve("keep.txt"), "keep my file");
+        onFx(() -> {
+            var view = createWorkspaceView(directory);
+            var folders = (com.austin.fileflow.service.ScanWorkspace) viewField(view, "scanWorkspace"); folders.clear(); folders.addRoot(first); folders.addRoot(other);
+            invokeView(view, "updateOceanStatus", new Class<?>[]{});
+            Button shortcut = (Button) view.getView().lookupAll(".ocean-folder-shortcut").stream().filter(node -> node instanceof Button button && button.getText().equals("RemoveThisShortcut")).findFirst().orElseThrow();
+            assertNotNull(shortcut.getOnContextMenuRequested());
+            invokeView(view, "removeWorkspaceFolder", new Class<?>[]{Path.class}, first);
+            assertEquals(List.of(other), folders.getRoots()); assertTrue(java.nio.file.Files.exists(file));
+            assertEquals(List.of(other), new com.austin.fileflow.service.WorkspaceFoldersStore().load());
+            try { java.util.prefs.Preferences.userNodeForPackage(com.austin.fileflow.service.WorkspaceFoldersStore.class).node("workspace-folders").clear(); }
+            catch (Exception error) { throw new AssertionError(error); }
+        });
+    }
+    @Test void diskCardPanelScrollsAndTogglesWithoutChangingTheSidebar(@org.junit.jupiter.api.io.TempDir Path directory) throws Exception {
+        onFx(() -> {
+            var view = createWorkspaceView(directory);
+            Button anchor = (Button) view.getView().lookup(".sidebar-storage-volumes-button");
+            java.util.concurrent.atomic.AtomicReference<com.austin.fileflow.model.StorageVolume> selected = new java.util.concurrent.atomic.AtomicReference<>();
+            List<com.austin.fileflow.model.StorageVolume> volumes = new ArrayList<>();
+            for (int i = 0; i < 20; i++) volumes.add(new com.austin.fileflow.model.StorageVolume(directory.resolve("drive-" + i), "Drive " + i, 1000, 400));
+            var picker = new VolumePicker(anchor, volume -> {
+                try { var method = view.getClass().getDeclaredMethod("createStorageVolumeCard", com.austin.fileflow.model.StorageVolume.class); method.setAccessible(true); return (javafx.scene.layout.VBox) method.invoke(view, volume); }
+                catch (Exception error) { throw new AssertionError(error); }
+            });
+            try {
+                picker.toggle(volumes, volumes.get(0).getRootPath(), selected::set);
+                assertTrue(picker.isShowing()); var root = picker.getScene().getRoot(); root.applyCss(); root.layout();
+                assertEquals(20, root.lookupAll(".sidebar-storage-volume-card").size());
+                ScrollPane scroll = (ScrollPane) root.lookup(".storage-volume-picker-scroll");
+                assertTrue(scroll.getHeight() <= 420); assertTrue(scroll.getContent().getLayoutBounds().getHeight() > scroll.getViewportBounds().getHeight());
+                picker.toggle(volumes, null, selected::set); assertFalse(picker.isShowing());
+                picker.toggle(volumes, null, selected::set);
+                Node card = picker.getScene().getRoot().lookup(".sidebar-storage-volume-card");
+                card.fireEvent(new javafx.scene.input.KeyEvent(javafx.scene.input.KeyEvent.KEY_PRESSED, "", "", javafx.scene.input.KeyCode.ENTER, false, false, false, false));
+                assertNotNull(selected.get()); assertFalse(picker.isShowing());
+            } finally { picker.hide(); }
+        });
+    }
+    @Test void semanticChartColorsMatchTypesWhenSliceOrderChanges() throws Exception {
+        onFx(() -> {
+            var first = com.austin.fileflow.ui.OceanComponents.donut(java.util.Map.of(FileType.IMAGE, 100L, FileType.DOCUMENT, 10L), "110 B");
+            var second = com.austin.fileflow.ui.OceanComponents.donut(java.util.Map.of(FileType.IMAGE, 10L, FileType.DOCUMENT, 100L), "110 B");
+            javafx.scene.layout.HBox root = new javafx.scene.layout.HBox(first, second); root.getStyleClass().add("ocean-app");
+            stage = new Stage(); stage.setScene(new Scene(root, 600, 300)); stage.getScene().getStylesheets().add(getClass().getResource("/css/ocean.css").toExternalForm()); stage.show(); root.applyCss(); root.layout();
+            assertEquals(FileType.values().length, java.util.Arrays.stream(FileType.values()).map(com.austin.fileflow.ui.OceanComponents::typeColor).distinct().count());
+            java.util.Map<String, javafx.scene.paint.Paint> paints = new java.util.HashMap<>();
+            for (Node node : root.lookupAll(".ocean-donut")) {
+                var chart = (javafx.scene.chart.PieChart) node;
+                for (var data : chart.getData()) {
+                    var paint = ((javafx.scene.layout.Region) data.getNode()).getBackground().getFills().get(0).getFill();
+                    var previous = paints.putIfAbsent(data.getName(), paint); if (previous != null) assertEquals(previous, paint);
+                    javafx.scene.paint.Color sample = paint instanceof javafx.scene.paint.Color color ? color : ((javafx.scene.paint.RadialGradient) paint).getStops().get(0).getColor();
+                    assertEquals(javafx.scene.paint.Color.web(com.austin.fileflow.ui.OceanComponents.typeColor(FileType.valueOf(data.getName()))).getHue(), sample.getHue(), .5);
+                }
+            }
+            assertEquals(2, paints.values().stream().distinct().count());
+        });
+    }
+    @Test void folderManagerShowsSeveralCompactDarkRows(@org.junit.jupiter.api.io.TempDir Path directory) throws Exception {
+        onFx(() -> {
+            var view = createWorkspaceView(directory);
+            var folders = (com.austin.fileflow.service.ScanWorkspace) viewField(view, "scanWorkspace"); folders.clear();
+            for (int i = 0; i < 8; i++) folders.addRoot(directory.resolve("Folder-" + i));
+            java.util.concurrent.atomic.AtomicReference<Throwable> problem = new java.util.concurrent.atomic.AtomicReference<>();
+            java.util.concurrent.atomic.AtomicBoolean found = new java.util.concurrent.atomic.AtomicBoolean();
+            Platform.runLater(() -> {
+                for (var window : new ArrayList<>(javafx.stage.Window.getWindows())) {
+                    if (window == stage || !window.isShowing() || window.getScene() == null) continue;
+                    var root = window.getScene().getRoot();
+                    if (root.lookup(".workspace-roots-scroll") == null) continue;
+                    try {
+                        root.applyCss(); root.layout();
+                        ScrollPane scroll = (ScrollPane) root.lookup(".workspace-roots-scroll");
+                        assertTrue(scroll.getViewportBounds().getHeight() >= 240);
+                        assertEquals(8, root.lookupAll(".workspace-folder-row").size());
+                        for (Node node : root.lookupAll(".workspace-folder-row")) {
+                            var row = (javafx.scene.layout.Region) node;
+                            assertTrue(row.getHeight() <= 56);
+                            assertTrue(((javafx.scene.paint.Color) row.getBackground().getFills().get(0).getFill()).getBrightness() < .5);
+                            Button remove = (Button) row.lookup(".button"); assertTrue(remove.getWidth() >= remove.prefWidth(-1) - 1);
+                        }
+                        found.set(true);
+                    } catch (Throwable error) { problem.set(error); }
+                    finally { window.hide(); }
+                }
+            });
+            invokeView(view, "showScanWorkspaceDialog", new Class<?>[]{});
+            if (problem.get() != null) throw new AssertionError(problem.get());
+            assertTrue(found.get());
+        });
+    }
+    @Test void textInputAndChoiceDialogPromptsDoNotInheritLightPanels(@org.junit.jupiter.api.io.TempDir Path directory) throws Exception {
+        onFx(() -> {
+            var view = createWorkspaceView(directory);
+            for (Dialog<?> dialog : List.of(new TextInputDialog("Example"), new ChoiceDialog<String>("One", List.of("One", "Two")))) {
+                dialog.setContentText("Folder name");
+                java.util.concurrent.atomic.AtomicReference<Throwable> problem = new java.util.concurrent.atomic.AtomicReference<>();
+                Platform.runLater(() -> {
+                    try {
+                        var root = dialog.getDialogPane(); root.applyCss(); root.layout();
+                        int checked = 0;
+                        for (Node node : root.lookupAll(".content")) if (node instanceof Label label) {
+                            if (label.getBackground() != null) for (var fill : label.getBackground().getFills()) {
+                                if (fill.getFill() instanceof javafx.scene.paint.Color color) assertTrue(color.getOpacity() < .9 || color.getBrightness() < .6);
+                            }
+                            assertTrue(((javafx.scene.paint.Color) label.getTextFill()).getBrightness() > .7); checked++;
+                        }
+                        assertTrue(checked > 0);
+                    } catch (Throwable error) { problem.set(error); }
+                    finally { dialog.close(); }
+                });
+                invokeView(view, "showOceanDialog", new Class<?>[]{Dialog.class}, dialog);
+                if (problem.get() != null) throw new AssertionError(problem.get());
+            }
+        });
+    }
     private static final class EmptyActions implements FileRowCell.Actions {
         public Node preview(FileItem item) { return new Label("TXT"); }
         public String location(FileItem item) { return "fixture"; }

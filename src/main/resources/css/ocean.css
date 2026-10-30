@@ -454,3 +454,50 @@
 .ocean-app .sidebar:compact .sidebar-storage-root, .ocean-app .sidebar:compact .sidebar-storage-detail { -fx-font-size: 10px; }
 .ocean-app .sidebar:compact .ocean-sidebar-caption { -fx-padding: 5 10 2 10; }
 .ocean-app .sidebar:compact .ocean-sidebar-workspace { -fx-padding: 4 0 0 0; -fx-spacing: 4; }
+
+/* Complete state rules beat the legacy popup selectors, whose ancestry has higher specificity. */
+.combo-box-popup > .list-view > .virtual-flow > .clipped-container > .sheet > .list-cell {
+    -fx-background-color: #15263d; -fx-text-fill: #e5efff; -fx-background-radius: 6;
+}
+.combo-box-popup > .list-view > .virtual-flow > .clipped-container > .sheet > .list-cell:hover,
+.combo-box-popup > .list-view > .virtual-flow > .clipped-container > .sheet > .list-cell:filled:focused {
+    -fx-background-color: #29466d; -fx-text-fill: #f3f8ff;
+}
+.combo-box-popup > .list-view > .virtual-flow > .clipped-container > .sheet > .list-cell:filled:selected,
+.combo-box-popup > .list-view > .virtual-flow > .clipped-container > .sheet > .list-cell:filled:selected:hover {
+    -fx-background-color: #326bd1; -fx-text-fill: #ffffff;
+}
+.ocean-app .combo-box > .list-cell, .ocean-app .files-filter-combo > .list-cell,
+.ocean-dialog .combo-box > .list-cell { -fx-text-fill: #e5efff; -fx-background-color: transparent; }
+.ocean-app .combo-box-base:focused, .ocean-dialog .combo-box-base:focused { -fx-background-color: #1a2e47; -fx-border-color: #6aa7f8; }
+.ocean-app .files-type-preview { -fx-background-color: #203a5c; -fx-border-color: #385779; -fx-border-width: 1; }
+.ocean-app .files-type-preview .label { -fx-text-fill: #d3e6ff; }
+.ocean-dialog .workspace-folder-row {
+    -fx-padding: 7 10; -fx-spacing: 10; -fx-background-color: #192f49;
+    -fx-background-radius: 7; -fx-border-radius: 7; -fx-border-color: #36516f; -fx-border-width: 1;
+}
+.ocean-dialog .workspace-folder-row:hover { -fx-background-color: #213e5e; }
+.ocean-dialog .workspace-folder-path { -fx-font-size: 12px; -fx-text-fill: #e0ecff; }
+.ocean-dialog .workspace-folder-row .button { -fx-padding: 5 12; -fx-min-height: 28; }
+.ocean-dialog .workspace-drop-zone { -fx-padding: 10 14; }
+.ocean-dialog .workspace-drop-title { -fx-font-size: 14px; }
+.ocean-dialog .workspace-drop-hint { -fx-font-size: 11px; }
+.ocean-dialog .workspace-dialog-content { -fx-spacing: 10; }
+.ocean-dialog .workspace-roots-scroll { -fx-padding: 2; }
+.ocean-app .workspace-folder-list .button.ocean-folder-shortcut { -fx-padding: 3 8; }
+.storage-volume-picker.ocean-app {
+    -fx-background-color: linear-gradient(to bottom right, #213953, #101d30);
+    -fx-background-radius: 11; -fx-border-radius: 11; -fx-border-color: #456482; -fx-padding: 13;
+}
+.storage-volume-picker .sidebar-storage-volume-card { -fx-padding: 12; -fx-spacing: 7; }
+.storage-volume-picker .sidebar-storage-volume-card:hover,
+.storage-volume-picker .sidebar-storage-volume-card:focused { -fx-background-color: #254365; -fx-border-color: #73a6de; }
+.storage-volume-picker .sidebar-storage-volume-card:active { -fx-border-color: #66a7fa; }
+.storage-volume-picker .storage-picker-close { -fx-background-color: transparent; -fx-text-fill: #d3e5ff; -fx-padding: 3 7; -fx-border-width: 0; }
+.storage-volume-picker .storage-picker-close:hover { -fx-background-color: #34516f; }
+.ocean-app .dashboard-type-progress > .bar { -fx-background-color: -file-type-color; }
+.ocean-dialog .workspace-drop-zone { -fx-spacing: 4; -fx-padding: 8 14; }
+.ocean-dialog .workspace-drop-icon { -fx-font-size: 22px; }
+
+/* TextInputDialog and ChoiceDialog put their prompt labels inside a grid, not directly under DialogPane. */
+.ocean-dialog .content.label { -fx-background-color: transparent; -fx-text-fill: #e7f0ff; -fx-padding: 0; }
