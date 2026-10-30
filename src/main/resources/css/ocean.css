@@ -417,3 +417,14 @@
 
 /* Prefer a native UI font with proper Chinese glyphs rather than a serif fallback. */
 .ocean-app.language-zh, .ocean-dialog.language-zh { -fx-font-family: "Microsoft YaHei UI"; }
+
+/* Static video posters share the image preview surface; no embedded players. */
+.video-thumbnail { -fx-background-color: #101e32; -fx-background-radius: 8; }
+.video-thumbnail .file-preview-placeholder { -fx-font-size: 16px; -fx-text-fill: #adc9ee; }
+.video-thumbnail-badge {
+    -fx-background-color: rgba(4, 12, 25, 0.82);
+    -fx-background-radius: 4;
+    -fx-padding: 1 4 2 4;
+    -fx-font-size: 9px;
+    -fx-text-fill: #f4f8ff;
+}

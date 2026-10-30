@@ -157,13 +157,11 @@ public class FileScanService {
             return FileType.OTHER;
         }
 
+        if (VideoThumbnailDecoder.supportsExtension(extension)) return FileType.VIDEO;
         return switch (extension) {
             case "jpg", "jpeg", "png", "gif", "webp" ->
                 FileType.IMAGE;
             
-            case "mp4", "mov", "mkv", "avi" ->
-                FileType.VIDEO;
-
             case "mp3", "wav", "flac", "aac" ->
                 FileType.AUDIO;
 

@@ -43,11 +43,28 @@ public class FilePreviewFactory {
     private final com.austin.fileflow.service.ThumbnailLoader thumbnails =
             new com.austin.fileflow.service.ThumbnailLoader();
 
+    private final com.austin.fileflow.service.ThumbnailLoader videoThumbnails =
+            com.austin.fileflow.service.ThumbnailLoader.forVideos();
+
+    public Node createVideoPreview(Path path, int width, int height) {
+        StackPane preview = new StackPane(new ThumbnailView(videoThumbnails, path, width, height, "▶", true));
+        preview.setMinSize(width, height); preview.setPrefSize(width, height); preview.setMaxSize(width, height);
+        preview.getStyleClass().addAll("file-preview", "video-thumbnail");
+        preview.setAccessibleText(tr("video.preview.accessible", path.getFileName()));
+        Label badge = new Label("▶");
+        badge.getStyleClass().add("video-thumbnail-badge");
+        badge.setMouseTransparent(true);
+        StackPane.setAlignment(badge, Pos.BOTTOM_RIGHT);
+        StackPane.setMargin(badge, new Insets(3));
+        preview.getChildren().add(badge);
+        return preview;
+    }
+
     public Node createImagePreview(Path path, int width, int height, String fallback) {
         return new ThumbnailView(thumbnails, path, width, height, fallback);
     }
 
-    public void close() { thumbnails.close(); }
+    public void close() { thumbnails.close(); videoThumbnails.close(); }
 
     private final Map<Path, CompletableFuture<byte[]>> nativeIconCache =
         new ConcurrentHashMap<>();
@@ -67,6 +84,7 @@ public class FilePreviewFactory {
 
     public void invalidate(Path path) {
         thumbnails.invalidate(path);
+        videoThumbnails.invalidate(path);
 
         nativeIconCache.remove(
                 path.toAbsolutePath().normalize()
@@ -75,6 +93,7 @@ public class FilePreviewFactory {
 
     public void clearCache() {
         thumbnails.clear();
+        videoThumbnails.clear();
     }
 
    private String getBadgeType(FileItem item) {
@@ -323,23 +342,7 @@ public class FilePreviewFactory {
         }
 
         if (item.getType() == FileType.VIDEO) {
-
-            Label playLabel =
-                    new Label("▶");
-
-            playLabel.getStyleClass().add(
-                    "file-preview-play"
-            );
-
-            preview.getChildren().add(
-                    playLabel
-            );
-
-            preview.getStyleClass().add(
-                    "file-preview-video"
-            );
-
-            return preview;
+            return createVideoPreview(item.getPath(), 56, 42);
         }
 
         Label placeholder =

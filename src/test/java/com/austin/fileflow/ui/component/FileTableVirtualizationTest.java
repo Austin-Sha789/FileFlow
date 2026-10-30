@@ -93,6 +93,33 @@ class FileTableVirtualizationTest {
             assertTrue(created.get() < 40);
         });
     }
+    @Test void videoPostersAreUsedByUnifiedStoredAndQuickInfoPreviews(@org.junit.jupiter.api.io.TempDir Path directory) throws Exception {
+        onFx(() -> {
+            FilePreviewFactory previews = new FilePreviewFactory();
+            try {
+                var db = new com.austin.fileflow.database.DatabaseManager("jdbc:sqlite:" + directory.resolve("previews.db"));
+                db.initialiseDatabase();
+                var view = new com.austin.fileflow.ui.MainView(
+                        new com.austin.fileflow.repository.FavouriteRepo(db), new com.austin.fileflow.repository.TagRepo(db),
+                        new com.austin.fileflow.repository.ScanHistoryRepo(db), new com.austin.fileflow.service.ShortcutManager(),
+                        new com.austin.fileflow.platform.FilePlatformService(), new com.austin.fileflow.service.FileScanService(),
+                        new com.austin.fileflow.service.DuplicateService(), new com.austin.fileflow.service.StorageService(), previews);
+                Path video = directory.resolve("clip.mp4");
+                var time = LocalDateTime.of(2026, 1, 1, 0, 0);
+                FileItem item = new FileItem(video, "clip.mp4", "mp4", 10, time, time, FileType.VIDEO, false, false, Set.of());
+                var unified = view.getClass().getDeclaredMethod("createUnifiedFilePreview", FileItem.class);
+                unified.setAccessible(true);
+                assertTrue(((Node) unified.invoke(view, item)).getStyleClass().contains("video-thumbnail"));
+                var stored = view.getClass().getDeclaredMethod("createStoredFilePreview", Path.class);
+                stored.setAccessible(true);
+                assertTrue(((Node) stored.invoke(view, video)).getStyleClass().contains("video-thumbnail"));
+                var quick = view.getClass().getDeclaredMethod("createQuickInfoPreview", Path.class, String.class);
+                quick.setAccessible(true);
+                assertTrue(((Node) quick.invoke(view, video, "Video")).getStyleClass().contains("video-thumbnail"));
+            } catch (Exception error) { throw new AssertionError(error); }
+            finally { previews.close(); }
+        });
+    }
     private static final class EmptyActions implements FileRowCell.Actions {
         public Node preview(FileItem item) { return new Label("TXT"); }
         public String location(FileItem item) { return "fixture"; }

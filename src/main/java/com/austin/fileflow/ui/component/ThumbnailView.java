@@ -30,8 +30,15 @@ public final class ThumbnailView extends StackPane {
     private final PauseTransition settle = new PauseTransition(Duration.millis(100));
     private CompletableFuture<ThumbnailLoader.Thumbnail> request;
     private boolean failed;
+    private final boolean retainFallbackOnFailure;
 
     public ThumbnailView(ThumbnailLoader loader, Path path, int width, int height, String fallback) {
+        this(loader, path, width, height, fallback, false);
+    }
+
+    public ThumbnailView(ThumbnailLoader loader, Path path, int width, int height, String fallback, boolean retainFallbackOnFailure) {
+        this.retainFallbackOnFailure = retainFallbackOnFailure;
+        if (retainFallbackOnFailure) settle.setDuration(Duration.millis(220));
         this.loader = loader; this.path = path;
         pixelWidth = width * 2; pixelHeight = height * 2;
         setMinSize(width, height); setPrefSize(width, height); setMaxSize(width, height);
@@ -91,7 +98,7 @@ public final class ThumbnailView extends StackPane {
                 if (error != null) {
                     if (error instanceof RejectedExecutionException || future.isCancelled()) {
                         settle.setDuration(Duration.millis(180)); settle.playFromStart();
-                    } else { failed = true; placeholder.setText(tr("ui.preview_unavailable")); }
+                    } else { failed = true; if (!retainFallbackOnFailure) placeholder.setText(tr("ui.preview_unavailable")); }
                     return;
                 }
                 WritableImage pixels = new WritableImage(thumbnail.width(), thumbnail.height());

@@ -1613,6 +1613,7 @@ public class MainView {
         }
 
         if (item.getType() == FileType.IMAGE
+                || item.getType() == FileType.VIDEO
                 || filePreviewFactory.hasSignatureBadge(item)
                 || filePreviewFactory.hasNativeAppIcon(item)) {
 
@@ -9229,6 +9230,8 @@ public class MainView {
                         folder.setScaleX(2.2);
                         folder.setScaleY(2.2);
                         previewBox.getChildren().add(folder);
+                } else if ("Video".equals(type) || com.austin.fileflow.service.VideoThumbnailDecoder.supports(path)) {
+                        return filePreviewFactory.createVideoPreview(path, width, height);
                 } else if (isImage) {
                         return filePreviewFactory.createImagePreview(path, width, height, tr("ui.loading_preview"));
                 } else {
@@ -9279,6 +9282,9 @@ public class MainView {
                         ".*\\.(jpg|jpeg|png|gif|bmp)"
                 );
 
+                if (com.austin.fileflow.service.VideoThumbnailDecoder.supports(filePath)) {
+                        return filePreviewFactory.createVideoPreview(filePath, 56, 42);
+                }
                 if (!isImage) return filePreviewFactory.createFallback();
                 return filePreviewFactory.createImagePreview(filePath, 56, 42, tr("ui.image"));
         }

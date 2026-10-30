@@ -28,3 +28,5 @@ Thumbs.db
 out/
 dist/
 build/
+# Downloaded video engine; recreate with scripts/setup-video-thumbnails.ps1
+tools/ffmpeg/*.zip

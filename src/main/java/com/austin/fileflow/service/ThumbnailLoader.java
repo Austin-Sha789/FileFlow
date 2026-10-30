@@ -39,13 +39,21 @@ public final class ThumbnailLoader implements AutoCloseable {
     private int cachedPixels;
     private static final int MAX_CACHED_PIXELS = 4 * 1024 * 1024;
     private boolean closed;
+    private final boolean memoryCache;
+    private final boolean interruptRunning;
 
     public ThumbnailLoader() { this(2, 32, ThumbnailLoader::decode); }
-    ThumbnailLoader(int workers, int queueSize, Decoder decoder) {
+    public static ThumbnailLoader forVideos() {
+        return new ThumbnailLoader(1, 16, new VideoThumbnailDecoder(), false, true);
+    }
+    ThumbnailLoader(int workers, int queueSize, Decoder decoder) { this(workers, queueSize, decoder, true, false); }
+    ThumbnailLoader(int workers, int queueSize, Decoder decoder, boolean memoryCache, boolean interruptRunning) {
+        this.memoryCache = memoryCache;
+        this.interruptRunning = interruptRunning;
         this.decoder = decoder;
         executor = new ThreadPoolExecutor(workers, workers, 0, TimeUnit.MILLISECONDS,
                 new ArrayBlockingQueue<>(queueSize), runnable -> {
-                    Thread worker = new Thread(runnable, "fileflow-thumbnail");
+                    Thread worker = new Thread(runnable, interruptRunning ? "fileflow-video-thumbnail" : "fileflow-thumbnail");
                     worker.setDaemon(true);
                     worker.setPriority(Thread.NORM_PRIORITY - 1);
                     return worker;
@@ -76,7 +84,7 @@ public final class ThumbnailLoader implements AutoCloseable {
     private synchronized void release(Job job, CompletableFuture<Thumbnail> subscriber) {
         job.subscribers.remove(subscriber);
         if (job.subscribers.isEmpty() && pending.remove(job.key, job)) {
-            job.task.cancel(false);
+            job.task.cancel(interruptRunning);
             executor.remove(job.task);
         }
     }
@@ -87,7 +95,7 @@ public final class ThumbnailLoader implements AutoCloseable {
             if (!pending.remove(job.key, job)) return;
             subscribers = new ArrayList<>(job.subscribers);
             job.subscribers.clear();
-            if (thumbnail != null) {
+            if (thumbnail != null && memoryCache) {
                 cache.put(job.key, thumbnail);
                 cachedPixels += thumbnail.pixels().length;
                 while (cache.size() > 256 || cachedPixels > MAX_CACHED_PIXELS) {
@@ -117,7 +125,7 @@ public final class ThumbnailLoader implements AutoCloseable {
 
     private void cancel(Job job) {
         pending.remove(job.key, job);
-        job.task.cancel(false);
+        job.task.cancel(interruptRunning);
         executor.remove(job.task);
         var subscribers = new ArrayList<>(job.subscribers);
         job.subscribers.clear();
@@ -148,7 +156,8 @@ public final class ThumbnailLoader implements AutoCloseable {
     }
 
     static Thumbnail decode(Key key) throws IOException {
-        try (var input = new MemoryCacheImageInputStream(Files.newInputStream(key.path()))) {
+        try (var source = Files.newInputStream(key.path());
+             var input = new MemoryCacheImageInputStream(source)) {
             var readers = ImageIO.getImageReaders(input);
             if (!readers.hasNext()) throw new IOException("Unsupported image");
             ImageReader reader = readers.next();

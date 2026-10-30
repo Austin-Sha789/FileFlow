@@ -48,6 +48,15 @@
 
 
   <build>
+    <resources>
+      <resource><directory>src/main/resources</directory></resource>
+      <resource>
+        <directory>tools/ffmpeg</directory>
+        <targetPath>native</targetPath>
+        <includes><include>*.zip</include></includes>
+        <filtering>false</filtering>
+      </resource>
+    </resources>
     <pluginManagement><!-- lock down plugins versions to avoid using Maven defaults (may be moved to parent pom) -->
       <plugins>
         <!-- clean lifecycle, see https://maven.apache.org/ref/current/maven-core/lifecycles.html#clean_Lifecycle -->
@@ -93,6 +102,14 @@
     </pluginManagement>
 
     <plugins>
+      <plugin>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <systemPropertyVariables>
+            <java.util.prefs.PreferencesFactory>com.austin.fileflow.support.MemoryPreferencesFactory</java.util.prefs.PreferencesFactory>
+          </systemPropertyVariables>
+        </configuration>
+      </plugin>
       <plugin>
           <groupId>org.openjfx</groupId>
           <artifactId>javafx-maven-plugin</artifactId>
