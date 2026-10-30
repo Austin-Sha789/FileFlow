@@ -119,4 +119,27 @@ public class DatabaseManagerTest {
             }
     }
     
+
+    @Test void userDataDirectoriesAreIndependentOfTheInstallFolder() {
+        org.junit.jupiter.api.Assertions.assertEquals(Path.of("home", "Library", "Application Support", "FileFlow"), DatabaseManager.dataDirectory("Mac OS X", "home", null, null));
+        org.junit.jupiter.api.Assertions.assertEquals(Path.of("local", "FileFlow"), DatabaseManager.dataDirectory("Windows 11", "home", "local", null));
+        org.junit.jupiter.api.Assertions.assertEquals(Path.of("home", "AppData", "Local", "FileFlow"), DatabaseManager.dataDirectory("Windows 11", "home", null, null));
+    }
+    @Test void legacyDatabaseIsCopiedConsistentlyWithoutRemovingOrOverwritingData() throws Exception {
+        Path legacy=tempDir.resolve("old.db"), target=tempDir.resolve("user's data/fileflow.db");
+        var old=new DatabaseManager("jdbc:sqlite:"+legacy);old.initialiseDatabase();
+        try(var connection=old.getConnection();var statement=connection.createStatement()) {
+            statement.execute("PRAGMA journal_mode=WAL");statement.execute("INSERT INTO favourites VALUES ('saved-photo.jpg')");
+            DatabaseManager.prepareManagedDatabase(target,legacy);
+        }
+        org.junit.jupiter.api.Assertions.assertTrue(java.nio.file.Files.exists(legacy));
+        try(var connection=new DatabaseManager("jdbc:sqlite:"+target).getConnection();var statement=connection.createStatement();var result=statement.executeQuery("SELECT file_path FROM favourites")) {
+            assertTrue(result.next());org.junit.jupiter.api.Assertions.assertEquals("saved-photo.jpg",result.getString(1));
+        }
+        try(var connection=old.getConnection();var statement=connection.createStatement()){statement.execute("DELETE FROM favourites");}
+        DatabaseManager.prepareManagedDatabase(target,legacy);
+        try(var connection=new DatabaseManager("jdbc:sqlite:"+target).getConnection();var statement=connection.createStatement();var result=statement.executeQuery("SELECT count(*) FROM favourites")) {
+            assertTrue(result.next());org.junit.jupiter.api.Assertions.assertEquals(1,result.getInt(1));
+        }
+    }
 }
