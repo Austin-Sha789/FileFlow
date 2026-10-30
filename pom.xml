@@ -6,7 +6,7 @@
 
   <groupId>com.austin</groupId>
   <artifactId>fileflow</artifactId>
-  <version>1.0.0-SNAPSHOT</version>
+  <version>1.0.0</version>
 
   <name>fileflow</name>
   <!-- FIXME change it to the project's website -->
@@ -89,6 +89,12 @@
         <plugin>
           <artifactId>maven-jar-plugin</artifactId>
           <version>3.0.2</version>
+          <configuration>
+            <archive><manifest>
+              <mainClass>com.austin.fileflow.Launcher</mainClass>
+              <addClasspath>true</addClasspath><classpathPrefix>lib/</classpathPrefix>
+            </manifest></archive>
+          </configuration>
         </plugin>
         <plugin>
           <artifactId>maven-install-plugin</artifactId>
