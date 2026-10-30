@@ -65,5 +65,6 @@ public class App extends Application
         OceanWindowChrome.install(stage, scene);
         stage.setScene(scene);
         stage.show();
+        AppIcon.installDockIcon();
     }
 }

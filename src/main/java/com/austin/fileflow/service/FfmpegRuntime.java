@@ -89,17 +89,50 @@ final class FfmpegRuntime {
                 } finally { lock.release(); }
             }
         }
-        // Allows development on other platforms; distributable Mac bundles will supply their own engine.
-        String path = System.getenv("PATH");
-        if (path != null) for (String directory : path.split(java.io.File.pathSeparator)) {
-            if (directory.isBlank()) continue;
-            Path candidate = Path.of(directory).resolve(os.contains("win") ? "ffmpeg.exe" : "ffmpeg");
-            if (Files.isRegularFile(candidate) && Files.isExecutable(candidate)) return candidate;
-        }
+        Path installed = findInstalled(os, System.getenv("PATH"), java.io.File.pathSeparator,
+                List.of(Path.of("/opt/homebrew/bin"), Path.of("/usr/local/bin"), Path.of("/opt/local/bin")));
+        if (installed != null) return installed;
         throw new IOException("No FFmpeg engine for this platform");
     }
 
+    /** GUI launches on macOS often omit Homebrew from PATH. No shell or network needed. */
+    static Path findInstalled(String os, String searchPath, String separator, List<Path> macDirectories) {
+        return findInstalled(os, searchPath, separator, macDirectories,
+                candidate -> Files.isRegularFile(candidate) && Files.isExecutable(candidate));
+    }
+
+    static Path findInstalled(String os, String searchPath, String separator, List<Path> macDirectories,
+            java.util.function.Predicate<Path> executableCheck) {
+        var directories = new LinkedHashSet<Path>();
+        if (searchPath != null) for (String directory : searchPath.split(java.util.regex.Pattern.quote(separator))) {
+            if (directory.isBlank()) continue;
+            try { directories.add(Path.of(directory)); } catch (InvalidPathException ignored) { }
+        }
+        if (os.contains("mac")) directories.addAll(macDirectories);
+        for (Path directory : directories) {
+            Path candidate = directory.resolve(os.contains("win") ? "ffmpeg.exe" : "ffmpeg");
+            if (executableCheck.test(candidate)) return candidate.toAbsolutePath().normalize();
+        }
+        return null;
+    }
+
     static void extractFrame(Path video, Path image) throws IOException {
+        extractFrame(video, image, System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("mac"),
+                FfmpegRuntime::extractFfmpegFrame, MacQuickLookThumbnail::extract);
+    }
+
+    static void extractFrame(Path video, Path image, boolean mac,
+            VideoThumbnailDecoder.FrameExtractor primary, VideoThumbnailDecoder.FrameExtractor fallback) throws IOException {
+        try { primary.extract(video, image); }
+        catch (IOException primaryFailure) {
+            checkInterrupted();
+            if (!mac) throw primaryFailure;
+            try { fallback.extract(video, image); }
+            catch (IOException nativeFailure) { nativeFailure.addSuppressed(primaryFailure); throw nativeFailure; }
+        }
+    }
+
+    private static void extractFfmpegFrame(Path video, Path image) throws IOException {
         Path executable = executable();
         // A short clip may contain no frame at one second. Retry at its beginning.
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);

@@ -187,12 +187,13 @@ class FileTableVirtualizationTest {
         while (!ready.get() && System.nanoTime() < deadline) { onFx(() -> ready.set(condition.getAsBoolean())); if (!ready.get()) Thread.sleep(20); }
         assertTrue(ready.get(), "Application did not reach the expected state");
     }
-    @Test void scansAppendFoldersAndCachedResultsCanBeReopened(@org.junit.jupiter.api.io.TempDir Path directory) throws Exception {
+    @Test void temporaryScansDoNotChangeSavedFoldersAndSavedResultsCanBeReopened(@org.junit.jupiter.api.io.TempDir Path directory) throws Exception {
         var preferences = java.util.prefs.Preferences.userNodeForPackage(com.austin.fileflow.service.WorkspaceFoldersStore.class).node("workspace-folders");
         preferences.clear();
         Path first = java.nio.file.Files.createDirectory(directory.resolve("First"));
         Path second = java.nio.file.Files.createDirectory(directory.resolve("Second"));
         java.nio.file.Files.writeString(first.resolve("one.txt"), "one"); java.nio.file.Files.writeString(second.resolve("two.txt"), "two");
+        assertTrue(new com.austin.fileflow.service.WorkspaceFoldersStore().save(List.of(first)));
         java.util.concurrent.atomic.AtomicReference<com.austin.fileflow.ui.MainView> view = new java.util.concurrent.atomic.AtomicReference<>();
         try {
             onFx(() -> { view.set(createWorkspaceView(directory)); invokeView(view.get(), "startScan", new Class<?>[]{Path.class}, first); });
@@ -204,7 +205,10 @@ class FileTableVirtualizationTest {
                 assertEquals(2, snapshot.completedFolderCount());
                 assertTrue(snapshot.resultsByRoot().containsKey(first)); assertTrue(snapshot.resultsByRoot().containsKey(second));
                 var folders = (com.austin.fileflow.service.ScanWorkspace) viewField(view.get(), "scanWorkspace");
-                assertEquals(List.of(first, second), folders.getRoots());
+                assertEquals(List.of(first), folders.getRoots());
+                assertEquals(List.of(first), new com.austin.fileflow.service.WorkspaceFoldersStore().load());
+                assertTrue(stage.getScene().getRoot().lookupAll(".ocean-folder-shortcut").stream()
+                        .noneMatch(node -> node instanceof Button button && button.getText().equals("Second")));
                 Button shortcut = (Button) stage.getScene().getRoot().lookupAll(".ocean-folder-shortcut").stream()
                         .filter(node -> node instanceof Button button && button.getText().equals("First")).findFirst().orElseThrow();
                 shortcut.fire();
@@ -212,9 +216,27 @@ class FileTableVirtualizationTest {
                 var result = (com.austin.fileflow.model.ScanResult) viewField(view.get(), "latestScanResult");
                 assertTrue(result.getItems().stream().anyMatch(item -> item.getName().equals("one.txt")));
                 stage.close(); view.set(createWorkspaceView(directory));
-                assertEquals(List.of(first, second), ((com.austin.fileflow.service.ScanWorkspace) viewField(view.get(), "scanWorkspace")).getRoots());
+                assertEquals(List.of(first), ((com.austin.fileflow.service.ScanWorkspace) viewField(view.get(), "scanWorkspace")).getRoots());
             });
         } finally { preferences.clear(); }
+    }
+    @Test void scanWithEmptyLibraryDoesNotCreateAFallbackShortcut(@org.junit.jupiter.api.io.TempDir Path directory) throws Exception {
+        var store = new com.austin.fileflow.service.WorkspaceFoldersStore(); store.save(List.of());
+        Path folder = java.nio.file.Files.createDirectory(directory.resolve("Temporary"));
+        java.nio.file.Files.writeString(folder.resolve("one.txt"), "one");
+        var view = new java.util.concurrent.atomic.AtomicReference<com.austin.fileflow.ui.MainView>();
+        try {
+            onFx(() -> { view.set(createWorkspaceView(directory)); invokeView(view.get(), "startScan", new Class<?>[]{Path.class}, folder); });
+            awaitCondition(() -> folder.equals(viewField(view.get(), "scanRootPath")) && Boolean.FALSE.equals(viewField(view.get(), "scanning")));
+            onFx(() -> {
+                assertTrue(store.load().isEmpty());
+                assertTrue(((com.austin.fileflow.service.ScanWorkspace) viewField(view.get(), "scanWorkspace")).getRoots().isEmpty());
+                assertTrue(((Parent) viewField(view.get(), "oceanWorkspaceRoots")).lookupAll(".ocean-folder-shortcut").isEmpty());
+                assertNotNull(viewField(view.get(), "latestScanResult"));
+                stage.close(); view.set(createWorkspaceView(directory));
+                assertTrue(((com.austin.fileflow.service.ScanWorkspace) viewField(view.get(), "scanWorkspace")).getRoots().isEmpty());
+            });
+        } finally { store.save(List.of()); }
     }
     @Test void onlyTheFolderAreaScrollsAndDotsNavigateTheWholeLibrary(@org.junit.jupiter.api.io.TempDir Path directory) throws Exception {
         java.util.concurrent.atomic.AtomicReference<com.austin.fileflow.ui.MainView> view = new java.util.concurrent.atomic.AtomicReference<>();

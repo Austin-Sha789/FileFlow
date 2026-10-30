@@ -13,10 +13,13 @@ import static org.junit.jupiter.api.Assertions.*;
 class VideoThumbnailIntegrationTest {
     @TempDir Path directory;
     private Path clip(String name, String codec, String length) throws Exception {
+        return clip(name, codec, length, "320x180");
+    }
+    private Path clip(String name, String codec, String length, String dimensions) throws Exception {
         Path path = directory.resolve(name);
         Path log = directory.resolve(name + ".log");
         var command = List.of(FfmpegRuntime.executable().toString(), "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
-                "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=10", "-t", length,
+                "-f", "lavfi", "-i", "testsrc2=size=" + dimensions + ":rate=10", "-t", length,
                 "-an", "-threads", "1", "-c:v", codec, path.toString());
         FfmpegRuntime.run(command, log, Duration.ofSeconds(20));
         assertTrue(Files.size(path) > 0);
@@ -31,6 +34,29 @@ class VideoThumbnailIntegrationTest {
             assertEquals(63, result.height(), format.getKey());
             assertTrue(Arrays.stream(result.pixels()).distinct().count() > 10, "Poster should contain an actual video frame");
         }
+    }
+    private String encoder(String... candidates) throws Exception {
+        Path output = directory.resolve("encoders.txt");
+        FfmpegRuntime.run(List.of(FfmpegRuntime.executable().toString(), "-hide_banner", "-encoders"), output, Duration.ofSeconds(5));
+        String encoders = Files.readString(output);
+        return Arrays.stream(candidates).filter(encoders::contains).findFirst().orElseThrow(() -> new AssertionError("No test encoder available"));
+    }
+    @Test void quickTimeH264AndHevcMovProduceActualFrames() throws Exception {
+        var decoder = new VideoThumbnailDecoder(directory.resolve("cache"), FfmpegRuntime::extractFrame);
+        for (String codec : List.of(encoder("libx264", "libopenh264"), encoder("libx265", "libkvazaar"))) {
+            Path video = clip("拍摄 ' & " + codec + ".MOV", codec, "1.5", "320x192");
+            var result = decoder.decode(new ThumbnailLoader.Key(video, 112, 84));
+            assertEquals(112, result.width()); assertEquals(67, result.height());
+            assertTrue(Arrays.stream(result.pixels()).distinct().count() > 10);
+        }
+    }
+    @Test @org.junit.jupiter.api.condition.EnabledOnOs(org.junit.jupiter.api.condition.OS.MAC)
+    void actualMacQuickLookDecodesMovWithoutUsingFfmpegForExtraction() throws Exception {
+        Path video = clip("native quicklook.MOV", "mpeg4", "2");
+        var decoder = new VideoThumbnailDecoder(directory.resolve("cache"), MacQuickLookThumbnail::extract);
+        var result = decoder.decode(new ThumbnailLoader.Key(video, 112, 84));
+        assertTrue(result.width() > 0 && result.height() > 0);
+        assertTrue(Arrays.stream(result.pixels()).distinct().count() > 10);
     }
     @Test void subSecondClipFallsBackToBeginning() throws Exception {
         Path video = clip("short.mp4", "mpeg4", "0.2");

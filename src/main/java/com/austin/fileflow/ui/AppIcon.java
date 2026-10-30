@@ -21,6 +21,25 @@ public final class AppIcon {
         return view;
     }
 
+    /** Stage icons do not control the process-wide macOS Dock icon. */
+    public static void installDockIcon() {
+        if (!System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("mac")) return;
+        java.awt.EventQueue.invokeLater(() -> {
+            try {
+                if (!java.awt.Taskbar.isTaskbarSupported()) return;
+                var taskbar = java.awt.Taskbar.getTaskbar();
+                if (!taskbar.isSupported(java.awt.Taskbar.Feature.ICON_IMAGE)) return;
+                try (var stream = AppIcon.class.getResourceAsStream("/icons/fileflow.png")) {
+                    var image = javax.imageio.ImageIO.read(stream);
+                    if (image != null) taskbar.setIconImage(image);
+                }
+            } catch (java.io.IOException | UnsupportedOperationException | SecurityException error) {
+                // Some launchers do not expose a Dock; never prevent the window from opening.
+                System.getLogger(AppIcon.class.getName()).log(System.Logger.Level.DEBUG, "Dock icon unavailable", error);
+            }
+        });
+    }
+
     public static void install(Stage stage) {
         stage.getIcons().clear();
         for (int size : new int[] {16, 24, 32, 48, 64, 128, 256}) {

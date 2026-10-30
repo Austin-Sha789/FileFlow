@@ -1037,7 +1037,6 @@ public class MainView {
         }
         if (oceanWorkspaceRoots == null) return;
         List<Path> roots = new ArrayList<>(scanWorkspace.getRoots());
-        if (roots.isEmpty() && scanRootPath != null) roots.add(scanRootPath);
         oceanWorkspaceRoots.setFolders(roots, scanRootPath, path -> {
             if (scanning) return;
             if (lastWorkspaceScanSnapshot != null && lastWorkspaceScanSnapshot.resultsByRoot().containsKey(path)) {
@@ -5541,8 +5540,7 @@ public class MainView {
                         WorkspaceScanSnapshot completed = scanTask.getValue();
                         latestScanResult = completed.resultsByRoot().get(selectedPath.toAbsolutePath().normalize());
                         lastWorkspaceScanSnapshot = completed.resultsByRoot().size() > 1 ? completed : null;
-                        scanWorkspace.addRoot(selectedPath);
-                        saveWorkspaceFolders();
+                        // Scanning is temporary. Only Manage Folders changes the saved library.
 
                         rebuildScannedItemIndex();
 
