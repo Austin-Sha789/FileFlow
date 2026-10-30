@@ -1,0 +1,419 @@
+/* FileFlow Ocean. Loaded after the original component stylesheet. */
+.ocean-app, .ocean-dialog {
+    -ocean-bg: #070c15;
+    -ocean-panel: #0c1422;
+    -ocean-raised: #141f30;
+    -ocean-hover: #1c2b40;
+    -ocean-line: #283950;
+    -ocean-text: #f3f6fc;
+    -ocean-muted: #a0aec2;
+    -ocean-blue: #438cff;
+    -ocean-tint: #152f52;
+    -ocean-glass-top: #1b2e48;
+    -ocean-glass-body: #142338;
+    -fx-base: #141f30;
+    -fx-background: #0c1422;
+    -fx-control-inner-background: #101c2d;
+    -fx-accent: #438cff;
+    -fx-focus-color: #438cff;
+    -fx-faint-focus-color: rgba(67,140,255,0.16);
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 13px;
+    -fx-background-color: -ocean-bg;
+    -fx-text-fill: -ocean-text;
+}
+.ocean-app { -fx-padding: 8; }
+.ocean-app .label, .ocean-dialog .label { -fx-text-fill: -ocean-text; }
+.ocean-app .content {
+    -fx-background-color: linear-gradient(to bottom right, #12253f 0%, #0c1422 55%);
+    -fx-background-radius: 12;
+    -fx-padding: 24;
+    -fx-spacing: 20;
+}
+.ocean-app .ff-command-bar { -fx-background-color: transparent; -fx-padding: 6 12 6 8; -fx-min-height: 60; }
+.ocean-app .ocean-brand { -fx-font-size: 23px; -fx-font-weight: bold; -fx-text-fill: #f3f6fc; }
+.ocean-app .ff-command-search-box {
+    -fx-background-color: linear-gradient(to bottom, #20354f, #152438);
+    -fx-background-radius: 26;
+    -fx-border-radius: 26;
+    -fx-border-color: rgba(190,220,255,0.19);
+    -fx-border-width: 1;
+    -fx-padding: 4 12;
+    -fx-effect: innershadow(gaussian, rgba(213,233,255,0.09), 5, 0, 0, 1);
+}
+.ocean-app .ff-command-search-field { -fx-background-color: transparent; -fx-border-color: transparent; -fx-text-fill: -ocean-text; -fx-prompt-text-fill: #9daec6; -fx-padding: 7 2; -fx-font-size: 13px; }
+.ocean-app .ocean-key-hint { -fx-background-color: #293b55; -fx-background-radius: 5; -fx-padding: 3 6; -fx-font-size: 10px; -fx-text-fill: #c3d1e4; }
+.ocean-app .ocean-workspace-button { -fx-background-color: transparent; -fx-border-color: transparent; -fx-text-fill: #b4c5de; }
+.ocean-app .ocean-sidebar-scroll, .ocean-app .ocean-sidebar-scroll > .viewport { -fx-background-color: #0e192a; -fx-background-radius: 12; -fx-padding: 0; -fx-border-width: 0; }
+.ocean-app .sidebar { -fx-background-color: linear-gradient(to bottom, #142239, #0c1422 65%); -fx-background-radius: 12; -fx-padding: 12 10; -fx-spacing: 5; -fx-border-width: 0; }
+.ocean-app .nav-item { -fx-padding: 10 12; -fx-font-size: 13px; -fx-text-fill: #a5b4ca; -fx-background-radius: 8; -fx-border-width: 0; }
+.ocean-app .nav-item:hover { -fx-background-color: #19283d; -fx-text-fill: -ocean-text; }
+.ocean-app .nav-item-selected, .ocean-app .nav-item-selected:hover { -fx-background-color: #19375c; -fx-text-fill: #f4f8ff; -fx-font-weight: bold; }
+.ocean-app .sidebar-icon { -fx-fill: transparent; -fx-stroke: #a1b7d6; -fx-stroke-width: 1.7; -fx-stroke-line-cap: round; -fx-stroke-line-join: round; }
+.ocean-app .nav-item-selected .sidebar-icon { -fx-stroke: #7bb5ff; }
+.ocean-app .ocean-sidebar-caption { -fx-font-size: 10px; -fx-text-fill: #96a9c5; -fx-padding: 10 10 3 10; }
+.ocean-app .ocean-sidebar-workspace { -fx-padding: 8 0 0 0; }
+.ocean-app .ocean-folder-shortcut { -fx-background-color: transparent; -fx-border-width: 0; -fx-padding: 6 10; -fx-alignment: center-left; -fx-text-fill: #a9bad3; -fx-font-size: 12px; }
+.ocean-app .ocean-folder-shortcut:hover { -fx-background-color: #19283d; }
+.ocean-app .sidebar-storage-card, .ocean-app .sidebar-storage-volume-card { -fx-background-color: linear-gradient(to bottom right, #1d304a, #111f32); -fx-background-radius: 10; -fx-border-radius: 10; -fx-border-color: rgba(190,220,255,0.14); -fx-padding: 13; -fx-spacing: 8; }
+.ocean-app .sidebar-storage-name { -fx-text-fill: #ebf3ff; -fx-font-size: 12px; -fx-font-weight: bold; }
+.ocean-app .sidebar-storage-root, .ocean-app .sidebar-storage-detail { -fx-text-fill: #a5b8d4; -fx-font-size: 11px; }
+.ocean-app .sidebar-storage-volumes-button { -fx-background-color: transparent; -fx-border-width: 0; -fx-padding: 2; }
+.ocean-app .sidebar-storage-scroll, .ocean-app .sidebar-storage-scroll > .viewport { -fx-background-color: transparent; }
+.ocean-app .page-title { -fx-text-fill: #f3f6fc; -fx-font-size: 29px; -fx-font-weight: bold; }
+.ocean-app .ocean-page-subtitle { -fx-text-fill: #a0aec2; -fx-font-size: 12px; }
+.ocean-app .top-bar { -fx-background-color: transparent; -fx-padding: 0; -fx-alignment: center-left; }
+.ocean-app .section-title, .ocean-app .collapsible-section-title { -fx-text-fill: #f3f6fc; -fx-font-size: 17px; -fx-font-weight: bold; }
+.ocean-app .ocean-muted, .ocean-dialog .ocean-muted { -fx-text-fill: #a0aec2; -fx-font-size: 12px; }
+.ocean-app .ocean-eyebrow { -fx-text-fill: #b8cfee; -fx-font-size: 10px; }
+.ocean-app .button, .ocean-dialog .button {
+    -fx-background-color: #17263a; -fx-background-radius: 22;
+    -fx-border-color: #2c405a; -fx-border-width: 1; -fx-border-radius: 22;
+    -fx-text-fill: #edf4ff; -fx-padding: 8 14; -fx-font-size: 12px; -fx-cursor: hand;
+}
+.ocean-app .button:hover, .ocean-dialog .button:hover { -fx-background-color: #213650; -fx-border-color: #526f94; }
+.ocean-app .button:focused, .ocean-dialog .button:focused { -fx-border-color: #7cb4ff; }
+.ocean-app .primary-button, .ocean-app .home-scan-button, .ocean-app .duplicates-analyse-button, .ocean-dialog .button:default {
+    -fx-background-color: #438cff; -fx-border-color: transparent; -fx-text-fill: #06182d; -fx-font-weight: bold; -fx-padding: 9 17;
+}
+.ocean-app .primary-button:hover, .ocean-app .home-scan-button:hover, .ocean-app .duplicates-analyse-button:hover, .ocean-dialog .button:default:hover { -fx-background-color: #66a2ff; }
+.ocean-app .ocean-line-icon, .ocean-dialog .ocean-line-icon { -fx-fill: transparent; -fx-stroke: #a1bde3; -fx-stroke-width: 1.7; -fx-stroke-line-cap: round; -fx-stroke-line-join: round; }
+.ocean-app .primary-button .ocean-line-icon, .ocean-app .home-scan-button .ocean-line-icon { -fx-stroke: #071c37; }
+.ocean-app .ocean-icon-button { -fx-background-color: transparent; -fx-border-color: transparent; -fx-padding: 7; -fx-background-radius: 30; -fx-border-radius: 30; }
+.ocean-app .ocean-icon-button:hover { -fx-background-color: #1d304a; }
+.ocean-app .ocean-text-button { -fx-background-color: transparent; -fx-border-color: transparent; -fx-text-fill: #a9c0df; -fx-padding: 5 7; -fx-font-size: 11px; }
+.ocean-app .ocean-text-button:hover { -fx-background-color: #233a56; -fx-text-fill: #eff6ff; }
+.ocean-app .danger-button, .ocean-dialog .danger-button { -fx-background-color: #352331; -fx-border-color: #684153; -fx-text-fill: #ffabb6; }
+.ocean-app .home-content { -fx-spacing: 14; }
+.ocean-app .home-hero { -fx-background-color: linear-gradient(to bottom right, #132d50, #21538e); -fx-background-radius: 12; -fx-border-color: rgba(196,225,255,0.24); -fx-border-radius: 12; -fx-padding: 22 26; }
+.ocean-app .home-heading { -fx-font-size: 34px; -fx-text-fill: #f6f9ff; -fx-font-weight: bold; }
+.ocean-app .home-subtitle { -fx-font-size: 13px; -fx-text-fill: #c4d6ef; }
+.ocean-app .ocean-hero-orbit { -fx-fill: transparent; -fx-stroke: rgba(186,222,255,0.14); -fx-stroke-width: 1; }
+.ocean-app .ocean-folder-back { -fx-fill: rgba(130,190,255,0.16); -fx-stroke: rgba(178,219,255,0.5); -fx-stroke-width: 1; }
+.ocean-app .ocean-folder-front { -fx-fill: linear-gradient(to bottom right, #81c4ff, #367af0 65%, #2860d6); -fx-stroke: rgba(224,243,255,0.65); -fx-stroke-width: 0.8; -fx-effect: dropshadow(gaussian, rgba(0,18,56,0.35), 22, 0, 0, 12); }
+.ocean-app .ocean-recent-card, .ocean-app .ocean-action-tile { -fx-background-color: #152337; -fx-border-color: transparent; -fx-background-radius: 10; -fx-border-radius: 10; -fx-padding: 13; -fx-alignment: top-left; }
+.ocean-app .ocean-recent-card:hover, .ocean-app .ocean-action-tile:hover { -fx-background-color: #1f3450; -fx-border-color: rgba(167,207,255,0.16); }
+.ocean-app .ocean-folder-cover { -fx-background-color: linear-gradient(to bottom right, #234a7b, #172d4b); -fx-background-radius: 7; -fx-min-height: 48; -fx-pref-height: 48; }
+.ocean-app .ocean-tile-title, .ocean-app .recent-scan-name { -fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #f1f6ff; }
+.ocean-app .recent-scan-details { -fx-text-fill: #a0b2cc; -fx-font-size: 11px; }
+.ocean-app .recent-scan-card { -fx-background-color: #152337; -fx-border-color: #2c4261; -fx-background-radius: 10; -fx-border-radius: 10; -fx-padding: 20; }
+.ocean-app .summary-card, .ocean-app .ocean-glass-card, .ocean-app .settings-card, .ocean-app .duplicates-scan-card, .ocean-app .similar-scan-card {
+    -fx-background-color: linear-gradient(to bottom right, #203650, #142338 80%);
+    -fx-background-radius: 12; -fx-border-radius: 12;
+    -fx-border-color: rgba(191,221,255,0.18) rgba(156,196,245,0.08) rgba(156,196,245,0.06) rgba(156,196,245,0.10);
+    -fx-border-width: 1; -fx-padding: 18;
+    -fx-effect: dropshadow(gaussian, rgba(0,6,20,0.12), 14, 0, 0, 5);
+}
+.ocean-app .summary-card { -fx-padding: 16 18; -fx-spacing: 8; }
+.ocean-app .summary-card-title { -fx-text-fill: #adc0dc; -fx-font-size: 12px; }
+.ocean-app .summary-card-value { -fx-text-fill: #f3f7ff; -fx-font-size: 27px; -fx-font-weight: bold; }
+.ocean-app .summary-card-accent { -fx-background-color: transparent; -fx-pref-width: 0; -fx-min-width: 0; -fx-max-width: 0; }
+.ocean-app .ocean-workspace-summary { -fx-background-color: linear-gradient(to bottom, #254363, #17314e); -fx-padding: 12 16; -fx-background-radius: 10; -fx-border-radius: 10; -fx-border-color: rgba(188,221,255,0.22); }
+.ocean-app .ocean-workspace-title { -fx-font-size: 13px; -fx-font-weight: bold; }
+.ocean-app .ocean-dashboard .section-title { -fx-font-size: 15px; }
+.ocean-app .ocean-donut { -fx-padding: 0; }
+.ocean-app .ocean-donut .chart-content { -fx-padding: 0; }
+.ocean-app .ocean-donut .chart-pie { -fx-border-width: 0; }
+.ocean-app .ocean-donut .default-color0.chart-pie { -fx-pie-color: #438cff; }
+.ocean-app .ocean-donut .default-color1.chart-pie { -fx-pie-color: #7799cf; }
+.ocean-app .ocean-donut .default-color2.chart-pie { -fx-pie-color: #617aa2; }
+.ocean-app .ocean-donut .default-color3.chart-pie { -fx-pie-color: #4a6083; }
+.ocean-app .ocean-donut .default-color4.chart-pie { -fx-pie-color: #a8bfe0; }
+.ocean-app .ocean-donut .default-color5.chart-pie { -fx-pie-color: #35465f; }
+.ocean-app .ocean-donut .default-color6.chart-pie { -fx-pie-color: #90afe1; }
+.ocean-app .ocean-donut-hole { -fx-fill: #192d46; }
+.ocean-app .ocean-donut-total { -fx-font-size: 19px; -fx-font-weight: bold; }
+.ocean-app .dashboard-type-name, .ocean-app .dashboard-folder-name { -fx-text-fill: #e4edfb; -fx-font-size: 12px; }
+.ocean-app .dashboard-type-meta, .ocean-app .dashboard-folder-meta, .ocean-app .dashboard-modified-time { -fx-text-fill: #a5b8d4; -fx-font-size: 11px; }
+.ocean-app .ocean-folder-stat-row { -fx-cursor: hand; }
+.ocean-app .ocean-folder-stat-row:hover { -fx-background-color: rgba(128,176,240,0.06); -fx-background-radius: 4; }
+.ocean-app .dashboard-file-row { -fx-background-color: transparent; -fx-border-color: transparent transparent #22334b transparent; -fx-border-width: 0 0 1 0; -fx-background-radius: 5; -fx-padding: 10 8; }
+.ocean-app .dashboard-file-row:hover { -fx-background-color: #1a2b43; }
+.ocean-app .dashboard-file-path, .ocean-app .file-relative-path, .ocean-app .file-path { -fx-text-fill: #96aac7; -fx-font-size: 11px; }
+.ocean-app .file-name { -fx-text-fill: #edf4ff; -fx-font-size: 13px; -fx-font-weight: normal; }
+.ocean-app .file-size { -fx-text-fill: #a5b9d6; -fx-font-size: 12px; }
+.ocean-app .collapsible-section-header { -fx-background-color: transparent; -fx-padding: 9 2; -fx-border-width: 0; }
+.ocean-app .collapsible-section-arrow { -fx-text-fill: #92bfff; }
+.ocean-app .progress-bar { -fx-background-color: transparent; -fx-padding: 0; -fx-min-height: 5; -fx-pref-height: 5; -fx-max-height: 6; }
+.ocean-app .progress-bar > .track { -fx-background-color: #25374e; -fx-background-radius: 5; -fx-border-width: 0; -fx-background-insets: 0; }
+.ocean-app .progress-bar > .bar { -fx-background-color: #438cff; -fx-background-radius: 5; -fx-background-insets: 0; -fx-padding: 2.5; }
+.ocean-app .dashboard-type-progress, .ocean-app .dashboard-folder-progress { -fx-pref-height: 5; }
+.ocean-app .ocean-status-bar { -fx-background-color: linear-gradient(to bottom, #101d2e, #090f1b); -fx-background-radius: 8; -fx-border-width: 1 0 0 0; -fx-border-color: rgba(190,220,255,0.12); -fx-padding: 7 12; -fx-min-height: 37; }
+.ocean-app .ocean-status-text { -fx-text-fill: #a7bad5; -fx-font-size: 11px; }
+.ocean-app .ocean-status-dot { -fx-min-width: 6; -fx-max-width: 6; -fx-min-height: 6; -fx-max-height: 6; -fx-background-color: #6dd4ab; -fx-background-radius: 6; }
+.ocean-app .ocean-scan-progress { -fx-pref-height: 5; }
+/* Dense, readable file views. */
+.ocean-app .text-field, .ocean-app .text-area, .ocean-dialog .text-field, .ocean-dialog .text-area {
+    -fx-background-color: #15263b; -fx-border-color: #2b4160;
+    -fx-text-fill: #f0f5fd; -fx-prompt-text-fill: #91a5c2;
+    -fx-background-radius: 8; -fx-border-radius: 8; -fx-padding: 9 12;
+}
+.ocean-app .text-field:focused, .ocean-dialog .text-field:focused { -fx-border-color: #659fff; }
+.ocean-app .ff-command-search-field { -fx-background-color: transparent; -fx-border-width: 0; -fx-padding: 6 0; }
+.ocean-app .combo-box, .ocean-dialog .combo-box { -fx-background-color: #172a42; -fx-border-color: #304969; -fx-background-radius: 8; -fx-border-radius: 8; -fx-padding: 3 5; }
+.ocean-app .combo-box > .list-cell, .ocean-dialog .combo-box > .list-cell { -fx-text-fill: #d9e6f9; -fx-background-color: transparent; -fx-font-size: 12px; }
+.ocean-app .combo-box .arrow, .ocean-dialog .combo-box .arrow { -fx-background-color: #a5bfdf; }
+.ocean-app .files-view-toggle, .ocean-app .duplicates-mode-tab {
+    -fx-background-color: #1a2b42; -fx-text-fill: #aabdd7; -fx-border-color: transparent;
+    -fx-background-radius: 20; -fx-border-radius: 20; -fx-padding: 8 14; -fx-font-size: 12px;
+}
+.ocean-app .files-view-toggle:selected, .ocean-app .duplicates-mode-tab:selected { -fx-background-color: #edf4ff; -fx-text-fill: #0b1930; -fx-font-weight: bold; }
+.ocean-app .files-workspace-bar { -fx-background-color: #162d49; -fx-border-color: rgba(183,216,255,0.15); -fx-border-radius: 9; -fx-background-radius: 9; -fx-padding: 10 14; }
+.ocean-app .breadcrumb-button, .ocean-app .breadcrumb-back { -fx-text-fill: #b6cbee; -fx-background-color: transparent; -fx-border-color: transparent; -fx-background-radius: 6; -fx-padding: 5 8; }
+.ocean-app .breadcrumb-button:hover, .ocean-app .breadcrumb-back:hover { -fx-background-color: #1c3352; }
+.ocean-app .list-view, .ocean-app .list-cell { -fx-background-color: transparent; -fx-border-color: transparent; -fx-text-fill: #edf4ff; -fx-padding: 0; }
+.ocean-app .list-cell:filled:selected { -fx-background-color: #173859; }
+.ocean-app .file-row { -fx-background-color: transparent; -fx-border-color: transparent transparent #24354e transparent; -fx-border-width: 0 0 1 0; -fx-background-radius: 6; -fx-padding: 11 8; }
+.ocean-app .file-row:hover { -fx-background-color: #1a2c43; }
+.ocean-app .file-row-multi-selected { -fx-background-color: #183c61; -fx-border-color: #345d8a; -fx-border-width: 1; -fx-border-radius: 6; }
+.ocean-app .file-selection-bar { -fx-background-color: linear-gradient(to bottom, #1d3d62, #17314f); -fx-border-color: #3d5e84; -fx-background-radius: 9; -fx-border-radius: 9; -fx-padding: 10 13; }
+.ocean-app .files-folder-preview, .ocean-app .file-preview-placeholder { -fx-background-color: #193759; -fx-background-radius: 6; -fx-border-color: transparent; }
+.ocean-app .files-folder-icon, .ocean-app .files-type-icon { -fx-fill: transparent; -fx-stroke: #94bfff; }
+.ocean-app .category-row { -fx-background-color: #172a43; -fx-border-color: #2d4667; -fx-background-radius: 10; -fx-border-radius: 10; -fx-padding: 15 18; }
+.ocean-app .category-row:hover { -fx-background-color: #203b5e; -fx-border-color: #4b709d; }
+.ocean-app .category-name { -fx-text-fill: #edf5ff; -fx-font-weight: bold; }
+.ocean-app .category-count, .ocean-app .category-size, .ocean-app .category-percentage { -fx-text-fill: #a6bddd; }
+.ocean-app .favourite-button, .ocean-app .more-button, .ocean-app .tag-more-button { -fx-background-color: transparent; -fx-border-color: transparent; -fx-padding: 4 7; -fx-background-radius: 7; -fx-border-radius: 7; -fx-text-fill: #96abc9; }
+.ocean-app .favourite-button { -fx-font-size: 20px; }
+.ocean-app .is-favourite, .ocean-app .favourite-button.is-favourite { -fx-text-fill: #8fbeff; -fx-background-color: #1e3a60; -fx-border-color: transparent; }
+.ocean-app .favourite-button:hover, .ocean-app .more-button:hover { -fx-background-color: #284567; -fx-text-fill: #d6e8ff; }
+.ocean-app .more-button { -fx-font-size: 18px; }
+.ocean-app .add-tag-button { -fx-text-fill: #a6c7f4; -fx-background-color: #1b3555; -fx-border-color: transparent; -fx-padding: 5 9; -fx-background-radius: 15; -fx-border-radius: 15; -fx-font-size: 11px; }
+.ocean-app .file-tag-chip, .ocean-app .file-tag-pill { -fx-background-color: #203b5e; -fx-border-color: transparent; -fx-background-radius: 15; -fx-padding: 4 8; }
+.ocean-app .file-tag-text { -fx-text-fill: #bad4f6; -fx-font-size: 11px; }
+.ocean-app .file-tag-remove-badge { -fx-background-color: #36527a; -fx-background-radius: 20; }
+.ocean-app .file-tag-close-icon { -fx-stroke: #d5e7ff; }
+.ocean-app .check-box .box, .ocean-dialog .check-box .box { -fx-background-color: #1a2d46; -fx-border-color: #587496; -fx-background-radius: 4; -fx-border-radius: 4; }
+.ocean-app .check-box:selected .box, .ocean-dialog .check-box:selected .box { -fx-background-color: #438cff; -fx-border-color: #438cff; }
+.ocean-app .check-box:selected .mark, .ocean-dialog .check-box:selected .mark { -fx-background-color: #071a31; }
+/* Saved files, labels and scan history use the same collection language. */
+.ocean-app .favourites-heading { -fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #c4d7f0; }
+.ocean-app .favourites-subtitle { -fx-font-size: 12px; -fx-text-fill: #9cafcc; }
+.ocean-app .favourites-content { -fx-spacing: 14; }
+.ocean-app .favourites-count { -fx-text-fill: #a4b9d6; -fx-font-size: 11px; }
+.ocean-app .favourites-content .file-row, .ocean-app .favourites-file-row { -fx-background-color: transparent; -fx-border-color: transparent transparent #293b54 transparent; -fx-border-width: 0 0 1 0; -fx-background-radius: 6; }
+.ocean-app .favourites-content .file-row:hover { -fx-background-color: #1c304c; }
+.ocean-app .favourites-empty-state, .ocean-app .ocean-empty { -fx-background-color: transparent; -fx-border-width: 0; -fx-padding: 65 28; -fx-alignment: center; }
+.ocean-app .favourites-empty-icon { -fx-text-fill: #83b6ff; -fx-font-size: 42px; }
+.ocean-app .favourites-empty-title, .ocean-app .ocean-empty-title { -fx-font-size: 21px; -fx-font-weight: bold; -fx-text-fill: #edf4ff; }
+.ocean-app .favourites-empty-description, .ocean-app .ff-empty-message, .ocean-app .dashboard-empty-state { -fx-text-fill: #9fb3cf; -fx-font-size: 13px; }
+.ocean-app .tags-content { -fx-spacing: 14; }
+.ocean-app .tag-group, .ocean-app .history-card { -fx-background-color: linear-gradient(to bottom, #1a2b43, #142236); -fx-border-color: rgba(178,212,255,0.12); -fx-background-radius: 10; -fx-border-radius: 10; -fx-padding: 17; }
+.ocean-app .tag-header { -fx-padding: 3 0; }
+.ocean-app .tag-group-title, .ocean-app .history-folder-name { -fx-text-fill: #edf4ff; -fx-font-size: 14px; -fx-font-weight: bold; }
+.ocean-app .tag-group-icon, .ocean-app .tag-expand-arrow { -fx-text-fill: #91b9ed; }
+.ocean-app .tag-count-badge { -fx-background-color: #284361; -fx-text-fill: #bfdbff; -fx-background-radius: 14; -fx-padding: 4 9; -fx-font-size: 11px; }
+.ocean-app .tag-file-row { -fx-background-color: transparent; -fx-border-color: transparent transparent #2c3d55 transparent; -fx-border-width: 0 0 1 0; -fx-padding: 10 8; }
+.ocean-app .tag-file-name { -fx-text-fill: #eaf2ff; -fx-font-size: 13px; }
+.ocean-app .tag-file-path, .ocean-app .tag-empty { -fx-text-fill: #97afce; -fx-font-size: 11px; }
+.ocean-app .tag-remove-button { -fx-background-color: transparent; -fx-border-color: transparent; -fx-text-fill: #a7bfdf; -fx-padding: 3 7; }
+.ocean-app .history-page-title { -fx-font-size: 15px; -fx-font-weight: bold; }
+.ocean-app .history-page-subtitle, .ocean-app .history-path, .ocean-app .history-details, .ocean-app .history-empty { -fx-text-fill: #a1b6d3; -fx-font-size: 12px; }
+.ocean-app .history-icon-box { -fx-background-color: #213f65; -fx-background-radius: 8; }
+.ocean-app .history-folder-icon { -fx-fill: transparent; -fx-stroke: #a4ceff; }
+.ocean-app .history-content { -fx-spacing: 14; -fx-padding: 0 2 12 0; }
+/* Review tools, settings and the inspector. */
+.ocean-app .duplicates-content { -fx-spacing: 16; }
+.ocean-app .duplicates-scan-card-title, .ocean-app .similar-scan-card-title { -fx-font-size: 16px; -fx-text-fill: #eef5ff; -fx-font-weight: bold; }
+.ocean-app .duplicates-scan-card-subtitle, .ocean-app .duplicates-mode-description, .ocean-app .duplicates-status { -fx-text-fill: #a7bddb; -fx-font-size: 12px; }
+.ocean-app .duplicate-group-card, .ocean-app .exact-duplicate-group-card, .ocean-app .similar-image-group-card { -fx-background-color: #15263c; -fx-border-color: #304663; -fx-background-radius: 10; -fx-border-radius: 10; -fx-padding: 16; }
+.ocean-app .duplicate-group-header, .ocean-app .similar-image-group-header { -fx-background-color: transparent; -fx-padding: 3 0 11 0; }
+.ocean-app .exact-duplicate-group-title, .ocean-app .similar-group-title { -fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #eaf3ff; }
+.ocean-app .duplicate-group-summary, .ocean-app .duplicate-file-path, .ocean-app .similar-group-count { -fx-text-fill: #9eb6d6; -fx-font-size: 12px; }
+.ocean-app .exact-duplicate-reclaimable-badge { -fx-background-color: #203e62; -fx-text-fill: #b0d1ff; -fx-background-radius: 15; -fx-padding: 5 10; -fx-font-size: 11px; }
+.ocean-app .similar-image-card { -fx-background-color: #1b304b; -fx-border-color: #345170; -fx-background-radius: 9; -fx-border-radius: 9; -fx-padding: 12; }
+.ocean-app .similar-image-name { -fx-text-fill: #e5efff; -fx-font-size: 12px; }
+.ocean-app .duplicate-file-row, .ocean-app .exact-duplicate-file-row { -fx-background-color: transparent; -fx-border-color: transparent transparent #2c405e transparent; -fx-border-width: 0 0 1 0; -fx-padding: 11 4; }
+.ocean-app .settings-content { -fx-spacing: 18; }
+.ocean-app .settings-section-title, .ocean-app .settings-card-title { -fx-text-fill: #f1f6ff; -fx-font-size: 17px; -fx-font-weight: bold; }
+.ocean-app .settings-card-description, .ocean-app .shortcut-action-label { -fx-text-fill: #b3c6e0; -fx-font-size: 12px; }
+.ocean-app .shortcut-setting-row { -fx-background-color: transparent; -fx-border-color: transparent transparent #31435c transparent; -fx-border-width: 0 0 1 0; -fx-padding: 14 0; }
+.ocean-app .shortcut-key-label { -fx-text-fill: #c1d4ef; -fx-background-color: #102038; -fx-border-color: #3a5475; -fx-background-radius: 6; -fx-border-radius: 6; -fx-padding: 6 11; }
+.ocean-app .quick-info-panel { -fx-background-color: linear-gradient(to bottom right, #243b59, #101c2e 75%); -fx-background-radius: 12; -fx-border-radius: 12; -fx-border-color: rgba(184,216,255,0.17); -fx-border-width: 1; -fx-padding: 18; -fx-spacing: 12; }
+.ocean-app .quick-info-preview { -fx-background-color: linear-gradient(to bottom right, #264c77, #172c47); -fx-border-color: #3a5b81; -fx-background-radius: 9; -fx-border-radius: 9; }
+.ocean-app .quick-info-close { -fx-background-color: #233b5b; -fx-border-color: transparent; -fx-padding: 2 8; -fx-font-size: 18px; -fx-background-radius: 20; -fx-border-radius: 20; }
+.ocean-app .scan-issue { -fx-text-fill: #edc08b; -fx-background-color: #302b24; -fx-background-radius: 7; -fx-padding: 8 12; }
+.ocean-app .database-error-state { -fx-background-color: #202a3a; -fx-border-color: #536783; -fx-background-radius: 10; -fx-border-radius: 10; -fx-padding: 24; }
+.ocean-app .database-error-title { -fx-text-fill: #f3ccaa; }
+.ocean-app .database-error-message { -fx-text-fill: #b8c8de; }
+.ocean-app .scroll-pane, .ocean-app .scroll-pane > .viewport { -fx-background-color: transparent; -fx-border-width: 0; -fx-padding: 0; }
+.ocean-app .scroll-bar, .ocean-dialog .scroll-bar { -fx-background-color: transparent; -fx-padding: 1; -fx-pref-width: 8; -fx-pref-height: 8; }
+.ocean-app .scroll-bar .track, .ocean-dialog .scroll-bar .track { -fx-background-color: transparent; -fx-border-width: 0; }
+.ocean-app .scroll-bar .thumb, .ocean-dialog .scroll-bar .thumb { -fx-background-color: #354e70; -fx-background-radius: 6; -fx-background-insets: 1; }
+.ocean-app .scroll-bar .thumb:hover, .ocean-dialog .scroll-bar .thumb:hover { -fx-background-color: #5275a2; }
+.ocean-app .scroll-bar .increment-button, .ocean-app .scroll-bar .decrement-button { -fx-padding: 0; -fx-background-color: transparent; }
+.ocean-app .scroll-bar .increment-arrow, .ocean-app .scroll-bar .decrement-arrow { -fx-padding: 0; -fx-shape: ""; }
+/* Popup windows do not inherit the main window's ancestor style class. */
+.combo-box-popup .list-view, .context-menu { -fx-background-color: #15263d; -fx-border-color: #3c5779; -fx-background-radius: 9; -fx-border-radius: 9; -fx-padding: 6; }
+.combo-box-popup .list-cell { -fx-background-color: #15263d; -fx-text-fill: #e5efff; -fx-padding: 8 12; }
+.combo-box-popup .list-cell:hover, .combo-box-popup .list-cell:filled:selected, .menu-item:focused { -fx-background-color: #29466d; }
+.menu-item .label { -fx-text-fill: #e5efff; -fx-font-size: 12px; }
+.menu-item { -fx-background-radius: 5; -fx-padding: 8 12; }
+.danger-menu-item .label { -fx-text-fill: #ffacb8; }
+.ocean-dialog { -fx-background-color: linear-gradient(to bottom right, #213854, #101d30); -fx-border-color: rgba(192,224,255,0.24); -fx-border-width: 1; -fx-padding: 22; }
+.ocean-dialog > .content.label, .ocean-dialog .header-panel, .ocean-dialog .header-panel .label { -fx-background-color: transparent; -fx-text-fill: #e7f0ff; }
+.ocean-dialog .header-panel .label { -fx-font-size: 19px; -fx-font-weight: bold; }
+.ocean-dialog .button-bar { -fx-padding: 18 0 0 0; }
+.ocean-dialog .workspace-dialog-content { -fx-background-color: transparent; -fx-spacing: 14; }
+.ocean-dialog .workspace-drop-zone { -fx-background-color: #172e4b; -fx-border-color: #52769f; -fx-border-style: dashed; -fx-border-radius: 10; -fx-background-radius: 10; -fx-padding: 26; }
+.ocean-dialog .workspace-drop-zone-active { -fx-background-color: #234c7a; -fx-border-color: #8dc0ff; }
+.ocean-dialog .workspace-drop-title { -fx-text-fill: #eef5ff; -fx-font-size: 16px; -fx-font-weight: bold; }
+.ocean-dialog .workspace-drop-hint, .ocean-dialog .workspace-count-label { -fx-text-fill: #acc4e5; -fx-font-size: 12px; }
+.ocean-dialog .workspace-roots-scroll, .ocean-dialog .workspace-roots-scroll > .viewport { -fx-background-color: transparent; -fx-border-width: 0; }
+.ocean-dialog .separator .line, .ocean-app .separator .line { -fx-border-color: #304662; -fx-border-width: 1 0 0 0; }
+.tooltip { -fx-background-color: #213958; -fx-text-fill: #edf5ff; -fx-font-size: 12px; -fx-background-radius: 6; -fx-padding: 8 11; }
+/* Compact star controls and dark file-format badges. */
+.ocean-app .button.favourite-button { -fx-padding: 0 2; -fx-min-width: 28; -fx-pref-width: 28; -fx-max-width: 30; -fx-min-height: 28; -fx-pref-height: 28; -fx-text-overrun: clip; -fx-font-size: 19px; }
+.ocean-app .button.ocean-folder-shortcut { -fx-background-color: transparent; -fx-border-color: transparent; -fx-padding: 6 10; -fx-text-fill: #a9bad3; -fx-font-size: 12px; }
+.ocean-app .button.ocean-folder-shortcut:hover { -fx-background-color: #1a2f4c; }
+.ocean-app .button.ocean-workspace-button { -fx-background-color: transparent; -fx-border-color: transparent; -fx-text-fill: #afc3e0; }
+.ocean-app .ocean-recent-card, .ocean-app .ocean-action-tile { -fx-cursor: hand; }
+.ocean-app .ocean-recent-card:focused, .ocean-app .ocean-action-tile:focused { -fx-border-color: #6da9ff; }
+.ocean-app .file-document-badge { -fx-background-color: #203a5c; -fx-border-color: #36577e; -fx-border-width: 1; }
+.ocean-app .file-document-badge .file-document-badge-text { -fx-text-fill: #bfd9fb; -fx-font-size: 11px; -fx-font-weight: bold; }
+/* Override legacy light hover/selection surfaces with Ocean states. */
+.ocean-app .files-list-view .list-cell:hover .file-row { -fx-background-color: #1a2d46; -fx-border-color: transparent transparent #334e71 transparent; }
+.ocean-app .files-list-view .list-cell:filled:selected .file-row, .ocean-app .files-list-view .file-row-multi-selected { -fx-background-color: #1b3d63; -fx-border-color: #517cb0; -fx-border-width: 1; }
+.ocean-app .files-list-view .list-cell:filled:selected .file-name { -fx-text-fill: #f4f8ff; }
+.ocean-app .files-list-view .list-cell:hover .files-folder-preview, .ocean-app .files-list-view .list-cell:filled:selected .files-folder-preview { -fx-background-color: #254a75; }
+.ocean-app .duplicates-mode-tabs { -fx-background-color: transparent; -fx-background-radius: 0; -fx-padding: 0; -fx-border-width: 0; }
+.ocean-app .files-row-actions .add-tag-button { -fx-padding: 3 8; -fx-font-size: 11px; -fx-text-overrun: clip; }
+.ocean-app .favourites-file-row:hover, .ocean-app .tags-content .tag-file-row:hover, .ocean-app .tags-content .tag-header:hover, .ocean-app .history-card:hover { -fx-background-color: #1e3553; -fx-border-color: #38577b; }
+.ocean-app .favourites-row-actions .button:hover, .ocean-app .tags-row-actions .button:hover { -fx-background-color: #294869; -fx-text-fill: #e8f2ff; }
+.ocean-dialog .workspace-roots-box { -fx-background-color: transparent; }
+.ocean-dialog .workspace-roots-scroll { -fx-border-color: #314b6a; -fx-border-width: 1; -fx-border-radius: 7; }
+/* Follow-up polish: dark window chrome, switches and consistent popup surfaces. */
+.ocean-app { -fx-border-color: #283c58; -fx-border-width: 1; }
+.ocean-app:maximized { -fx-border-color: transparent; }
+.ocean-app .ocean-window-controls { -fx-alignment: center-right; -fx-min-width: 120; -fx-pref-width: 120; }
+.ocean-app .button.ocean-caption-button {
+    -fx-background-color: transparent; -fx-border-color: transparent; -fx-border-width: 0;
+    -fx-background-insets: 0; -fx-padding: 0; -fx-background-radius: 6;
+    -fx-min-width: 40; -fx-pref-width: 40; -fx-max-width: 40;
+    -fx-min-height: 34; -fx-pref-height: 34; -fx-max-height: 34;
+}
+.ocean-app .button.ocean-caption-button:hover { -fx-background-color: #223650; }
+.ocean-app .button.ocean-caption-button:focused { -fx-background-color: #1b3557; }
+.ocean-app .button.ocean-window-close:hover { -fx-background-color: #b83d52; }
+.ocean-app .ocean-caption-icon { -fx-fill: transparent; -fx-stroke: #c3d3e9; -fx-stroke-width: 1.25; }
+.ocean-app .ocean-window-close:hover .ocean-caption-icon { -fx-stroke: white; }
+.ocean-app .settings-action-title { -fx-text-fill: #edf4ff; -fx-font-size: 13px; -fx-font-weight: bold; }
+.ocean-app .ocean-slide-switch, .ocean-app .ocean-slide-switch:selected {
+    -fx-background-color: transparent; -fx-border-color: transparent; -fx-border-width: 0;
+    -fx-padding: 0; -fx-graphic-text-gap: 0; -fx-cursor: hand;
+    -fx-min-width: 44; -fx-pref-width: 44; -fx-max-width: 44;
+    -fx-min-height: 26; -fx-pref-height: 26; -fx-max-height: 26;
+}
+.ocean-app .ocean-switch-track {
+    -fx-min-width: 42; -fx-pref-width: 42; -fx-max-width: 42;
+    -fx-min-height: 24; -fx-pref-height: 24; -fx-max-height: 24;
+    -fx-background-color: #3b506d; -fx-background-radius: 20;
+    -fx-border-color: #617897; -fx-border-radius: 20; -fx-border-width: 1;
+}
+.ocean-app .ocean-slide-switch:selected .ocean-switch-track { -fx-background-color: #438cff; -fx-border-color: #6aa6ff; }
+.ocean-app .ocean-slide-switch:focused .ocean-switch-track { -fx-border-color: #c5e1ff; -fx-border-width: 2; }
+.ocean-app .ocean-switch-thumb {
+    -fx-min-width: 16; -fx-pref-width: 16; -fx-max-width: 16;
+    -fx-min-height: 16; -fx-pref-height: 16; -fx-max-height: 16;
+    -fx-background-color: #f1f7ff; -fx-background-radius: 16;
+    -fx-effect: dropshadow(gaussian, rgba(0,6,18,0.25), 3, 0, 0, 1);
+}
+.context-menu.ocean-context-menu {
+    -fx-background-color: #15263d; -fx-background-insets: 0;
+    -fx-background-radius: 0; -fx-border-radius: 0; -fx-border-insets: 0;
+    -fx-border-width: 1; -fx-border-color: #405d80; -fx-padding: 6;
+    -fx-effect: dropshadow(gaussian, rgba(0,5,18,0.35), 14, 0, 0, 4);
+}
+.ocean-context-menu .menu-item { -fx-background-insets: 0; -fx-background-radius: 6; -fx-padding: 9 12; }
+.ocean-context-menu .menu-item:focused { -fx-background-color: #29466d; }
+.ocean-context-menu .menu-item .label { -fx-text-fill: #e5efff; }
+.ocean-context-menu .danger-menu-item .label { -fx-text-fill: #ffadbb; }
+.ocean-context-menu .separator .line { -fx-border-color: #304965; -fx-border-width: 1 0 0 0; }
+.ocean-app .tags-content .tags-row-actions .button,
+.ocean-app .tags-content .tags-row-actions .tag-remove-button,
+.ocean-app .tags-content .tags-row-actions .more-button {
+    -fx-background-color: #1d334f; -fx-background-insets: 0;
+    -fx-border-color: transparent; -fx-border-width: 0; -fx-border-insets: 0;
+    -fx-padding: 0; -fx-background-radius: 7; -fx-border-radius: 7;
+    -fx-min-width: 32; -fx-pref-width: 32; -fx-max-width: 32;
+    -fx-min-height: 32; -fx-pref-height: 32; -fx-max-height: 32;
+    -fx-text-fill: #afc9ed; -fx-text-overrun: clip;
+}
+.ocean-app .tags-content .tags-row-actions .tag-remove-button { -fx-text-fill: #f0a3b1; -fx-font-size: 17px; }
+.ocean-app .tags-content .tags-row-actions .button:hover { -fx-background-color: #2a496b; -fx-border-color: transparent; }
+.ocean-app .tags-content .tags-row-actions .tag-remove-button:hover { -fx-background-color: #493044; -fx-text-fill: #ffd2dc; }
+.ocean-app .files-row-actions .button.more-button, .ocean-app .favourites-row-actions .button.more-button {
+    -fx-background-color: transparent; -fx-background-insets: 0;
+    -fx-border-color: transparent; -fx-border-width: 0; -fx-padding: 0 5;
+    -fx-text-fill: #adc7ec; -fx-min-width: 30; -fx-pref-width: 30; -fx-min-height: 28;
+}
+.ocean-app .files-row-actions .button.more-button:hover, .ocean-app .favourites-row-actions .button.more-button:hover { -fx-background-color: #284565; }
+.ocean-app .file-tag-chip { -fx-padding: 3 7; }
+.ocean-app .button.ocean-chip-remove {
+    -fx-background-color: transparent; -fx-border-color: transparent; -fx-border-width: 0;
+    -fx-text-fill: #b7cfee; -fx-padding: 0; -fx-font-size: 12px;
+    -fx-min-width: 15; -fx-pref-width: 15; -fx-max-width: 15;
+    -fx-min-height: 18; -fx-pref-height: 18; -fx-max-height: 18;
+}
+.ocean-app .button.ocean-chip-remove:hover { -fx-background-color: #40577a; -fx-text-fill: #f8fbff; }
+.ocean-app .ocean-row-preview { -fx-background-color: #1b3454; -fx-background-radius: 7; }
+.ocean-app .ocean-row-preview .file-preview-placeholder { -fx-text-fill: #9ab9e3; -fx-font-size: 10px; -fx-background-color: transparent; }
+/* Keep the thumb easy to find, including in very large virtualized lists. */
+.ocean-app .scroll-pane .scroll-bar:vertical, .ocean-app .list-view .scroll-bar:vertical,
+.ocean-dialog .scroll-pane .scroll-bar:vertical { -fx-pref-width: 14; -fx-min-width: 14; -fx-padding: 1; }
+.ocean-app .scroll-pane .scroll-bar:horizontal, .ocean-app .list-view .scroll-bar:horizontal { -fx-pref-height: 14; -fx-min-height: 14; -fx-padding: 1; }
+.ocean-app .scroll-pane .scroll-bar .track, .ocean-app .list-view .scroll-bar .track,
+.ocean-dialog .scroll-pane .scroll-bar .track { -fx-background-color: rgba(123,158,203,0.12); -fx-background-radius: 7; }
+.ocean-app .scroll-pane .scroll-bar .thumb, .ocean-app .list-view .scroll-bar .thumb,
+.ocean-dialog .scroll-pane .scroll-bar .thumb { -fx-background-color: #718eb5; -fx-background-insets: 2; -fx-background-radius: 7; }
+.ocean-app .scroll-pane .scroll-bar:vertical .thumb, .ocean-app .list-view .scroll-bar:vertical .thumb { -fx-min-height: 32; -fx-pref-height: 32; }
+.ocean-app .scroll-pane .scroll-bar .thumb:hover, .ocean-app .list-view .scroll-bar .thumb:hover,
+.ocean-dialog .scroll-pane .scroll-bar .thumb:hover { -fx-background-color: #9ac4ff; }
+.ocean-app .scroll-pane .scroll-bar .thumb:pressed, .ocean-app .list-view .scroll-bar .thumb:pressed { -fx-background-color: #b6d7ff; }
+
+
+/* Preserve a usable thumb length even though the arrow glyphs are hidden. */
+.ocean-app .scroll-bar:vertical .increment-button, .ocean-app .scroll-bar:vertical .decrement-button,
+.ocean-dialog .scroll-bar:vertical .increment-button, .ocean-dialog .scroll-bar:vertical .decrement-button {
+    -fx-min-width: 14; -fx-pref-width: 14; -fx-min-height: 0; -fx-pref-height: 0; -fx-padding: 0;
+}
+.ocean-app .scroll-bar:horizontal .increment-button, .ocean-app .scroll-bar:horizontal .decrement-button {
+    -fx-min-height: 14; -fx-pref-height: 14; -fx-min-width: 0; -fx-pref-width: 0; -fx-padding: 0;
+}
+/* The inspector floats above the content so opening it never resizes the virtual list. */
+.ocean-app .quick-info-layer .quick-info-panel {
+    -fx-background-color: linear-gradient(to bottom right, #243b59, #101c2e 75%);
+    -fx-effect: null;
+}
+.ocean-dialog .details-button, .ocean-dialog .details-button:hover,
+.ocean-dialog .details-button:focused { -fx-text-fill: #c9e0ff; -fx-opacity: 1; }
+.ocean-dialog .details-button .arrow { -fx-background-color: #c9e0ff; }
+.ocean-dialog .details-button .arrow-button { -fx-background-color: #29466d; -fx-background-radius: 12; }
+.ocean-dialog .ocean-dialog-titlebar .ocean-dialog-caption { -fx-font-size: 12px; -fx-font-weight: normal; -fx-text-fill: #bbd1ef; }
+.ocean-dialog .ocean-dialog-heading { -fx-font-size: 19px; -fx-font-weight: bold; -fx-text-fill: #e7f0ff; }
+.ocean-dialog .ocean-dialog-titlebar .ocean-dialog-close {
+    -fx-background-color: transparent; -fx-border-color: transparent; -fx-text-fill: #dceaff;
+    -fx-min-width: 30; -fx-pref-width: 30; -fx-min-height: 28; -fx-pref-height: 28; -fx-padding: 0; -fx-font-size: 20px;
+}
+.ocean-dialog .ocean-dialog-titlebar .ocean-dialog-close:hover { -fx-background-color: #923c50; }
+.ocean-dialog .ocean-dialog-titlebar .ocean-dialog-close:focused { -fx-border-color: #8cbdff; }
+.ocean-app .async-thumbnail { -fx-background-color: #1b3555; -fx-background-radius: 6; -fx-border-color: transparent; }
+.ocean-app .async-thumbnail .file-preview-placeholder { -fx-text-fill: #9ab9e3; -fx-background-color: transparent; -fx-font-size: 10px; }
+/* File rows use TableView virtualization so UIA enumerates the viewport rather than every record. */
+.ocean-app .files-list-view.table-view { -fx-background-color: transparent; -fx-border-color: transparent; -fx-padding: 0; }
+.ocean-app .files-list-view .column-header-background { -fx-min-height: 0; -fx-pref-height: 0; -fx-max-height: 0; -fx-opacity: 0; }
+.ocean-app .files-list-view .table-row-cell, .ocean-app .files-list-view .table-cell {
+    -fx-background-color: transparent; -fx-border-color: transparent; -fx-padding: 0; -fx-text-fill: #edf4ff;
+}
+.ocean-app .files-list-view .table-row-cell:filled:selected { -fx-background-color: #173859; }
+.ocean-app .files-list-view .table-cell { -fx-alignment: center-left; }
+.ocean-app .files-list-view .scroll-bar:vertical { -fx-pref-width: 14; -fx-min-width: 14; -fx-padding: 1; }
+.ocean-app .files-list-view .scroll-bar .track { -fx-background-color: rgba(123,158,203,0.12); -fx-background-radius: 7; }
+.ocean-app .files-list-view .scroll-bar .thumb { -fx-background-color: #718eb5; -fx-background-insets: 2; -fx-background-radius: 7; }
+.ocean-app .files-list-view .scroll-bar .thumb:hover { -fx-background-color: #9ac4ff; }
+.ocean-app .files-list-view .scroll-bar .thumb:pressed { -fx-background-color: #b6d7ff; }
+/* Custom dialog form containers inherit the dark panel surface. */
+.ocean-dialog > .content { -fx-background-color: transparent; }
+
+/* Prefer a native UI font with proper Chinese glyphs rather than a serif fallback. */
+.ocean-app.language-zh, .ocean-dialog.language-zh { -fx-font-family: "Microsoft YaHei UI"; }

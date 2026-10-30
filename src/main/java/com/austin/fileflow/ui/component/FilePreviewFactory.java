@@ -1,7 +1,8 @@
 package com.austin.fileflow.ui.component;
 
+import static com.austin.fileflow.i18n.I18n.tr;
+
 import java.nio.file.Path;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Locale;
 
@@ -39,8 +40,14 @@ import javafx.application.Platform;
 
 public class FilePreviewFactory {
 
-    private final Map<Path, Image> imageThumbnailCache =
-            new HashMap<>();
+    private final com.austin.fileflow.service.ThumbnailLoader thumbnails =
+            new com.austin.fileflow.service.ThumbnailLoader();
+
+    public Node createImagePreview(Path path, int width, int height, String fallback) {
+        return new ThumbnailView(thumbnails, path, width, height, fallback);
+    }
+
+    public void close() { thumbnails.close(); }
 
     private final Map<Path, CompletableFuture<byte[]>> nativeIconCache =
         new ConcurrentHashMap<>();
@@ -59,7 +66,7 @@ public class FilePreviewFactory {
         });
 
     public void invalidate(Path path) {
-        imageThumbnailCache.remove(path);
+        thumbnails.invalidate(path);
 
         nativeIconCache.remove(
                 path.toAbsolutePath().normalize()
@@ -67,7 +74,7 @@ public class FilePreviewFactory {
     }
 
     public void clearCache() {
-        imageThumbnailCache.clear();
+        thumbnails.clear();
     }
 
    private String getBadgeType(FileItem item) {
@@ -199,7 +206,7 @@ public class FilePreviewFactory {
                 .toAbsolutePath()
                 .normalize();
 
-        Label placeholder = new Label("APP");
+        Label placeholder = new Label(tr("files.app_badge"));
 
         placeholder.getStyleClass().add(
                 "file-native-app-placeholder"
@@ -286,7 +293,7 @@ public class FilePreviewFactory {
         if (item.isDirectory()) {
 
             Label folderLabel =
-                    new Label("Folder");
+                    new Label(tr("type.folder"));
 
             folderLabel.getStyleClass().add(
                     "file-preview-placeholder"
@@ -310,80 +317,9 @@ public class FilePreviewFactory {
         }
 
         if (item.getType() == FileType.IMAGE) {
-
-            Image image =
-                    imageThumbnailCache.computeIfAbsent(
-                            item.getPath(),
-                            path -> new Image(
-                                    path.toUri().toString(),
-                                    112,
-                                    84,
-                                    true,
-                                    true,
-                                    true
-                            )
-                    );
-
-            if (image.isError()) {
-
-                Label formatLabel =
-                        new Label(
-                                item.getExtension()
-                                        .toUpperCase()
-                        );
-
-                formatLabel.getStyleClass().add(
-                        "file-preview-placeholder"
-                );
-
-                preview.getChildren().add(
-                        formatLabel
-                );
-
-                return preview;
-            }
-
-            ImageView imageView =
-                    new ImageView(image);
-
-            image.errorProperty().addListener(
-                    (observable, oldValue, hasError) -> {
-
-                        if (!hasError) {
-                            return;
-                        }
-
-                        preview.getChildren().clear();
-
-                        Label formatLabel =
-                                new Label(
-                                        item.getExtension()
-                                                .toUpperCase()
-                                );
-
-                        formatLabel.getStyleClass().add(
-                                "file-preview-placeholder"
-                        );
-
-                        preview.getChildren().add(
-                                formatLabel
-                        );
-                    }
-            );
-
-            imageView.setFitWidth(56);
-            imageView.setFitHeight(42);
-            imageView.setPreserveRatio(true);
-
-            preview.getChildren().add(
-                    imageView
-            );
-
-            preview.getStyleClass().add(
-                    "file-preview-image"
-            );
-
-            return preview;
+            Node thumbnail = createImagePreview(item.getPath(), 56, 42, item.getExtension().toUpperCase(Locale.ROOT));
+            thumbnail.getStyleClass().add("file-preview");
+            return thumbnail;
         }
 
         if (item.getType() == FileType.VIDEO) {
@@ -459,7 +395,7 @@ public class FilePreviewFactory {
                 case "yaml" -> "YAML";
                 case "sql" -> "SQL";
 
-                default -> "FILE";
+                default -> tr("ui.file");
         };
 
         // 3. Create text label
@@ -548,7 +484,7 @@ public class FilePreviewFactory {
                 "file-document-generic"
         );
 
-        Label badgeLabel = new Label("FILE");
+        Label badgeLabel = new Label(tr("ui.file"));
 
         badgeLabel.getStyleClass().add(
                 "file-document-badge-text"

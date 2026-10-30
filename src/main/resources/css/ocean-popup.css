@@ -1,0 +1,13 @@
+.context-menu.ocean-context-menu {
+    -fx-background-color: #15263d; -fx-background-insets: 0;
+    -fx-background-radius: 0; -fx-border-radius: 0; -fx-border-insets: 0;
+    -fx-border-width: 1; -fx-border-color: #405d80; -fx-padding: 6;
+    -fx-effect: null;
+}
+.ocean-context-menu .menu-item { -fx-background-insets: 0; -fx-background-radius: 6; -fx-padding: 9 12; }
+.ocean-context-menu .menu-item:focused { -fx-background-color: #29466d; }
+.ocean-context-menu .menu-item .label { -fx-text-fill: #e5efff; -fx-font-size: 12px; }
+.ocean-context-menu .danger-menu-item .label { -fx-text-fill: #ffadbb; }
+.ocean-context-menu .separator .line { -fx-border-color: #304965; -fx-border-width: 1 0 0 0; }
+
+.ocean-context-menu.language-zh { -fx-font-family: "Microsoft YaHei UI"; }

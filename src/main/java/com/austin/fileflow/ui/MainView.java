@@ -1,5 +1,9 @@
 package com.austin.fileflow.ui;
 
+import static com.austin.fileflow.i18n.I18n.tr;
+import com.austin.fileflow.i18n.I18n;
+import com.austin.fileflow.i18n.AppLanguage;
+
 import javafx.animation.PauseTransition;
 import javafx.animation.ScaleTransition;
 
@@ -25,6 +29,8 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.ListView;
+import javafx.scene.control.TableView;
+import javafx.scene.control.TableColumn;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.ListCell;
@@ -102,6 +108,8 @@ import com.austin.fileflow.service.FolderWatcher;
 import javafx.application.Platform;
 import com.austin.fileflow.service.StorageService;
 import com.austin.fileflow.ui.component.FilePreviewFactory;
+import com.austin.fileflow.ui.component.FileRowCell;
+import com.austin.fileflow.ui.component.SlideSwitch;
 import com.austin.fileflow.util.FileSizeFormatter;
 import com.austin.fileflow.model.FileType;
 import com.austin.fileflow.repository.FavouriteRepo;
@@ -123,9 +131,42 @@ import javafx.scene.input.KeyEvent;
 
 public class MainView {
     
+    private HBox oceanPageHeader;
+    private Label oceanPageHeading;
+    private Label oceanPageSubtitle;
+    private Label oceanFooterStatus;
+    private Label oceanShortcutHint;
+    private Button oceanBackButton;
+    private Button oceanCancelScan;
+    private VBox oceanWorkspaceRoots;
+    private final List<String> oceanNavigationHistory = new ArrayList<>();
+    private boolean oceanGoingBack;
+
     private final BorderPane root;
+    private StorageVolume displayedStorageVolume;
+    private VBox quickInfoPanel;
+    private StackPane quickInfoImage;
+    private Label quickInfoName, quickInfoType, quickInfoSize, quickInfoModified, quickInfoLocation;
+    private long quickInfoGeneration;
+    private java.util.concurrent.Future<?> quickInfoMetadata;
+    private final java.util.concurrent.ThreadPoolExecutor metadataExecutor = new java.util.concurrent.ThreadPoolExecutor(
+            1, 1, 0, java.util.concurrent.TimeUnit.MILLISECONDS,
+            new java.util.concurrent.ArrayBlockingQueue<>(16), runnable -> {
+                Thread thread = new Thread(runnable, "fileflow-metadata"); thread.setDaemon(true); return thread;
+            });
+    private final java.util.concurrent.ThreadPoolExecutor fileListExecutor = new java.util.concurrent.ThreadPoolExecutor(
+            1, 1, 0, java.util.concurrent.TimeUnit.MILLISECONDS,
+            new java.util.concurrent.ArrayBlockingQueue<>(1), runnable -> {
+                Thread thread = new Thread(runnable, "fileflow-listing"); thread.setDaemon(true); return thread;
+            });
+    private java.util.concurrent.Future<?> fileListingTask;
+    private long fileListingGeneration;
+    private ContextMenu sharedFileMenu;
+    private MenuItem sharedDeleteItem;
+    private Path menuPath;
+
     private final PauseTransition dashboardClickDelay =
-        new PauseTransition(Duration.millis(280));
+        new PauseTransition(Duration.millis(160));
     private final Label pageTitle;
     private final VBox pageContent;
     private final Button scanButton;
@@ -238,10 +279,12 @@ public class MainView {
         scanStatusLabel.setManaged(false);
 
         root = new BorderPane();
+        root.getStyleClass().add("ocean-app");
+        if (I18n.instance().language() == AppLanguage.SIMPLIFIED_CHINESE) root.getStyleClass().add("language-zh");
         pageTitle = new Label("Home");
         pageContent = new VBox();
-        scanButton = new Button("Scan Folder");
-        refreshButton = new Button("Refresh");
+        scanButton = new Button(tr("ui.scan_folder"));
+        refreshButton = new Button(tr("common.refresh"));
         refreshButton.setDisable(true);
         
         autoRefreshDelay.setOnFinished(event -> {
@@ -265,8 +308,31 @@ public class MainView {
                 refreshCurrentScan();
         });
 
-        root.setLeft(createSidebar());
-        root.setCenter(createContent());
+        VBox sidebar = createSidebar();
+        ScrollPane sidebarScroll = new ScrollPane(sidebar);
+        sidebarScroll.setFitToWidth(true);
+        sidebarScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        sidebarScroll.setPrefWidth(208);
+        sidebarScroll.setMinWidth(196);
+        sidebarScroll.setMaxWidth(208);
+        sidebarScroll.getStyleClass().add("ocean-sidebar-scroll");
+        sidebar.minHeightProperty().bind(sidebarScroll.heightProperty().subtract(2));
+        root.setLeft(sidebarScroll);
+        BorderPane.setMargin(sidebarScroll, new Insets(0, 8, 0, 0));
+        javafx.scene.layout.Pane inspectorLayer = new javafx.scene.layout.Pane() {
+            @Override protected void layoutChildren() {
+                if (quickInfoPanel != null) quickInfoPanel.resizeRelocate(Math.max(0, getWidth() - 272), 0, 272, getHeight());
+            }
+        };
+        inspectorLayer.setPickOnBounds(false);
+        inspectorLayer.getStyleClass().add("quick-info-layer");
+        StackPane centerLayers = new StackPane(createContent(), inspectorLayer);
+        root.setCenter(centerLayers);
+        root.setTop(createOceanCommandBar());
+        root.setBottom(createOceanStatusBar());
+        I18n.instance().languageProperty().addListener((observable, before, after) -> applyLanguageChange());
+        BorderPane.setMargin(root.getTop(), new Insets(0, 0, 8, 0));
+        BorderPane.setMargin(root.getBottom(), new Insets(8, 0, 0, 0));
 
         root.sceneProperty().addListener(
                 (observable, oldScene, newScene) -> {
@@ -282,23 +348,15 @@ public class MainView {
                                                 return;
                                         }
 
-                                        if (newWindow instanceof javafx.stage.Stage stage) {
-
-                                                var iconUrl = MainView.class.getResource(
-                                                        "/icons/fileflow.png"
-                                                );
-
-                                                if (iconUrl != null) {
-                                                        stage.getIcons().setAll(
-                                                                new Image(iconUrl.toExternalForm())
-                                                        );
-                                                }
-                                        }
-
                                         newWindow.addEventHandler(
                                                 WindowEvent.WINDOW_HIDDEN,
                                                 event -> {
 
+                                                        hideQuickInfo();
+                                                        cancelFileListing();
+                                                        fileListExecutor.shutdownNow();
+                                                        metadataExecutor.shutdownNow();
+                                                        filePreviewFactory.close();
                                                         autoRefreshDelay.stop();
                                                         autoRefreshPending = false;
 
@@ -383,50 +441,50 @@ public class MainView {
 
     private VBox createSidebar() {
         VBox sidebar = new VBox();
-        sidebar.setPrefWidth(220);
+        sidebar.setPrefWidth(208);
+        sidebar.setMinWidth(0);
         sidebar.getStyleClass().add("sidebar");
 
-        Label logo = new Label("FileFlow");
-        logo.getStyleClass().add("logo");
-
-        ImageView logoImage = new ImageView(
-                new Image(
-                        MainView.class.getResource(
-                                "/icons/fileflow.png"
-                        ).toExternalForm()
-                )
-        );
-
-        logoImage.setFitWidth(32);
-        logoImage.setFitHeight(32);
-        logoImage.setPreserveRatio(true);
-
-        logo.setGraphic(logoImage);
-        logo.setGraphicTextGap(12);
-
-        Label home = new Label("Home");
+        Label home = new Label(tr("nav.home"));
         home.getStyleClass().add("nav-item");
 
-        Label dashboard = new Label("Dashboard");
+        Label dashboard = new Label(tr("nav.dashboard"));
         dashboard.getStyleClass().add("nav-item");
 
-        filesNavItem = new Label("Files");
+        filesNavItem = new Label(tr("nav.files"));
         filesNavItem.getStyleClass().add("nav-item");   
 
-        Label favourites = new Label("Favourites");
+        Label favourites = new Label(tr("nav.favourites"));
         favourites.getStyleClass().add("nav-item");
 
-        Label duplicates = new Label("Duplicates");
+        Label duplicates = new Label(tr("nav.duplicates"));
         duplicates.getStyleClass().add("nav-item");
 
-        Label tags = new Label("Tags");
+        Label tags = new Label(tr("nav.tags"));
         tags.getStyleClass().add("nav-item");
 
-        Label history = new Label("History");
+        Label history = new Label(tr("nav.history"));
         history.getStyleClass().add("nav-item");
 
-        Label settings = new Label("Settings");
+        Label settings = new Label(tr("nav.settings"));
         settings.getStyleClass().add("nav-item");
+
+        home.setUserData("Home");
+        home.textProperty().bind(I18n.binding("nav.home"));
+        dashboard.setUserData("Dashboard");
+        dashboard.textProperty().bind(I18n.binding("nav.dashboard"));
+        filesNavItem.setUserData("Files");
+        filesNavItem.textProperty().bind(I18n.binding("nav.files"));
+        favourites.setUserData("Favourites");
+        favourites.textProperty().bind(I18n.binding("nav.favourites"));
+        duplicates.setUserData("Duplicates");
+        duplicates.textProperty().bind(I18n.binding("nav.duplicates"));
+        tags.setUserData("Tags");
+        tags.textProperty().bind(I18n.binding("nav.tags"));
+        history.setUserData("History");
+        history.textProperty().bind(I18n.binding("nav.history"));
+        settings.setUserData("Settings");
+        settings.textProperty().bind(I18n.binding("nav.settings"));
 
         // Home
         home.setGraphic(createSidebarIcon(
@@ -540,9 +598,16 @@ public class MainView {
         );
 
         VBox storageCard = createStorageCard();
+        Label workspaceTitle = OceanComponents.label(tr("ui.your_workspace"), "ocean-sidebar-caption");
+        workspaceTitle.textProperty().bind(I18n.binding("ui.your_workspace"));
+        oceanWorkspaceRoots = new VBox(3);
+        Button manage = OceanComponents.action(tr("ui.manage_folders"), "plus", "ocean-folder-shortcut", this::showScanWorkspaceDialog);
+        manage.textProperty().bind(I18n.binding("ui.manage_folders"));
+        manage.setMaxWidth(Double.MAX_VALUE);
+        VBox workspace = new VBox(8, workspaceTitle, oceanWorkspaceRoots, manage);
+        workspace.getStyleClass().add("ocean-sidebar-workspace");
 
         sidebar.getChildren().addAll(
-                logo,
                 home,
                 dashboard,
                 filesNavItem,
@@ -551,6 +616,7 @@ public class MainView {
                 tags,
                 history,
                 settings,
+                workspace,
                 sidebarSpacer,
                 storageCard
         );
@@ -758,15 +824,16 @@ public class MainView {
 
                 currentStorageRoot = null;
 
-                storageNameLabel.setText("Storage");
+                storageNameLabel.setText(tr("ui.storage"));
                 storageRootLabel.setText("");
                 storageUsageBar.setProgress(0);
-                storageUsedLabel.setText("Unavailable");
+                storageUsedLabel.setText(tr("ui.unavailable"));
                 storageFreeLabel.setText("");
 
                 return;
         }
 
+        displayedStorageVolume = volume;
         currentStorageRoot = volume.getRootPath();
 
         String fullName = volume.getName();
@@ -797,14 +864,14 @@ public class MainView {
 
         storageUsedLabel.setText(
                 FileSizeFormatter.format(volume.getUsedBytes())
-                        + " used · "
+                        + tr("ui.used")
                         + FileSizeFormatter.format(volume.getTotalBytes())
-                        + " total"
+                        + tr("ui.total")
         );
 
         storageFreeLabel.setText(
                 FileSizeFormatter.format(volume.getFreeBytes())
-                        + " free"
+                        + tr("ui.free")
         );
 
         storageUsedLabel.setWrapText(true);
@@ -844,11 +911,11 @@ public class MainView {
                         FileSizeFormatter.format(
                                 volume.getUsedBytes()
                         )
-                                + " used · "
+                                + tr("ui.used")
                                 + FileSizeFormatter.format(
                                         volume.getTotalBytes()
                                 )
-                                + " total"
+                                + tr("ui.total")
                 );
 
         usedLabel.getStyleClass().add(
@@ -863,7 +930,7 @@ public class MainView {
                         FileSizeFormatter.format(
                                 volume.getFreeBytes()
                         )
-                                + " free"
+                                + tr("ui.free")
                 );
 
         freeLabel.getStyleClass().add(
@@ -899,150 +966,194 @@ public class MainView {
     }
 
     private VBox createContent() {
-        VBox content = new VBox();
-        content.getStyleClass().add("content");
+        VBox content = new VBox(18);
+        content.getStyleClass().addAll("content", "ff-dark-shell");
+        content.setMinWidth(0);
+        content.setMinHeight(0);
+        pageContent.setMinWidth(0);
+        pageContent.setMinHeight(0);
+        pageContent.setFillWidth(true);
+        VBox.setVgrow(pageContent, Priority.ALWAYS);
 
-        pageTitle.getStyleClass().add("page-title");
+        oceanPageHeading = OceanComponents.label("", "page-title");
+        oceanPageSubtitle = OceanComponents.label("", "ocean-page-subtitle");
+        oceanPageSubtitle.setWrapText(true);
+        VBox titles = new VBox(5, oceanPageHeading, oceanPageSubtitle);
+        titles.setMinWidth(0);
+        HBox.setHgrow(titles, Priority.ALWAYS);
 
+        scanButton.setGraphic(OceanComponents.icon("scan", 17));
         scanButton.setOnAction(event -> handleScanAction());
         scanButton.getStyleClass().add("primary-button");
+        refreshButton.setGraphic(OceanComponents.icon("refresh", 16));
+        refreshButton.setOnAction(event -> refreshCurrentScan());
+        refreshButton.getStyleClass().add("secondary-button");
+        FlowPane actions = new FlowPane(8, 8, refreshButton, scanButton);
+        actions.setAlignment(Pos.CENTER_RIGHT);
+        actions.setPrefWrapLength(275);
+        actions.setMaxWidth(300);
+        actions.setMinWidth(240);
+        oceanPageHeader = new HBox(16, titles, actions);
+        oceanPageHeader.setAlignment(Pos.CENTER_LEFT);
+        oceanPageHeader.getStyleClass().add("top-bar");
+        content.getChildren().addAll(oceanPageHeader, pageContent);
+        updateOceanPageHeader();
+        return content;
+    }
 
-        Button manageFoldersButton = new Button("Manage Folders");
+    private HBox createOceanCommandBar() {
+        Label brand = OceanComponents.label("FileFlow", "ocean-brand");
+        HBox brandBox = new HBox(11, AppIcon.view(40), brand);
+        brandBox.setAlignment(Pos.CENTER_LEFT);
+        brandBox.setMinWidth(192);
+        brandBox.setPrefWidth(192);
 
-        manageFoldersButton.getStyleClass().add(
-                "secondary-button"
-        );
-
-        manageFoldersButton.setOnAction(
-                event -> showScanWorkspaceDialog()
-        );
-
-        refreshButton.setOnAction(
-                event -> refreshCurrentScan()
-        );
-
-        refreshButton.getStyleClass().add(
-                "secondary-button"
-        );
-
-        // Global command search
-        SVGPath commandSearchIcon = new SVGPath();
-        commandSearchIcon.setContent(
-                "M21 21 L16.6 16.6 "
-                + "M19 11 A8 8 0 1 1 3 11 "
-                + "A8 8 0 1 1 19 11"
-        );
-        commandSearchIcon.getStyleClass().add("ff-command-search-icon");
+        oceanBackButton = OceanComponents.action("", "back", "ocean-icon-button", () -> {
+            if (oceanNavigationHistory.isEmpty()) return;
+            String previous = oceanNavigationHistory.remove(oceanNavigationHistory.size() - 1);
+            oceanGoingBack = true;
+            navigateOcean(previous);
+            oceanGoingBack = false;
+        });
+        oceanBackButton.accessibleTextProperty().bind(I18n.binding("ui.previous_page"));
+        oceanBackButton.setDisable(true);
 
         TextField commandSearch = new TextField();
-        commandSearch.setPromptText("Search files, folders...");
+        commandSearch.promptTextProperty().bind(I18n.binding("ui.search_files_in_your_workspace"));
         commandSearch.getStyleClass().add("ff-command-search-field");
-
-        Button clearCommandSearchButton = new Button("×");
-
-        clearCommandSearchButton.setFocusTraversable(false);
-        clearCommandSearchButton.setStyle(
-                "-fx-background-color: transparent;"
-                + "-fx-text-fill: #A5B9DC;"
-                + "-fx-font-size: 20px;"
-                + "-fx-cursor: hand;"
-                + "-fx-padding: 0 4;"
-        );
-
-        // Show only when text exists
-        clearCommandSearchButton.visibleProperty().bind(
-                commandSearch.textProperty().isNotEmpty()
-        );
-
-        clearCommandSearchButton.managedProperty().bind(
-                clearCommandSearchButton.visibleProperty()
-        );
-
-        clearCommandSearchButton.setOnAction(event -> {
-                commandSearch.clear();
-                commandSearch.requestFocus();
-        });
-
+        commandSearch.setMinWidth(100);
+        HBox.setHgrow(commandSearch, Priority.ALWAYS);
+        Button clear = OceanComponents.action("", "close", "ocean-icon-button", commandSearch::clear);
+        clear.accessibleTextProperty().bind(I18n.binding("ui.clear_search"));
+        clear.visibleProperty().bind(commandSearch.textProperty().isNotEmpty());
+        clear.managedProperty().bind(clear.visibleProperty());
+        oceanShortcutHint = OceanComponents.label(
+                shortcutManager.getShortcut(ShortcutAction.FOCUS_SEARCH).getDisplayText(), "ocean-key-hint");
+        HBox searchBox = new HBox(10, OceanComponents.icon("search", 18), commandSearch, clear, oceanShortcutHint);
+        searchBox.setAlignment(Pos.CENTER_LEFT);
+        searchBox.setMaxWidth(520);
+        searchBox.getStyleClass().add("ff-command-search-box");
+        HBox.setHgrow(searchBox, Priority.ALWAYS);
         commandSearch.setOnAction(event -> {
-        String query = commandSearch.getText().trim();
-
-        selectNavItem(filesNavItem, "Files");
-
-        if (searchField != null) {
+            String query = commandSearch.getText().trim();
+            filesViewMode = FilesViewMode.ALL_FILES;
+            navigateOcean("Files");
+            if (searchField != null) {
                 searchField.setText(query);
                 searchField.requestFocus();
-        }
+            }
         });
-
-        HBox commandSearchBox = new HBox(
-                12,
-                commandSearchIcon,
-                commandSearch,
-                clearCommandSearchButton
-        );
-
-        commandSearchBox.setAlignment(Pos.CENTER_LEFT);
-        commandSearchBox.getStyleClass().add("ff-command-search-box");
-        commandSearchBox.setPrefWidth(460);
-        commandSearchBox.setMaxWidth(560);
-
-        HBox.setHgrow(commandSearch, Priority.ALWAYS);
-
-        Region commandLeftSpacer = new Region();
-        Region commandRightSpacer = new Region();
-
-        HBox.setHgrow(commandLeftSpacer, Priority.ALWAYS);
-        HBox.setHgrow(commandRightSpacer, Priority.ALWAYS);
-
-        HBox commandBar = new HBox(
-                12,
-                commandLeftSpacer,
-                commandSearchBox,
-                commandRightSpacer
-        );
-
-        commandBar.setAlignment(Pos.CENTER_LEFT);
-        commandBar.getStyleClass().add("ff-command-bar");
-
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
+        Button workspace = OceanComponents.action(tr("ui.workspace"), "folder", "ocean-workspace-button", this::showScanWorkspaceDialog);
+        workspace.textProperty().bind(I18n.binding("ui.workspace"));
+        HBox bar = new HBox(14, brandBox, oceanBackButton, searchBox, spacer, workspace);
+        bar.setAlignment(Pos.CENTER_LEFT);
+        bar.getStyleClass().add("ff-command-bar");
+        return bar;
+    }
 
-        HBox topBar = new HBox(
-                12,
-                pageTitle,
-                spacer,
-                scanStatusLabel,
-                scanProgressBar,
-                refreshButton,
-                manageFoldersButton,
-                scanButton
-        );
-        topBar.getStyleClass().add("top-bar");
+    private HBox createOceanStatusBar() {
+        Region dot = new Region();
+        dot.getStyleClass().add("ocean-status-dot");
+        oceanFooterStatus = OceanComponents.label(tr("ui.ready_to_scan"), "ocean-status-text");
+        oceanFooterStatus.visibleProperty().bind(scanStatusLabel.visibleProperty().not());
+        oceanFooterStatus.managedProperty().bind(oceanFooterStatus.visibleProperty());
+        scanStatusLabel.getStyleClass().add("ocean-status-text");
+        scanStatusLabel.setMaxWidth(680);
+        scanProgressBar.setPrefWidth(180);
+        scanProgressBar.setMaxWidth(180);
+        scanProgressBar.getStyleClass().add("ocean-scan-progress");
+        oceanCancelScan = OceanComponents.action(tr("common.cancel"), "close", "ocean-text-button", this::handleScanAction);
+        oceanCancelScan.textProperty().bind(I18n.binding("common.cancel"));
+        oceanCancelScan.setVisible(false);
+        oceanCancelScan.setManaged(false);
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        Button manage = OceanComponents.action(tr("ui.manage_folders"), "folder", "ocean-text-button", this::showScanWorkspaceDialog);
+        manage.textProperty().bind(I18n.binding("ui.manage_folders"));
+        HBox bar = new HBox(12, dot, oceanFooterStatus, scanStatusLabel, scanProgressBar, oceanCancelScan, spacer, manage);
+        bar.setAlignment(Pos.CENTER_LEFT);
+        bar.getStyleClass().add("ocean-status-bar");
+        updateOceanStatus();
+        return bar;
+    }
 
-        VBox pageBody = new VBox(
-                18,
-                topBar,
-                pageContent
-        );
+    private void navigateOcean(String title) {
+        navItems.stream().filter(item -> title.equals(item.getUserData())).findFirst()
+                .ifPresent(item -> selectNavItem(item, title));
+    }
 
-        pageBody.getStyleClass().add("ff-page-body");
+    private void updateOceanPageHeader() {
+        if (oceanPageHeader == null) return;
+        String page = pageTitle.getText();
+        oceanPageHeading.setText(switch (page) {
+            case "Dashboard" -> tr("ui.the_bigger_picture");
+            case "Files" -> tr("ui.your_files_in_flow");
+            case "Duplicates" -> tr("ui.a_little_less_clutter");
+            case "Tags" -> tr("ui.everything_has_a_place");
+            case "History" -> tr("ui.right_where_you_left_it");
+            case "Settings" -> tr("ui.make_it_yours");
+            default -> I18n.choice(page);
+        });
+        oceanPageSubtitle.setText(switch (page) {
+            case "Dashboard" -> tr("ui.understand_your_files_and_the_space_they_use");
+            case "Files" -> tr("ui.browse_find_and_organise_your_workspace");
+            case "Favourites" -> tr("ui.the_files_you_want_to_keep_close");
+            case "Duplicates" -> tr("ui.find_duplicate_files_and_visually_similar_images");
+            case "Tags" -> tr("ui.group_files_your_way_wherever_they_live");
+            case "History" -> tr("ui.your_recent_scans_ready_for_another_look");
+            case "Settings" -> tr("ui.a_few_thoughtful_controls_for_your_daily_flow");
+            default -> "";
+        });
+        boolean visible = !page.equals("Home");
+        oceanPageHeader.setVisible(visible);
+        oceanPageHeader.setManaged(visible);
+        if (oceanBackButton != null) oceanBackButton.setDisable(oceanNavigationHistory.isEmpty());
+        if (oceanShortcutHint != null) oceanShortcutHint.setText(
+                shortcutManager.getShortcut(ShortcutAction.FOCUS_SEARCH).getDisplayText());
+    }
 
-        VBox.setVgrow(pageContent, Priority.ALWAYS);
-        VBox.setVgrow(pageBody, Priority.ALWAYS);
+    private VBox oceanScrollable(VBox page) {
+        ScrollPane scroll = new ScrollPane(page);
+        scroll.setFitToWidth(true);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.getStyleClass().add("ocean-page-scroll");
+        Platform.runLater(() -> scroll.setVvalue(0));
+        VBox wrapper = new VBox(scroll);
+        wrapper.setMinHeight(0);
+        VBox.setVgrow(scroll, Priority.ALWAYS);
+        return wrapper;
+    }
 
-        VBox.setMargin(
-                pageBody,
-                new Insets(8, 10, 10, 8)
-        );
-
-        content.getStyleClass().add("ff-dark-shell");
-
-        content.getChildren().addAll(
-                commandBar,
-                pageBody
-        );
-
-        return content;
+    private void updateOceanStatus() {
+        if (oceanFooterStatus != null) {
+            int count = lastWorkspaceScanSnapshot == null ? (scanRootPath == null ? 0 : 1)
+                    : lastWorkspaceScanSnapshot.resultsByRoot().size();
+            oceanFooterStatus.setText(count == 0 ? tr("ui.ready_to_scan") :
+                    tr("ui.workspace_up_to_date") + count + (count == 1 ? tr("ui.folder_ba1a7") : tr("ui.folders_a61f8")));
+        }
+        if (oceanCancelScan != null) {
+            oceanCancelScan.setVisible(scanning);
+            oceanCancelScan.setManaged(scanning);
+        }
+        if (oceanWorkspaceRoots == null) return;
+        oceanWorkspaceRoots.getChildren().clear();
+        List<Path> roots = new ArrayList<>(scanWorkspace.getRoots());
+        if (roots.isEmpty() && scanRootPath != null) roots.add(scanRootPath);
+        for (Path path : roots.stream().limit(3).toList()) {
+            Button shortcut = OceanComponents.action(getPathDisplayName(path), "folder", "ocean-folder-shortcut", () -> {
+                if (lastWorkspaceScanSnapshot != null && lastWorkspaceScanSnapshot.resultsByRoot().containsKey(path)) {
+                    activateWorkspaceRoot(path);
+                } else if (!path.equals(scanRootPath)) {
+                    startScan(path);
+                }
+                navigateOcean("Files");
+            });
+            shortcut.setTooltip(new Tooltip(path.toString()));
+            shortcut.setMaxWidth(Double.MAX_VALUE);
+            oceanWorkspaceRoots.getChildren().add(shortcut);
+        }
     }
 
     private VBox createSummaryCard(String title, String value) {
@@ -1078,6 +1189,9 @@ public class MainView {
     }
 
     private void selectNavItem(Label selectedItem, String title) {
+        if (!title.equals(pageTitle.getText()) && !oceanGoingBack) {
+            oceanNavigationHistory.add(pageTitle.getText());
+        }
 
         for (Label navItem : navItems) {
                 navItem.getStyleClass().remove("nav-item-selected");
@@ -1087,9 +1201,10 @@ public class MainView {
 
         pageTitle.setText(title);
 
+        cancelFileListing();
         pageContent.getChildren().clear();
 
-        root.setRight(null);
+        hideQuickInfo();
 
         scanButton.setVisible(!title.equals("Home"));
         scanButton.setManaged(!title.equals("Home"));
@@ -1099,7 +1214,7 @@ public class MainView {
 
         switch (title) {
             case "Home" ->
-                    pageContent.getChildren().add(createHomeContent());
+                    pageContent.getChildren().add(oceanScrollable(createHomeContent()));
 
             case "Dashboard" ->
                     pageContent.getChildren().add(createDashboardContent());
@@ -1140,807 +1255,252 @@ public class MainView {
             }
 
             case "Tags" ->
-                    pageContent.getChildren().add(createTagsContent());
+                    pageContent.getChildren().add(oceanScrollable(createTagsContent()));
 
             case "History" ->
                     pageContent.getChildren().add(createHistoryContent());
 
             case "Settings" ->
-                    pageContent.getChildren().add(createSettingsContent());
+                    pageContent.getChildren().add(oceanScrollable(createSettingsContent()));
         }
+        for (Node page : pageContent.getChildren()) {
+            VBox.setVgrow(page, Priority.ALWAYS);
+            if (page instanceof Region region) {
+                region.setMinHeight(0);
+                region.setMaxHeight(Double.MAX_VALUE);
+            }
+        }
+        updateOceanPageHeader();
+        updateOceanStatus();
     }
 
     private VBox createHomeContent() {
-        VBox homeContent = new VBox();
-        homeContent.getStyleClass().add("home-content");
-
-        VBox hero = new VBox();
+        VBox home = new VBox(18);
+        home.getStyleClass().add("home-content");
+        Label eyebrow = OceanComponents.label(tr("ui.a_little_order_a_lot_of_possibility"), "ocean-eyebrow");
+        Label heading = OceanComponents.label(tr("ui.make_room_for_what_matters"), "home-heading");
+        Label subtitle = OceanComponents.label(tr("ui.a_clearer_view_of_your_files_a_calmer_place_to_keep_them"), "home-subtitle");
+        subtitle.setWrapText(true);
+        subtitle.setMaxWidth(440);
+        homeScanButton = OceanComponents.action(tr("ui.scan_a_folder"), "scan", "home-scan-button", this::handleScanAction);
+        Button manage = OceanComponents.action(tr("ui.manage_folders"), "folder", "secondary-button", this::showScanWorkspaceDialog);
+        HBox heroActions = new HBox(10, homeScanButton, manage);
+        VBox heroCopy = new VBox(12, eyebrow, heading, subtitle, heroActions);
+        heroCopy.setMinWidth(0);
+        HBox.setHgrow(heroCopy, Priority.ALWAYS);
+        HBox hero = new HBox(20, heroCopy, OceanComponents.heroArt());
+        hero.setAlignment(Pos.CENTER_LEFT);
         hero.getStyleClass().add("home-hero");
-
-        Label heading = new Label("Your files, organised.");
-        heading.getStyleClass().add("home-heading");
-
-        Label subtitle = new Label(
-                "Scan a folder to explore, organise and understand your local files."
-        );
-        subtitle.getStyleClass().add("home-subtitle");
-
-        homeScanButton  = new Button("Scan a folder");
-        homeScanButton.setOnAction(event -> handleScanAction());
-        homeScanButton.getStyleClass().add("home-scan-button");
-
-        hero.getChildren().addAll(
-                heading,
-                subtitle,
-                homeScanButton
-        );
-
-        homeContent.getChildren().add(hero);
-
-        Label recentTitle = new Label("Recent Scan");
-        recentTitle.getStyleClass().add("section-title");
-
-        VBox recentScanCard = new VBox(12);
-
-        recentScanCard.getStyleClass().add("recent-scan-card");
-
+        home.getChildren().add(hero);
+        home.getChildren().add(OceanComponents.section(tr("ui.pick_up_where_you_left_off"), tr("ui.all_scans"), () -> navigateOcean("History")));
+        HBox recent = new HBox(12);
+        recent.setFillHeight(true);
+        recent.setMaxHeight(Region.USE_PREF_SIZE);
         try {
-
-                ScanHistoryEntry latestEntry = scanHistoryRepo.getAll()
-                        .stream()
-                        .max(Comparator.comparing(
-                                ScanHistoryEntry::getScannedAt
-                        ))
-                        .orElse(null);
-
-                if (latestEntry == null) {
-
-                        Label emptyName = new Label("No recent scan");
-
-                        emptyName.getStyleClass().add("recent-scan-name");
-
-                        Label emptyDetails = new Label(
-                                "Scan a folder to see recent activity here."
-                        );
-
-                        emptyDetails.getStyleClass().add("recent-scan-details");
-
-                        recentScanCard.getChildren().addAll(
-                                emptyName,
-                                emptyDetails
-                        );
-
-                } else {
-
-                        Path folderPath = latestEntry.getFolderPath();
-
-                        Label folderName = new Label(
-                                getPathDisplayName(folderPath)
-                        );
-
-                        folderName.getStyleClass().add("recent-scan-name");
-
-                        Label pathLabel = new Label(
-                                folderPath.toString()
-                        );
-
-                        pathLabel.getStyleClass().add("recent-scan-details");
-                        pathLabel.setWrapText(true);
-
-                        String scanTime = latestEntry.getScannedAt().format(
-                                DateTimeFormatter.ofPattern(
-                                        "dd MMM yyyy, HH:mm"
-                                )
-                        );
-
-                        Label detailsLabel = new Label(
-                                scanTime
-                                + "  ·  "
-                                + String.format("%,d files", latestEntry.getFileCount())
-                                + "  ·  "
-                                + FileSizeFormatter.format(latestEntry.getTotalBytes())
-                        );
-
-                        detailsLabel.getStyleClass().add("recent-scan-details");
-
-                        VBox folderInfo = new VBox(
-                                6,
-                                folderName,
-                                pathLabel,
-                                detailsLabel
-                        );
-
-                        Region spacer = new Region();
-                        HBox.setHgrow(spacer, Priority.ALWAYS);
-
-                        Button scanAgainButton = new Button("Scan Again");
-
-                        scanAgainButton.getStyleClass().add("secondary-button");
-
-                        scanAgainButton.setOnAction(event ->
-                                startScan(folderPath)
-                        );
-
-                        HBox row = new HBox(
-                                16,
-                                folderInfo,
-                                spacer,
-                                scanAgainButton
-                        );
-
-                        row.setAlignment(Pos.CENTER_LEFT);
-
-                        recentScanCard.getChildren().add(row);
-                }
-
+            Map<Path, ScanHistoryEntry> latestByFolder = new java.util.LinkedHashMap<>();
+            scanHistoryRepo.getAll().stream()
+                    .sorted(Comparator.comparing(ScanHistoryEntry::getScannedAt).reversed())
+                    .forEach(entry -> latestByFolder.putIfAbsent(entry.getFolderPath(), entry));
+            for (ScanHistoryEntry entry : latestByFolder.values().stream().limit(3).toList()) {
+                Label name = OceanComponents.label(getPathDisplayName(entry.getFolderPath()), "recent-scan-name");
+                name.setMaxWidth(Double.MAX_VALUE);
+                Label detail = OceanComponents.label(String.format(tr("ui.d_files_s"), entry.getFileCount(),
+                        FileSizeFormatter.format(entry.getTotalBytes())), "recent-scan-details");
+                detail.setWrapText(true);
+                StackPane cover = new StackPane(OceanComponents.icon("folder", 30));
+                cover.getStyleClass().add("ocean-folder-cover");
+                VBox card = OceanComponents.card(new VBox(8, cover, name, detail), "ocean-recent-card",
+                        tr("ui.scan") + getPathDisplayName(entry.getFolderPath()) + tr("ui.again"),
+                        () -> startScan(entry.getFolderPath()));
+                Tooltip.install(card, new Tooltip(entry.getFolderPath() + tr("ui.last_scanned") + entry.getScannedAt().format(
+                        I18n.dateTimeFormatter())));
+                recent.getChildren().add(card);
+            }
         } catch (SQLException exception) {
-
-        Label errorLabel = new Label(
-                "Unable to load recent scan history."
-        );
-
-        errorLabel.getStyleClass().add("recent-scan-details");
-
-        recentScanCard.getChildren().add(errorLabel);
-
-        exception.printStackTrace();
+            Label error = OceanComponents.label(tr("ui.recent_scans_could_not_be_loaded_you_can_still_scan_a_folder"), "ocean-muted");
+            error.setWrapText(true);
+            recent.getChildren().add(error);
         }
-
-        homeContent.getChildren().addAll(
-                recentTitle,
-                recentScanCard
-        );
-
-        return homeContent;
+        if (recent.getChildren().isEmpty()) {
+            HBox firstScan = new HBox(14, OceanComponents.icon("folder", 30),
+                    new VBox(5, OceanComponents.label(tr("ui.your_next_scan_starts_here"), "recent-scan-name"),
+                            OceanComponents.label(tr("ui.scan_a_folder_to_see_recent_activity_and_file_insights"), "ocean-muted")));
+            firstScan.setAlignment(Pos.CENTER_LEFT);
+            firstScan.getStyleClass().add("recent-scan-card");
+            HBox.setHgrow(firstScan, Priority.ALWAYS);
+            firstScan.setMaxWidth(Double.MAX_VALUE);
+            recent.getChildren().add(firstScan);
+        }
+        home.getChildren().add(recent);
+        home.getChildren().add(OceanComponents.section(tr("ui.explore_your_workspace"), null, null));
+        HBox explore = new HBox(12,
+                OceanComponents.tile(tr("ui.large_files"), tr("ui.see_what_is_taking_up_space"), "drive", () -> navigateOcean("Dashboard")),
+                OceanComponents.tile(tr("ui.find_duplicates"), tr("ui.review_copies_keep_what_matters"), "copy", () -> navigateOcean("Duplicates")),
+                OceanComponents.tile(tr("ui.recently_modified"), tr("ui.jump_back_into_your_latest_files"), "clock", () -> navigateOcean("Dashboard")),
+                OceanComponents.tile(tr("ui.your_favourites"), tr("ui.important_files_always_close"), "star", () -> navigateOcean("Favourites")));
+        explore.setMaxHeight(Region.USE_PREF_SIZE);
+        home.getChildren().add(explore);
+        return home;
     }
 
     private VBox createDashboardContent() {
-        VBox dashboardPage = new VBox();
-
-        VBox dashboardContent = new VBox(18);
-
-        ScrollPane scrollPane = new ScrollPane(dashboardContent);
-        scrollPane.getStyleClass().add("dashboard-scroll");
-
-        scrollPane.setFitToWidth(true);
-        scrollPane.setHbarPolicy(
-                ScrollPane.ScrollBarPolicy.NEVER
-        );
-
-        VBox.setVgrow(scrollPane, Priority.ALWAYS);
-
-        dashboardPage.getChildren().add(scrollPane);
-
+        VBox body = new VBox(16);
+        body.getStyleClass().add("ocean-dashboard");
+        ScrollPane scroll = new ScrollPane(body);
+        scroll.setFitToWidth(true);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.getStyleClass().add("dashboard-scroll");
+        VBox page = new VBox(scroll);
+        page.setMinHeight(0);
+        VBox.setVgrow(scroll, Priority.ALWAYS);
         if (latestScanResult == null) {
-            Label emptyLabel = new Label(
-                    "Scan a folder to view file statistics."
-            );
-
-            emptyLabel.getStyleClass().add("dashboard-empty-state");
-
-            dashboardContent.getChildren().add(emptyLabel);
-            return dashboardPage;
+            body.getChildren().add(OceanComponents.empty(tr("ui.a_clearer_view_starts_here"),
+                    tr("ui.scan_a_folder_to_understand_your_files_and_the_space_they_use"), this::handleScanAction));
+            return page;
         }
-
-        long fileCount = latestScanResult.getItems()
-                .stream()
-                .filter(item -> !item.isDirectory())
-                .count();
-
-        long totalBytes = latestScanResult.getItems()
-                .stream()
-                .filter(item -> !item.isDirectory())
-                .mapToLong(item -> item.getSizeBytes())
-                .sum();
-
-        long folderCount = latestScanResult.getItems()
-                .stream()
-                .filter(FileItem::isDirectory)
-                .count();
-
-
-        HBox summaryRow = new HBox(14);
-        summaryRow.getStyleClass().add("summary-grid");
-
-        VBox filesCard = createSummaryCard(
-                "Files",
-                String.format("%,d", fileCount)
-        );
-
-        VBox storageCard = createSummaryCard(
-                "Storage",
-                FileSizeFormatter.format(totalBytes)
-        );
-
-        VBox foldersCard = createSummaryCard(
-                "Folders",
-                String.format("%,d", folderCount)
-        );
-
-        VBox issuesCard = createSummaryCard(
-                "Scan Issues",
-                String.valueOf(latestScanResult.getIssues().size())
-        );
-
-        for (VBox card : List.of(
-                filesCard,
-                storageCard,
-                foldersCard,
-                issuesCard
-        )) {
-                card.getStyleClass().add("dashboard-glass-card");
+        List<FileItem> scannedFiles = latestScanResult.getItems().stream().filter(item -> !item.isDirectory()).toList();
+        long totalBytes = scannedFiles.stream().mapToLong(FileItem::getSizeBytes).sum();
+        long folders = latestScanResult.getItems().stream().filter(FileItem::isDirectory).count();
+        HBox stats = new HBox(12,
+                createSummaryCard(tr("nav.files"), String.format("%,d", scannedFiles.size())),
+                createSummaryCard(tr("ui.total_size"), FileSizeFormatter.format(totalBytes)),
+                createSummaryCard(tr("ui.folders"), String.format("%,d", folders)),
+                createSummaryCard(tr("ui.scan_issues"), String.valueOf(latestScanResult.getIssues().size())));
+        for (Node node : stats.getChildren()) {
+            Region card = (Region) node;
+            card.setMinWidth(0);
+            card.setPrefWidth(0);
+            card.setMaxWidth(Double.MAX_VALUE);
+            HBox.setHgrow(card, Priority.ALWAYS);
         }
-
-        for (VBox card : List.of(filesCard, storageCard, foldersCard, issuesCard)) {
-                HBox.setHgrow(card, Priority.ALWAYS);
-                card.setMaxWidth(Double.MAX_VALUE);
-                card.setMinWidth(0);
-                card.setPrefWidth(0);
+        body.getChildren().add(stats);
+        int rootCount = lastWorkspaceScanSnapshot == null ? 1 : lastWorkspaceScanSnapshot.completedFolderCount();
+        long workspaceFiles = lastWorkspaceScanSnapshot == null ? scannedFiles.size() : lastWorkspaceScanSnapshot.fileCount();
+        long workspaceBytes = lastWorkspaceScanSnapshot == null ? totalBytes : lastWorkspaceScanSnapshot.totalFileBytes();
+        Label workspaceName = OceanComponents.label(rootCount + (rootCount == 1 ? tr("ui.scanned_folder") : tr("ui.scanned_folders")), "ocean-workspace-title");
+        Label workspaceDetail = OceanComponents.label(String.format(tr("ui.d_files_s"), workspaceFiles,
+                FileSizeFormatter.format(workspaceBytes)), "ocean-muted");
+        if (lastWorkspaceScanSnapshot != null && !lastWorkspaceScanSnapshot.failures().isEmpty()) {
+            workspaceDetail.setText(workspaceDetail.getText() + " · " + lastWorkspaceScanSnapshot.failures().size() + tr("ui.failed_roots"));
         }
+        Region workspaceSpacer = new Region();
+        HBox.setHgrow(workspaceSpacer, Priority.ALWAYS);
+        HBox workspace = new HBox(12, OceanComponents.icon("folder", 24), workspaceName, workspaceDetail, workspaceSpacer,
+                OceanComponents.action(tr("ui.view_files"), "arrow", "ocean-text-button", () -> navigateOcean("Files")));
+        workspace.setAlignment(Pos.CENTER_LEFT);
+        workspace.getStyleClass().add("ocean-workspace-summary");
+        body.getChildren().add(workspace);
 
-        summaryRow.getChildren().addAll(
-                filesCard,
-                storageCard,
-                foldersCard,
-                issuesCard
-        );
-
-        dashboardContent.getChildren().add(summaryRow);
-
-        // Entire workspace summary
-        if (lastWorkspaceScanSnapshot != null
-                && !lastWorkspaceScanSnapshot.resultsByRoot().isEmpty()) {
-
-                WorkspaceScanSnapshot workspace =
-                        lastWorkspaceScanSnapshot;
-
-                Label workspaceTitle = new Label("Entire Workspace");
-                workspaceTitle.getStyleClass().add("section-title");
-
-                HBox workspaceRow = new HBox(12);
-                workspaceRow.getStyleClass().add("summary-grid");
-
-                VBox rootsCard = createSummaryCard(
-                        "Scanned Roots",
-                        String.valueOf(workspace.completedFolderCount())
-                );
-
-                VBox workspaceFilesCard = createSummaryCard(
-                        "Total Files",
-                        String.format("%,d", workspace.fileCount())
-                );
-
-                VBox workspaceSizeCard = createSummaryCard(
-                        "Total Size",
-                        FileSizeFormatter.format(workspace.totalFileBytes())
-                );
-
-                VBox failedCard = createSummaryCard(
-                        "Failed Roots",
-                        String.valueOf(workspace.failures().size())
-                );
-
-                for (VBox card : List.of(
-                        rootsCard,
-                        workspaceFilesCard,
-                        workspaceSizeCard,
-                        failedCard
-                )) {
-                        HBox.setHgrow(card, Priority.ALWAYS);
-                        card.setMaxWidth(Double.MAX_VALUE);
-                }
-
-                workspaceRow.getChildren().addAll(
-                        rootsCard,
-                        workspaceFilesCard,
-                        workspaceSizeCard,
-                        failedCard
-                );
-
-                dashboardContent.getChildren().addAll(
-                        workspaceTitle,
-                        workspaceRow
-                );
+        Map<FileType, Long> bytesByType = new java.util.LinkedHashMap<>();
+        Map<FileType, Long> countByType = new HashMap<>();
+        for (FileItem item : scannedFiles) {
+            bytesByType.merge(item.getType(), item.getSizeBytes(), Long::sum);
+            countByType.merge(item.getType(), 1L, Long::sum);
         }
-
-        VBox largestFilesList = new VBox(6);
-
-        List<FileItem> largestFiles = latestScanResult.getItems()
-                .stream()
-                .filter(item -> !item.isDirectory())
-                .sorted(
-                        Comparator.comparingLong(FileItem::getSizeBytes)
-                                .reversed()
-                )
-                .limit(10)
-                .toList();
-
-        for (FileItem item : largestFiles) {
-                Label nameLabel = new Label(item.getName());
-                nameLabel.getStyleClass().add("file-name");
-
-                Label pathLabel = new Label();
-
-                if (scanRootPath != null) {
-                        Path parent = item.getPath().getParent();
-
-                        if (parent != null) {
-                                Path relativeParent = scanRootPath.relativize(parent);
-
-                                pathLabel.setText(
-                                        relativeParent.toString().isEmpty()
-                                                ? "Scan root"
-                                                : relativeParent.toString()
-                                );
-                        }
-                }
-
-                pathLabel.getStyleClass().add("dashboard-file-path");
-
-                VBox fileInfo = new VBox(
-                        3,
-                        nameLabel,
-                        pathLabel
-                );
-
-                Node filePreview =
-                        createUnifiedFilePreview(item);
-
-                Label sizeLabel = new Label(FileSizeFormatter.format(item.getSizeBytes()));
-                sizeLabel.getStyleClass().add("file-size");
-
-                Region spacer = new Region();
-                HBox.setHgrow(spacer, Priority.ALWAYS);
-
-                Button moreButton =
-                        createFileActionsButton(item.getPath());
-
-                HBox row = new HBox(
-                        12,
-                        filePreview,
-                        fileInfo,
-                        spacer,
-                        sizeLabel,
-                        moreButton
-                );
-
-                row.setAlignment(Pos.CENTER_LEFT);
-                row.getStyleClass().add("dashboard-file-row");
-
-                row.setOnContextMenuRequested(event -> {
-
-                        ContextMenu fileMenu =
-                                createFileContextMenu(
-                                        item.getPath()
-                                );
-
-                        fileMenu.show(
-                                row,
-                                event.getScreenX(),
-                                event.getScreenY()
-                        );
-
-                        event.consume();
-                });
-
-                configureDashboardFileRow(row, item.getPath());
-
-                moreButton.addEventFilter(
-                        MouseEvent.MOUSE_CLICKED,
-                        event -> event.consume()
-                );
-
-                largestFilesList.getChildren().add(row);
+        VBox types = new VBox(9);
+        for (FileType type : bytesByType.keySet().stream().sorted(
+                Comparator.comparingLong((FileType type) -> bytesByType.get(type)).reversed()).toList()) {
+            long bytes = bytesByType.get(type);
+            double fraction = totalBytes == 0 ? 0 : (double) bytes / totalBytes;
+            Label name = OceanComponents.label(I18n.choice(getFileTypeDisplayName(type)), "dashboard-type-name");
+            Label value = OceanComponents.label(FileSizeFormatter.format(bytes), "dashboard-type-meta");
+            Region spacer = new Region();
+            HBox.setHgrow(spacer, Priority.ALWAYS);
+            HBox line = new HBox(8, name, spacer, value);
+            ProgressBar bar = new ProgressBar(fraction);
+            bar.setMaxWidth(Double.MAX_VALUE);
+            bar.getStyleClass().add("dashboard-type-progress");
+            VBox row = new VBox(5, line, bar);
+            Tooltip.install(row, new Tooltip(String.format(tr("ui.d_files_1f_of_size"), countByType.get(type), fraction * 100)));
+            types.getChildren().add(row);
         }
+        if (types.getChildren().isEmpty()) types.getChildren().add(OceanComponents.label(tr("ui.no_files_in_this_folder"), "ocean-muted"));
+        HBox.setHgrow(types, Priority.ALWAYS);
+        types.setMinWidth(120);
+        HBox breakdown = new HBox(16, OceanComponents.donut(bytesByType, FileSizeFormatter.format(totalBytes)), types);
+        breakdown.setAlignment(Pos.CENTER_LEFT);
+        VBox typeCard = new VBox(16, OceanComponents.label(tr("ui.file_type_breakdown"), "section-title"), breakdown);
+        typeCard.getStyleClass().add("ocean-glass-card");
 
-        VBox largestFilesSection = createCollapsibleSection(
-                "Largest Files",
-                largestFiles.size(),
-                largestFilesList
-        );
-
-        Label typeBreakdownTitle = new Label("File Type Breakdown");
-        typeBreakdownTitle.getStyleClass().add("section-title");
-
-        VBox typeBreakdownList = new VBox(6);
-
-        Map<FileType, Long> fileCountsByType = new HashMap<>();
-        Map<FileType, Long> bytesByType = new HashMap<>();
-
-        for (FileItem item : latestScanResult.getItems()) {
-                if (item.isDirectory()) {
-                        continue;
-                }
-
-                FileType type = item.getType();
-
-                fileCountsByType.merge(
-                        type,
-                        1L,
-                        Long::sum
-                );
-
-                bytesByType.merge(
-                        type,
-                        item.getSizeBytes(),
-                        Long::sum
-                );
-        }
-
-        List<FileType> dashboardTypes = List.of(FileType.values())
-                .stream()
-                .filter(type -> 
-                        fileCountsByType.getOrDefault(type, 0L) > 0
-                )
-                .sorted(
-                        Comparator.comparingLong(
-                                (FileType type) ->
-                                        bytesByType.getOrDefault(type, 0L)
-                        ).reversed()
-                )
-                .toList();
-
-        for (FileType type : dashboardTypes) {
-                long count = fileCountsByType.getOrDefault(
-                        type,
-                        0L
-                );
-
-                long bytes = bytesByType.getOrDefault(
-                        type,
-                        0L
-                );
-
-                double percentage = totalBytes == 0
-                        ? 0
-                        : (double) bytes / totalBytes * 100;
-
-                Label typeLabel = new Label(
-                        getFileTypeDisplayName(type)
-                );
-                typeLabel.getStyleClass().add("dashboard-type-name");
-
-                Label countLabel = new Label(
-                         String.format("%,d files", count)
-                );
-                countLabel.getStyleClass().add(
-                        "dashboard-type-meta"
-                );
-
-                Label sizeLabel = new Label(
-                        FileSizeFormatter.format(bytes)
-                );
-                sizeLabel.getStyleClass().add(
-                        "dashboard-type-meta"
-                );
-
-                Label percentageLabel = new Label(
-                        String.format("%.1f%%", percentage)
-                );
-                percentageLabel.getStyleClass().add(
-                        "dashboard-type-percentage"
-                );
-
-                ProgressBar typeProgressBar = new ProgressBar(
-                        percentage / 100.0
-                );
-
-                typeProgressBar.setPrefWidth(180);
-                typeProgressBar.getStyleClass().add(
-                        "dashboard-type-progress"
-                );
-
-                Region spacer = new Region();
-                HBox.setHgrow(spacer, Priority.ALWAYS);
-
-                HBox row = new HBox(
-                        14,
-                        typeLabel,
-                        spacer,
-                        countLabel,
-                        sizeLabel,
-                        typeProgressBar,
-                        percentageLabel
-                );
-
-                row.setAlignment(Pos.CENTER_LEFT);
-                row.getStyleClass().add(
-                        "dashboard-type-row"
-                );
-
-                typeBreakdownList.getChildren().add(row);
-        }
-
-        dashboardContent.getChildren().addAll(
-                typeBreakdownTitle,
-                typeBreakdownList
-        );
-
+        Map<Path, Long> folderBytes = new HashMap<>();
+        Map<Path, Long> folderCounts = new HashMap<>();
         if (scanRootPath != null) {
-                Label currentScanTitle = new Label("Current Scan");
-                currentScanTitle.getStyleClass().add("section-title");
-
-                Label rootNameLabel = new Label(
-                        getPathDisplayName(scanRootPath)
-                );
-                rootNameLabel.getStyleClass().add("current-scan-name");
-
-                Label rootPathLabel = new Label(
-                        scanRootPath.toString()
-                );
-                rootPathLabel.getStyleClass().add("current-scan-path");
-
-                Label scanSummaryLabel = new Label(
-                        String.format(
-                                "%,d files · %,d folders · %s",
-                                fileCount,
-                                folderCount,
-                                FileSizeFormatter.format(totalBytes)
-                        )
-                );
-                scanSummaryLabel.getStyleClass().add(
-                        "current-scan-summary"
-                );
-
-                VBox scanInfo = new VBox(
-                        4,
-                        rootNameLabel,
-                        rootPathLabel,
-                        scanSummaryLabel
-                );
-
-                Region spacer = new Region();
-                HBox.setHgrow(spacer, Priority.ALWAYS);
-
-                Button moreButton = 
-                        createFileActionsButton(scanRootPath);
-
-                HBox currentScanCard = new HBox(
-                        16,
-                        scanInfo,
-                        spacer,
-                        moreButton
-                );
-
-                currentScanCard.setAlignment(Pos.CENTER_LEFT);
-                currentScanCard.getStyleClass().add(
-                        "current-scan-card"
-                );
-
-                dashboardContent.getChildren().addAll(
-                        currentScanTitle,
-                        currentScanCard
-                );
+            for (FileItem item : scannedFiles) {
+                Path relative = scanRootPath.relativize(item.getPath());
+                Path top = relative.getNameCount() > 1 ? scanRootPath.resolve(relative.getName(0)) : scanRootPath;
+                folderBytes.merge(top, item.getSizeBytes(), Long::sum);
+                folderCounts.merge(top, 1L, Long::sum);
+            }
         }
-
-        Label foldersBreakdownTitle = 
-                new Label("Top-level Folders");
-        foldersBreakdownTitle.getStyleClass().add("section-title");
-
-        VBox foldersBreakdownList = new VBox(6);
-
-        Map<Path, Long> bytesByTopFolder = new HashMap<>();
-        Map<Path, Long> filesByTopFolder = new HashMap<>();
-
-        for (FileItem item : latestScanResult.getItems()) {
-                if (item.isDirectory()) {
-                        continue;
-                }
-
-                Path relativePath = scanRootPath.relativize(
-                        item.getPath()
-                );
-
-                if (relativePath.getNameCount() < 2) {
-                        continue;
-                }
-
-                Path topFolder = scanRootPath.resolve(
-                        relativePath.getName(0)
-                );
-
-                bytesByTopFolder.merge(
-                        topFolder,
-                        item.getSizeBytes(),
-                        Long::sum
-                );
-
-                filesByTopFolder.merge(
-                        topFolder,
-                        1L,
-                        Long::sum
-                );
+        VBox folderRows = new VBox(11);
+        for (Path folder : folderBytes.keySet().stream().sorted(
+                Comparator.comparingLong((Path path) -> folderBytes.get(path)).reversed()).limit(5).toList()) {
+            long bytes = folderBytes.get(folder);
+            double fraction = totalBytes == 0 ? 0 : (double) bytes / totalBytes;
+            Label name = OceanComponents.label(folder.equals(scanRootPath) ? tr("ui.files_in_scan_root") : getPathDisplayName(folder), "dashboard-folder-name");
+            name.setMinWidth(0);
+            Label amount = OceanComponents.label(FileSizeFormatter.format(bytes) + String.format(" · %.0f%%", fraction * 100), "dashboard-folder-meta");
+            Region spacer = new Region();
+            HBox.setHgrow(spacer, Priority.ALWAYS);
+            HBox line = new HBox(8, name, spacer, amount);
+            ProgressBar bar = new ProgressBar(fraction);
+            bar.setMaxWidth(Double.MAX_VALUE);
+            bar.getStyleClass().add("dashboard-folder-progress");
+            VBox row = new VBox(5, line, bar);
+            row.getStyleClass().add("ocean-folder-stat-row");
+            row.setOnMouseClicked(event -> {
+                currentFolder = folder;
+                filesViewMode = FilesViewMode.BROWSE;
+                navigateOcean("Files");
+            });
+            row.setOnContextMenuRequested(event -> createFileContextMenu(folder).show(row, event.getScreenX(), event.getScreenY()));
+            Tooltip.install(row, new Tooltip(folder + String.format(tr("ui.d_files"), folderCounts.get(folder))));
+            folderRows.getChildren().add(row);
         }
-
-        List<Path> largestTopFolders = bytesByTopFolder.keySet()
-                .stream()
-                .sorted(
-                        Comparator.comparingLong(
-                                (Path folder) -> 
-                                        bytesByTopFolder.getOrDefault(folder, 0L)        
-                        ).reversed()
-                )
-                .limit(8)
-                .toList();
-
-        for (Path folder : largestTopFolders) {
-                long bytes = bytesByTopFolder.getOrDefault(
-                        folder,
-                        0L
-                );
-
-                long count = filesByTopFolder.getOrDefault(
-                        folder,
-                        0L
-                );
-
-                double percentage = totalBytes == 0
-                        ? 0
-                        : (double) bytes / totalBytes * 100;
-
-                Label nameLabel = new Label(
-                        getPathDisplayName(folder)
-                );
-                nameLabel.getStyleClass().add(
-                        "dashboard-folder-name"
-                );
-
-                Label countLabel = new Label(
-                        String.format("%,d files", count)
-                );
-                countLabel.getStyleClass().add("dashboard-folder-meta");
-
-                Label sizeLabel = new Label(FileSizeFormatter.format(bytes));
-                sizeLabel.getStyleClass().add("dashboard-folder-meta");
-
-                ProgressBar progressBar = new ProgressBar(
-                        percentage / 100.0
-                );
-
-                progressBar.setPrefWidth(180);
-                progressBar.getStyleClass().add("dashboard-folder-progress");
-
-                Label percentageLabel = new Label(String.format("%.1f%%", percentage));
-
-                percentageLabel.getStyleClass().add(
-                        "dashboard-folder-percentage"
-                );
-
-                Region spacer = new Region();
-                HBox.setHgrow(spacer, Priority.ALWAYS);
-
-                Button moreButton = createFileActionsButton(folder);
-
-                HBox row = new HBox(
-                        14,
-                        nameLabel,
-                        spacer,
-                        countLabel,
-                        sizeLabel,
-                        progressBar,
-                        percentageLabel,
-                        moreButton
-                );
-
-                row.setAlignment(Pos.CENTER_LEFT);
-                row.getStyleClass().add("dashboard-folder-row");
-
-                foldersBreakdownList.getChildren().add(row);
+        if (folderRows.getChildren().isEmpty()) folderRows.getChildren().add(OceanComponents.label(tr("ui.no_folder_data_yet"), "ocean-muted"));
+        VBox folderCard = new VBox(16, OceanComponents.label(tr("ui.top_level_folders"), "section-title"), folderRows);
+        folderCard.getStyleClass().add("ocean-glass-card");
+        HBox charts = new HBox(16, typeCard, folderCard);
+        for (VBox card : List.of(typeCard, folderCard)) {
+            card.setMinWidth(0);
+            card.setPrefWidth(0);
+            card.setMaxWidth(Double.MAX_VALUE);
+            HBox.setHgrow(card, Priority.ALWAYS);
         }
-
-        dashboardContent.getChildren().addAll(
-                foldersBreakdownTitle,
-                foldersBreakdownList
-        );
-
-        dashboardContent.getChildren().add(
-                largestFilesSection
-        );
-
-        VBox recentFilesList = new VBox(6);
-
-        List<FileItem> recentFiles =
-                latestScanResult.getItems()
-                        .stream()
-                        .filter(item -> !item.isDirectory())
-                        .sorted(
-                                Comparator.comparing(
-                                        FileItem::getLastModified
-                                ).reversed()
-                        )
-                        .limit(10)
-                        .toList();
-
-        for (FileItem item : recentFiles) {
-
-                Label nameLabel = new Label(item.getName());
-                nameLabel.getStyleClass().add("file-name");
-
-                Label pathLabel = new Label();
-
-                if (scanRootPath != null) {
-                        Path parent = item.getPath().getParent();
-
-                        if (parent != null) {
-                                Path relativeParent = 
-                                        scanRootPath.relativize(parent);
-
-                                pathLabel.setText(
-                                        relativeParent.toString().isEmpty()
-                                                ? "Scan root"
-                                                : relativeParent.toString()
-                                );
-                        }
-                }
-
-                pathLabel.getStyleClass().add("dashboard-file-path");
-
-                VBox fileInfo = new VBox(
-                        3,
-                        nameLabel,
-                        pathLabel
-                );
-
-                Node filePreview =
-                        createUnifiedFilePreview(item);
-
-                Label modifiedLabel = new Label(formatModifiedTime(item.getLastModified()));
-
-                modifiedLabel.getStyleClass().add("dashboard-modified-time");
-
-                Region spacer = new Region();
-                HBox.setHgrow(spacer, Priority.ALWAYS);
-
-                Button moreButton = createFileActionsButton(item.getPath());
-
-                HBox row = new HBox(
-                        12,
-                        filePreview,
-                        fileInfo,
-                        spacer,
-                        modifiedLabel,
-                        moreButton
-                );
-
-                row.setAlignment(Pos.CENTER_LEFT);
-                row.getStyleClass().add("dashboard-file-row");
-
-                row.setOnContextMenuRequested(event -> {
-
-                        ContextMenu fileMenu =
-                                createFileContextMenu(
-                                        item.getPath()
-                                );
-
-                        fileMenu.show(
-                                row,
-                                event.getScreenX(),
-                                event.getScreenY()
-                        );
-
-                        event.consume();
-                });
-
-                configureDashboardFileRow(row, item.getPath());
-
-                moreButton.addEventFilter(
-                        MouseEvent.MOUSE_CLICKED,
-                        event -> event.consume()
-                );
-
-                recentFilesList.getChildren().add(row);
-
+        body.getChildren().add(charts);
+        if (scanRootPath != null) {
+            Label active = OceanComponents.label(tr("ui.current_scan") + scanRootPath, "ocean-muted");
+            active.setWrapText(true);
+            body.getChildren().add(active);
         }
+        VBox largest = new VBox(3);
+        scannedFiles.stream().sorted(Comparator.comparingLong(FileItem::getSizeBytes).reversed()).limit(10)
+                .forEach(item -> largest.getChildren().add(createOceanDashboardRow(item, false)));
+        VBox recent = new VBox(3);
+        scannedFiles.stream().sorted(Comparator.comparing(FileItem::getLastModified).reversed()).limit(10)
+                .forEach(item -> recent.getChildren().add(createOceanDashboardRow(item, true)));
+        body.getChildren().addAll(
+                createCollapsibleSection(tr("ui.largest_files"), largest.getChildren().size(), largest),
+                createCollapsibleSection(tr("ui.recently_modified_41bf4"), recent.getChildren().size(), recent));
+        return page;
+    }
 
-        VBox recentFilesSection = createCollapsibleSection(
-                "Recently Modified",
-                recentFiles.size(),
-                recentFilesList
-        );
-
-        dashboardContent.getChildren().add(recentFilesSection);
-                
-        return dashboardPage;
+    private HBox createOceanDashboardRow(FileItem item, boolean modified) {
+        Label name = OceanComponents.label(item.getName(), "file-name");
+        Label location = OceanComponents.label(getWorkspaceFileLocation(item.getPath()), "dashboard-file-path");
+        VBox info = new VBox(3, name, location);
+        info.setMinWidth(0);
+        HBox.setHgrow(info, Priority.ALWAYS);
+        Label value = OceanComponents.label(modified ? formatModifiedTime(item.getLastModified())
+                : FileSizeFormatter.format(item.getSizeBytes()), "file-size");
+        Button more = createFileActionsButton(item.getPath());
+        more.addEventFilter(MouseEvent.MOUSE_CLICKED, event -> event.consume());
+        HBox row = new HBox(12, createUnifiedFilePreview(item), info, value, more);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.getStyleClass().add("dashboard-file-row");
+        row.setOnContextMenuRequested(event -> createFileContextMenu(item.getPath()).show(row, event.getScreenX(), event.getScreenY()));
+        configureDashboardFileRow(row, item.getPath());
+        return row;
     }
 
     private Node createFolderListPreview() {
@@ -2083,7 +1643,7 @@ public class MainView {
 
         Tooltip.install(
                 removeBadge,
-                new Tooltip("Remove tag from file")
+                new Tooltip(tr("ui.remove_tag_from_file"))
         );
 
         StackPane container = new StackPane(
@@ -2118,7 +1678,7 @@ public class MainView {
         );
 
         if (latestScanResult == null) {
-            Label emptyLabel = new Label("No folder has been scanned yet.");
+            Label emptyLabel = new Label(tr("ui.no_folder_has_been_scanned_yet"));
             emptyLabel.getStyleClass().add("ff-empty-message");
 
             filesContent.getChildren().add(emptyLabel);
@@ -2129,12 +1689,12 @@ public class MainView {
         categoriesContent.setVisible(false);
         categoriesContent.setManaged(false);
 
-        ToggleButton browseButton = new ToggleButton("Browse");
-        ToggleButton allFilesButton = new ToggleButton("All Files");
+        ToggleButton browseButton = new ToggleButton(tr("ui.browse"));
+        ToggleButton allFilesButton = new ToggleButton(tr("ui.all_files"));
         ToggleButton categoriesButton =
-                new ToggleButton("Categories");
+                new ToggleButton(tr("ui.categories"));
 
-        Button selectFilesButton = new Button("Select Files");
+        Button selectFilesButton = new Button(tr("ui.select_files"));
         selectFilesButton.getStyleClass().add("secondary-button");
 
         ToggleGroup viewGroup = new ToggleGroup();
@@ -2176,7 +1736,7 @@ public class MainView {
         updateFilesViewControls(browseHeader);
 
         searchField = new TextField();
-        searchField.setPromptText("Search files...");
+        searchField.setPromptText(tr("ui.search_files"));
         searchField.getStyleClass().add("search-field");
 
         Button clearFileSearchButton = new Button("×");
@@ -2227,6 +1787,7 @@ public class MainView {
         );
 
         ComboBox<String> typeFilter = new ComboBox<>();
+        I18n.localizeChoices(typeFilter);
         typeFilter.getItems().addAll(
                         "All",
                         "Images",
@@ -2241,6 +1802,7 @@ public class MainView {
         typeFilter.setValue("All");
 
         ComboBox<String> sortBy = new ComboBox<>();
+        I18n.localizeChoices(sortBy);
 
         sortBy.getItems().addAll(
             "Name A-Z",
@@ -2263,13 +1825,15 @@ public class MainView {
                 typeFilter,
                 sortBy
         );
+        searchFieldBox.setMinWidth(110);
+        searchField.setMinWidth(80);
         searchField.setPrefWidth(280);
         searchField.setMaxWidth(Double.MAX_VALUE);
 
         HBox.setHgrow(searchFieldBox, Priority.ALWAYS);
 
-        typeFilter.setPrefWidth(155);
-        sortBy.setPrefWidth(180);
+        typeFilter.setPrefWidth(130);
+        sortBy.setPrefWidth(160);
 
         Region viewSpacer = new Region();
         HBox.setHgrow(viewSpacer, Priority.ALWAYS);
@@ -2295,7 +1859,7 @@ public class MainView {
 
         toolbar.setMaxWidth(Double.MAX_VALUE);
 
-        
+
         // Show a root selector after a workspace scan
         if (lastWorkspaceScanSnapshot != null
                 && !lastWorkspaceScanSnapshot.resultsByRoot().isEmpty()) {
@@ -2307,7 +1871,7 @@ public class MainView {
         );
 
         Label workspaceLabel = new Label(
-                "Workspace (" + availableRoots.size() + " folders)"
+                tr("ui.workspace_1f8f2") + availableRoots.size() + tr("ui.folders_56899")
         );
 
         workspaceLabel.getStyleClass().add("section-title");
@@ -2316,7 +1880,7 @@ public class MainView {
 
         rootSelector.getItems().setAll(availableRoots);
 
-        rootSelector.setPromptText("Select scan folder");
+        rootSelector.setPromptText(tr("ui.select_scan_folder"));
 
         rootSelector.setPrefWidth(360);
         rootSelector.setMaxWidth(Double.MAX_VALUE);
@@ -2364,12 +1928,19 @@ public class MainView {
 
         filesContent.getChildren().add(toolbar);
         filesContent.getChildren().add(browseHeader);
-        filesContent.getChildren().add(categoriesContent);
+        ScrollPane categoriesScroll = new ScrollPane(categoriesContent);
+        categoriesScroll.setFitToWidth(true);
+        categoriesScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        categoriesScroll.getStyleClass().add("ocean-page-scroll");
+        categoriesScroll.visibleProperty().bind(categoriesContent.visibleProperty());
+        categoriesScroll.managedProperty().bind(categoriesScroll.visibleProperty());
+        VBox.setVgrow(categoriesScroll, Priority.ALWAYS);
+        filesContent.getChildren().add(categoriesScroll);
 
         if (!latestScanResult.getIssues().isEmpty()) {
             Label issueLabel = new Label(
                         latestScanResult.getIssues().size()
-                                + " item(s) could not be scanned"
+                                + tr("ui.item_s_could_not_be_scanned")
             );
 
             issueLabel.getStyleClass().add("scan-issue");
@@ -2409,20 +1980,26 @@ public class MainView {
 
         if (metadataLoadFailed) {
                 showStatusWarning(
-                        "Files loaded, but some saved metadata could not be loaded."
+                        tr("ui.files_loaded_but_some_saved_metadata_could_not_be_loaded")
                 );
         }
 
-        ListView<FileItem> fileList = new ListView<>();
+        TableView<FileItem> fileList = new TableView<>();
         fileList.getStyleClass().add("files-list-view");
+        fileList.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        TableColumn<FileItem, FileItem> fileColumn = new TableColumn<>();
+        fileColumn.setCellValueFactory(value -> new javafx.beans.property.ReadOnlyObjectWrapper<>(value.getValue()));
+        fileColumn.setSortable(false);
+        fileColumn.setReorderable(false);
+        fileList.getColumns().add(fileColumn);
 
         PauseTransition quickInfoDelay =
-                new PauseTransition(Duration.millis(280));
+                new PauseTransition(Duration.millis(160));
 
-        Label selectedCountLabel = new Label("0 files selected");
+        Label selectedCountLabel = new Label(tr("ui.0_files_selected"));
 
         Button bulkFavouriteButton =
-                new Button("Add to Favourites");
+                new Button(tr("ui.add_to_favourites"));
 
         bulkFavouriteButton.getStyleClass().add(
                 "secondary-button"
@@ -2430,7 +2007,7 @@ public class MainView {
 
         bulkFavouriteButton.setDisable(true);
 
-        Button bulkTagButton = new Button("Tag Selected");
+        Button bulkTagButton = new Button(tr("ui.tag_selected"));
 
         bulkTagButton.getStyleClass().add("primary-button");
 
@@ -2438,12 +2015,12 @@ public class MainView {
         bulkTagButton.setDisable(true);
 
         Button bulkDeleteButton =
-                new Button("Move to Recycle Bin");
+                new Button(tr("files.recycle"));
 
         bulkDeleteButton.getStyleClass().add("danger-button");
         bulkDeleteButton.setDisable(true);
 
-        Button clearSelectionButton = new Button("Clear");
+        Button clearSelectionButton = new Button(tr("ui.clear"));
         clearSelectionButton.getStyleClass().add("secondary-button");
 
         Region selectionSpacer = new Region();
@@ -2471,8 +2048,8 @@ public class MainView {
 
                 selectedCountLabel.setText(
                         count + (count == 1
-                                ? " item selected"
-                                : " items selected")
+                                ? tr("ui.item_selected")
+                                : tr("ui.items_selected"))
                 );
 
                 boolean nothingSelected = count == 0;
@@ -2491,15 +2068,15 @@ public class MainView {
 
                 if (allFavourites) {
                         bulkFavouriteButton.setText(
-                                "Remove from Favourites"
+                                tr("ui.remove_from_favourites")
                         );
                 } else if (anyFavourite) {
                         bulkFavouriteButton.setText(
-                                "Add Missing to Favourites"
+                                tr("ui.add_missing_to_favourites")
                         );
                 } else {
                         bulkFavouriteButton.setText(
-                                "Add to Favourites"
+                                tr("ui.add_to_favourites")
                         );
                 }
         };
@@ -2569,28 +2146,25 @@ public class MainView {
                                 : Alert.AlertType.WARNING
                 );
 
-                result.setTitle("Bulk Favourite Results");
+                result.setTitle(tr("ui.bulk_favourite_results"));
 
                 result.setHeaderText(
                         removeMode
-                                ? "Remove from Favourites"
-                                : "Add to Favourites"
+                                ? tr("ui.remove_from_favourites")
+                                : tr("ui.add_to_favourites")
                 );
 
                 result.setContentText(
                         String.format(
-                                "Action: %s%n"
-                                + "Updated: %d%n"
-                                + "Already saved: %d%n"
-                                + "Failed: %d",
-                                removeMode ? "Remove" : "Add",
+                                tr("ui.action_s_nupdated_d_nalready_saved_d_nfailed_d"),
+                                removeMode ? tr("ui.remove") : tr("common.add"),
                                 changed,
                                 skipped,
                                 failed
                         )
                 );
 
-                result.showAndWait();
+                showOceanDialog(result);
         });
 
         bulkDeleteButton.setOnAction(event ->
@@ -2624,7 +2198,7 @@ public class MainView {
                 selectionBar.setManaged(fileSelectionMode);
 
                 selectFilesButton.setText(
-                        fileSelectionMode ? "Done" : "Select Files"
+                        fileSelectionMode ? tr("common.done") : tr("ui.select_files")
                 );
 
                 updateSelectionUi.run();
@@ -2696,9 +2270,9 @@ public class MainView {
 
                 populateFileList(
                         fileList,
-                        searchField.getText(), 
+                        searchField.getText(),
                         typeFilter.getValue(),
-                        sortBy.getValue() 
+                        sortBy.getValue()
                 );
         });
 
@@ -2801,145 +2375,58 @@ public class MainView {
                 }
         });
 
-        fileList.setCellFactory(listView -> new ListCell<FileItem>() {
-                @Override
-                protected void updateItem(FileItem item, boolean empty) {
-                        super.updateItem(item, empty);
+        fileList.setFixedCellSize(76);
+        fileColumn.setCellFactory(column -> new FileRowCell(new FileRowCell.Actions() {
+            public Node preview(FileItem item) { return createUnifiedFilePreview(item); }
+            public String location(FileItem item) { return getWorkspaceFileLocation(item.getPath()); }
+            public boolean showLocation() { return filesViewMode == FilesViewMode.ALL_FILES; }
+            public boolean favourite(Path path) { return favouritePaths.contains(path); }
+            public List<String> tags(FileItem item) { return fileTags.getOrDefault(item.getPath(), List.of()); }
+            public boolean selectionMode() { return fileSelectionMode; }
+            public boolean selected(Path path) { return selectedFilePaths.contains(path); }
+            public void select(Path path, boolean selected) {
+                if (selected) selectedFilePaths.add(path); else selectedFilePaths.remove(path);
+                quickInfoDelay.stop();
+                updateSelectionUi.run();
+            }
+            public void animateSelection(CheckBox box) { animateFileSelection(box); }
+            public ContextMenu menu(Path path) { return createFileContextMenu(path); }
+            public void toggleFavourite(FileItem item) {
+                Path path = item.getPath();
+                try {
+                    if (favouritePaths.contains(path)) { favouriteRepo.remove(path); favouritePaths.remove(path); }
+                    else { favouriteRepo.add(path); favouritePaths.add(path); }
+                    updateSelectionUi.run();
+                } catch (SQLException exception) {
+                    showDatabaseError(tr("ui.unable_to_update_favourite"), tr("ui.fileflow_could_not_save_this_favourite_change"));
+                }
+            }
+            public void removeTag(FileItem item, String tag) {
+                try {
+                    tagRepo.removeTagFromFile(item.getPath(), tag);
+                    List<String> saved = fileTags.get(item.getPath());
+                    if (saved != null) { saved.remove(tag); if (saved.isEmpty()) fileTags.remove(item.getPath()); }
+                    fileList.refresh();
+                } catch (SQLException exception) {
+                    showDatabaseError(tr("ui.unable_to_remove_tag"), tr("ui.fileflow_could_not_remove_this_tag_from_the_file"));
+                }
+            }
+            public void activate(FileItem item) {
+                quickInfoDelay.stop();
+                if (filesViewMode == FilesViewMode.BROWSE && item.isDirectory()) {
+                    currentFolder = item.getPath().toAbsolutePath().normalize();
+                    updateBrowseHeader(backButton, breadcrumbBar, fileList, searchField, typeFilter, sortBy);
+                    populateFileList(fileList, searchField.getText(), typeFilter.getValue(), sortBy.getValue());
+                } else if (!item.isDirectory() && !fileSelectionMode) openFile(item.getPath());
+            }
+            public void addTag(FileItem item) {
 
-                        if (empty || item == null) {
-                                setText(null);
-                                setGraphic(null);
-                                return;
-                        }
-
-                        Label fileNameLabel = new Label(item.getName());
-                        fileNameLabel.getStyleClass().add("file-name");
-
-                        Label fileSizeLabel = new Label(
-                                item.isDirectory()
-                                        ? "——"
-                                        : FileSizeFormatter.format(item.getSizeBytes())
-                        );
-                        fileSizeLabel.getStyleClass().add("file-size");
-
-                        Label relativePathLabel = new Label();
-                        relativePathLabel.getStyleClass().add("file-relative-path");
-
-                        if (filesViewMode == FilesViewMode.ALL_FILES) {
-
-                                relativePathLabel.setText(
-                                        getWorkspaceFileLocation(item.getPath())
-                                );
-
-                                // The full path is available on hover
-                                Path parent = item.getPath().getParent();
-
-                                if (parent != null) {
-                                        relativePathLabel.setTooltip(
-                                                new javafx.scene.control.Tooltip(
-                                                        parent.toString()
-                                                )
-                                        );
-                                }
-                        }
-
-                        boolean showRelativePath =
-                                filesViewMode == FilesViewMode.ALL_FILES;
-
-                        relativePathLabel.setVisible(showRelativePath);
-                        relativePathLabel.setManaged(showRelativePath);
-
-                        VBox fileInfo = new VBox(
-                                3,
-                                fileNameLabel,
-                                relativePathLabel
-                        );
-
-                        // Allow file names to shrink instead of expanding the row
-                        fileNameLabel.setMinWidth(0);
-                        fileNameLabel.setMaxWidth(Double.MAX_VALUE);
-                        fileNameLabel.setTextOverrun(
-                                javafx.scene.control.OverrunStyle.ELLIPSIS
-                        );
-
-                        relativePathLabel.setMinWidth(0);
-                        relativePathLabel.setMaxWidth(Double.MAX_VALUE);
-                        relativePathLabel.setTextOverrun(
-                                javafx.scene.control.OverrunStyle.ELLIPSIS
-                        );
-
-                        fileInfo.setMinWidth(0);
-                        fileInfo.setMaxWidth(Double.MAX_VALUE);
-
-                        HBox.setHgrow(fileInfo, Priority.ALWAYS);
-
-                        Node filePreview = createUnifiedFilePreview(item);
-
-                        Button favouriteButton = new Button(
-                                favouritePaths.contains(item.getPath())
-                                        ? "★"
-                                        : "☆"
-                        );
-                        favouriteButton.getStyleClass().add("favourite-button");
-
-                        favouriteButton.getStyleClass().add("is-favourite");
-
-                        favouriteButton.getStyleClass().add(
-                                favouritePaths.contains(item.getPath())
-                                        ? "is-favourite"
-                                        : "not-favourite"
-                        );
-
-                        favouriteButton.setOnAction(event -> {
-                                Path filePath = item.getPath();
-
-                                try {
-                                        if (favouritePaths.contains(filePath)) {
-                                                favouriteRepo.remove(filePath);
-
-                                                favouritePaths.remove(filePath);
-                                                favouriteButton.setText("☆");
-                                        } else {
-                                                favouriteRepo.add(filePath);
-
-                                                favouritePaths.add(filePath);
-                                                favouriteButton.setText("★");
-                                        }
-
-                                        favouriteButton.getStyleClass().removeAll(
-                                                "is-favourite",
-                                                "not-favourite"
-                                        );
-
-                                        favouriteButton.getStyleClass().add(
-                                                favouritePaths.contains(filePath)
-                                                        ? "is-favourite"
-                                                        : "not-favourite"
-                                        );
-
-                                        updateSelectionUi.run();
-                                } catch (SQLException e) {
-                                        showDatabaseError(
-                                                "Unable to Update Favourite",
-                                                "FileFlow could not save this favourite change."
-                                        );
-
-                                        e.printStackTrace();
-                                }
-                        });
-
-                        HBox tagContainer = new HBox(6);
-
-                        Button tagButton = new Button("+ Tag");
-                        tagButton.getStyleClass().add("add-tag-button");
-
-                        tagButton.setOnAction(event -> {
                                 Dialog<String> dialog = new Dialog<>();
 
-                                dialog.setTitle("Add Tag");
-                                dialog.setHeaderText("Add a tag to " + item.getName());
+                                dialog.setTitle(tr("ui.add_tag"));
+                                dialog.setHeaderText(tr("ui.add_a_tag_to") + item.getName());
 
-                                ButtonType addButtonType = new ButtonType("Add");
+                                ButtonType addButtonType = new ButtonType(tr("common.add"));
 
                                 dialog.getDialogPane().getButtonTypes().addAll(
                                         addButtonType,
@@ -2953,17 +2440,17 @@ public class MainView {
                                         existingTagBox.setValue(existingTags.get(0));
                                 } else {
                                         existingTagBox.setDisable(true);
-                                        existingTagBox.setPromptText("No existing tags");
+                                        existingTagBox.setPromptText(tr("ui.no_existing_tags"));
                                 }
 
                                 TextField newTagField = new TextField();
-                                newTagField.setPromptText("Create a new tag");
+                                newTagField.setPromptText(tr("ui.create_a_new_tag"));
 
                                 VBox dialogContent = new VBox(
                                         10,
-                                        new Label("Existing tag:"),
+                                        new Label(tr("ui.existing_tag")),
                                         existingTagBox,
-                                        new Label("Or create a new tag:"),
+                                        new Label(tr("ui.or_create_a_new_tag")),
                                         newTagField
                                 );
 
@@ -2983,7 +2470,7 @@ public class MainView {
                                         return null;
                                 });
 
-                                dialog.showAndWait().ifPresent(selectedTag -> {
+                                showOceanDialog(dialog).ifPresent(selectedTag -> {
                                         try {
                                                 tagRepo.assignTagToFile(
                                                         item.getPath(),
@@ -3003,365 +2490,19 @@ public class MainView {
                                                         itemTags.add(selectedTag);
                                                 }
 
-                                                getListView().refresh();
+                                                fileList.refresh();
                                         } catch (SQLException e) {
                                                 showDatabaseError(
-                                                        "Unable to Add Tag",
-                                                        "FileFlow could not save this tag change."
+                                                        tr("ui.unable_to_add_tag"),
+                                                        tr("ui.fileflow_could_not_save_this_tag_change")
                                                 );
 
                                                 e.printStackTrace();
                                         }
                                 });
-                        });
 
-                        Button moreButton =
-                                createFileActionsButton(item.getPath());
-
-                        List<String> tags = fileTags.getOrDefault(
-                                item.getPath(),
-                                List.of()
-                        );
-
-                        for (String tag : tags) {
-
-                                // 1. Tag text: no "x" appended
-                                Label tagPill = new Label(tag);
-
-                                tagPill.getStyleClass().add(
-                                        "file-tag-pill"
-                                );
-
-                                // 2. Independent circular remove button
-                               Button removeBadge = new Button();
-
-                                // Draw the X using vector lines, not a font character
-                                SVGPath closeIcon = new SVGPath();
-                                closeIcon.setContent(
-                                        "M2 2 L6 6 M6 2 L2 6"
-                                );
-
-                                closeIcon.getStyleClass().add(
-                                        "file-tag-close-icon"
-                                );
-
-                                removeBadge.setGraphic(closeIcon);
-
-                                removeBadge.getStyleClass().add(
-                                        "file-tag-remove-badge"
-                                );
-
-                                removeBadge.setFocusTraversable(false);
-
-                                removeBadge.setTooltip(
-                                        new javafx.scene.control.Tooltip(
-                                                "Remove tag: " + tag
-                                        )
-                                );
-
-                                // Prevent clicking the remove button
-                                // from triggering the file row click action
-                                removeBadge.addEventFilter(
-                                        MouseEvent.MOUSE_CLICKED,
-                                        event -> event.consume()
-                                );
-
-                                // 3. Keep the original database removal logic
-                                removeBadge.setOnAction(event -> {
-
-                                        try {
-                                        Path filePath = item.getPath();
-
-                                        tagRepo.removeTagFromFile(filePath, tag);
-
-                                        List<String> itemTags = fileTags.get(filePath);
-
-                                        if (itemTags != null) {
-
-                                                itemTags.remove(tag);
-
-                                                if (itemTags.isEmpty()) {
-                                                fileTags.remove(filePath);
-                                                }
-                                        }
-
-                                        getListView().refresh();
-
-                                        } catch (SQLException e) {
-
-                                        showDatabaseError(
-                                                "Unable to Remove Tag",
-                                                "FileFlow could not remove this tag from the file."
-                                        );
-
-                                        e.printStackTrace();
-                                }
-                        });
-
-                        // 4. Overlay the remove button on the pill
-                        StackPane tagChip = new StackPane();
-
-                        tagChip.getStyleClass().add(
-                                "file-tag-container"
-                        );
-
-                        tagChip.setPadding(
-                                new javafx.geometry.Insets(7, 7, 0, 0)
-                        );
-
-                        tagChip.getChildren().addAll(
-                                tagPill,
-                                removeBadge
-                        );
-
-                        StackPane.setAlignment(
-                                tagPill,
-                                Pos.BOTTOM_LEFT
-                        );
-
-                        StackPane.setAlignment(
-                                removeBadge,
-                                Pos.TOP_RIGHT
-                        );
-
-                        // Move the badge onto the top-right corner
-                        removeBadge.setTranslateX(4);
-                        removeBadge.setTranslateY(-4);
-
-                        // 5. Add complete chip to the existing tag container
-                        tagContainer.getChildren().add(tagChip);
-                        }
-
-                        HBox actionsBox = new HBox(
-                                8,
-                                tagButton,
-                                favouriteButton,
-                                moreButton
-                        );
-
-                        actionsBox.setAlignment(Pos.CENTER_RIGHT);
-                        actionsBox.getStyleClass().add("files-row-actions");
-
-                        // Keep the action buttons at their preferred size
-                        actionsBox.setMinWidth(Region.USE_PREF_SIZE);
-
-                        Path selectionPath = item.getPath()
-                                .toAbsolutePath()
-                                .normalize();
-
-                        CheckBox selectCheckBox = new CheckBox();
-
-                        selectCheckBox.getStyleClass().add("file-select-checkbox");
-                        selectCheckBox.setFocusTraversable(false);
-
-                        selectCheckBox.setSelected(
-                                selectedFilePaths.contains(selectionPath)
-                        );
-
-                        // Only files can be selected for future bulk actions
-                        boolean showCheckbox = fileSelectionMode;
-
-                        selectCheckBox.setVisible(showCheckbox);
-                        selectCheckBox.setManaged(showCheckbox);
-
-                        selectCheckBox.setOnAction(event -> {
-
-                                boolean selected = selectCheckBox.isSelected();
-
-                                if (selected) {
-                                        selectedFilePaths.add(selectionPath);
-                                } else {
-                                        selectedFilePaths.remove(selectionPath);
-                                }
-
-                                updateSelectionUi.run();
-
-                                animateFileSelection(selectCheckBox);
-
-                                // Update only this row instead of refreshing the ListView
-                                if (selectCheckBox.getParent() instanceof HBox row) {
-
-                                        row.getStyleClass().remove(
-                                                "file-row-multi-selected"
-                                        );
-
-                                        if (selected) {
-                                                row.getStyleClass().add(
-                                                        "file-row-multi-selected"
-                                                );
-                                        }
-                                }
-
-                                event.consume();
-                        });
-
-                        HBox fileRow = new HBox(
-                                12,
-                                selectCheckBox,
-                                filePreview,
-                                fileInfo,
-                                tagContainer,
-                                actionsBox
-                        );
-
-                        // Fit the file row inside the ListView viewport
-                        fileRow.setMinWidth(0);
-
-                        fileRow.prefWidthProperty().bind(
-                                getListView().widthProperty().subtract(36)
-                        );
-
-                        fileRow.setOnContextMenuRequested(event -> {
-
-                                ContextMenu fileMenu =
-                                        createFileContextMenu(
-                                                item.getPath()
-                                        );
-
-                                fileMenu.show(
-                                        fileRow,
-                                        event.getScreenX(),
-                                        event.getScreenY()
-                                );
-
-                                event.consume();
-                        });
-
-                        fileRow.addEventFilter(
-                                MouseEvent.MOUSE_PRESSED,
-                                event -> {
-
-                                if (!fileSelectionMode
-                                        || event.getButton() != MouseButton.PRIMARY) {
-                                        return;
-                                }
-
-                                // Do not interfere with buttons or checkboxes
-                                Node clickedNode =
-                                        event.getPickResult().getIntersectedNode();
-
-                                while (clickedNode != null
-                                        && clickedNode != fileRow) {
-
-                                        if (clickedNode instanceof Button
-                                                || clickedNode instanceof CheckBox) {
-                                        return;
-                                        }
-
-                                        clickedNode = clickedNode.getParent();
-                                }
-
-                                // The second press of a double-click is handled
-                                // by the existing folder navigation logic.
-                                if (event.getClickCount() != 1) {
-                                        return;
-                                }
-
-                                boolean selected;
-
-                                if (selectedFilePaths.contains(selectionPath)) {
-                                        selectedFilePaths.remove(selectionPath);
-                                        selected = false;
-                                } else {
-                                        selectedFilePaths.add(selectionPath);
-                                        selected = true;
-                                }
-
-                                // Keep checkbox and row appearance synchronized
-                                selectCheckBox.setSelected(selected);
-
-                                animateFileSelection(selectCheckBox);
-
-                                fileRow.getStyleClass().remove(
-                                        "file-row-multi-selected"
-                                );
-
-                                if (selected) {
-                                        fileRow.getStyleClass().add(
-                                                "file-row-multi-selected"
-                                        );
-                                }
-
-                                updateSelectionUi.run();
-
-                                quickInfoDelay.stop();
-
-                                event.consume();
-                        });
-
-                        fileRow.setOnMouseClicked(event -> {
-
-                                if (event.getButton() != MouseButton.PRIMARY) {
-                                        return;
-                                }
-
-                                Node clickedNode =
-                                        event.getPickResult().getIntersectedNode();
-
-                                while (clickedNode != null && clickedNode != fileRow) {
-
-                                        if (clickedNode instanceof Button
-                                                || clickedNode instanceof CheckBox) {
-                                                return;
-                                        }
-
-                                        clickedNode = clickedNode.getParent();
-                                }
-
-                                if (event.getClickCount() == 2) {
-
-                                        quickInfoDelay.stop();
-
-                                        if (filesViewMode == FilesViewMode.BROWSE
-                                                && item.isDirectory()) {
-
-                                                currentFolder = item.getPath()
-                                                        .toAbsolutePath()
-                                                        .normalize();
-
-                                                updateBrowseHeader(
-                                                        backButton,
-                                                        breadcrumbBar,
-                                                        getListView(),
-                                                        searchField,
-                                                        typeFilter,
-                                                        sortBy
-                                                );
-
-                                                populateFileList(
-                                                        getListView(),
-                                                        searchField.getText(),
-                                                        typeFilter.getValue(),
-                                                        sortBy.getValue()
-                                                );
-
-                                        } else if (!item.isDirectory()
-                                                && !fileSelectionMode) {
-
-                                                openFile(item.getPath());
-                                        }
-
-                                        event.consume();
-
-                                }
-                        });
-
-                        fileRow.setAlignment(Pos.CENTER_LEFT);
-                        fileRow.setMaxWidth(Double.MAX_VALUE);
-                        fileRow.getStyleClass().add("file-row");
-
-                        if (fileSelectionMode
-                                && selectedFilePaths.contains(selectionPath)) {
-
-                                fileRow.getStyleClass().add(
-                                        "file-row-multi-selected"
-                                );
-                        }
-
-                        setText(null);
-                        setGraphic(fileRow);
-                }
-        });
+            }
+        }));
 
         VBox.setVgrow(fileList, Priority.ALWAYS);
 
@@ -3431,16 +2572,6 @@ public class MainView {
 
         content.getStyleClass().add("favourites-content");
 
-        Label heading = new Label("Your saved files");
-        heading.getStyleClass().add("favourites-heading");
-
-        Label subtitle = new Label(
-                "Keep important files close, wherever they are stored."
-        );
-        subtitle.getStyleClass().add("favourites-subtitle");
-
-        content.getChildren().addAll(heading, subtitle);
-
         try {
                 List<Path> favouritePaths = favouriteRepo.getAll();
 
@@ -3457,14 +2588,14 @@ public class MainView {
                         );
 
                         Label emptyTitle = new Label(
-                                "Nothing saved yet"
+                                tr("ui.nothing_saved_yet")
                         );
                         emptyTitle.getStyleClass().add(
                                 "favourites-empty-title"
                         );
 
                         Label emptyDescription = new Label(
-                                "Star a file in Files to keep it here for quick access."
+                                tr("ui.star_a_file_in_files_to_keep_it_here_for_quick_access")
                         );
                         emptyDescription.getStyleClass().add(
                                 "favourites-empty-description"
@@ -3484,7 +2615,7 @@ public class MainView {
 
                 // Search
                 TextField favouritesSearchField = new TextField();
-                favouritesSearchField.setPromptText("Search favourites...");
+                favouritesSearchField.setPromptText(tr("ui.search_favourites"));
                 favouritesSearchField.setText(favouritesSearchQuery);
                 favouritesSearchField.getStyleClass().add(
                         "favourites-search-field"
@@ -3495,6 +2626,7 @@ public class MainView {
 
                 // Sort
                 ComboBox<String> sortBox = new ComboBox<>();
+        I18n.localizeChoices(sortBox);
 
                 sortBox.getItems().addAll(
                         "Name A-Z",
@@ -3511,7 +2643,7 @@ public class MainView {
 
                 // Total count
                 Label countLabel = new Label(
-                        favouritePaths.size() + " saved files"
+                        favouritePaths.size() + tr("ui.saved_files")
                 );
 
                 countLabel.getStyleClass().add(
@@ -3536,7 +2668,7 @@ public class MainView {
 
                 // Message when a search returns no matches
                 Label noMatchesLabel = new Label(
-                        "No matching favourites. Try another search."
+                        tr("ui.no_matching_favourites_try_another_search")
                 );
 
                 noMatchesLabel.getStyleClass().add(
@@ -3648,7 +2780,7 @@ public class MainView {
                         );
 
                         PauseTransition clickDelay =
-                        new PauseTransition(Duration.millis(280));
+                        new PauseTransition(Duration.millis(160));
 
                         clickDelay.setOnFinished(event -> {
                                 showQuickInfo(filePath);
@@ -3712,8 +2844,8 @@ public class MainView {
                                 } catch (SQLException e) {
 
                                         showDatabaseError(
-                                                "Unable to Update Favourite",
-                                                "FileFlow could not remove this file from your favourites."
+                                                tr("ui.unable_to_update_favourite"),
+                                                tr("ui.fileflow_could_not_remove_this_file_from_your_favourites")
                                         );
 
                                         e.printStackTrace();
@@ -3816,8 +2948,8 @@ public class MainView {
         } catch(SQLException e) {
                 content.getChildren().add(
                         createDatabaseErrorState(
-                                "Favourites are temporarily unavailable",
-                                "FileFlow could not load your favourites.",
+                                tr("ui.favourites_are_temporarily_unavailable"),
+                                tr("ui.fileflow_could_not_load_your_favourites"),
                                 this::refreshCurrentPage
                         )
                 );
@@ -3835,8 +2967,8 @@ public class MainView {
         content.setMinHeight(0);
         content.setMaxHeight(Double.MAX_VALUE);
 
-        ToggleButton exactTab = new ToggleButton("Exact Duplicates");
-        ToggleButton similarTab = new ToggleButton("Similar Images");
+        ToggleButton exactTab = new ToggleButton(tr("ui.exact_duplicates"));
+        ToggleButton similarTab = new ToggleButton(tr("ui.similar_images"));
 
         ToggleGroup modeGroup = new ToggleGroup();
 
@@ -3859,7 +2991,7 @@ public class MainView {
                 "duplicates-mode-tab"
         );
 
-        Button analyseButton = new Button("Analyse Duplicates");
+        Button analyseButton = new Button(tr("ui.analyse_duplicates"));
         analyseButton.getStyleClass().add("duplicates-analyse-button");
 
         Label statusLabel = new Label();
@@ -3878,7 +3010,7 @@ public class MainView {
         resultsContainer.getStyleClass().add("duplicate-results");
 
         Label duplicateGroupsTitle =
-                new Label("Duplicate Groups");
+                new Label(tr("ui.duplicate_groups"));
 
         duplicateGroupsTitle.getStyleClass().add(
                 "section-title"
@@ -3926,19 +3058,19 @@ public class MainView {
                 analyseButton.setDisable(true);
 
                 statusLabel.setText(
-                        "Scan a folder before analysing duplicates."
+                        tr("ui.scan_a_folder_before_analysing_duplicates")
                 );
 
         } else if (duplicateAnalysisCompleted) {
 
                 analyseButton.setText(
-                        "Analyse Again"
+                        tr("ui.analyse_again")
                 );
 
                 if (latestDuplicateGroups.isEmpty()) {
 
                         statusLabel.setText(
-                                "No duplicate files found."
+                                tr("ui.no_duplicate_files_found")
                         );
 
                         statusLabel.setVisible(true);
@@ -3953,7 +3085,7 @@ public class MainView {
         } else {
 
                 statusLabel.setText(
-                        "No duplicate analysis yet."
+                        tr("ui.no_duplicate_analysis_yet")
                 );
         }
 
@@ -3985,9 +3117,9 @@ public class MainView {
 
                                                 updateMessage(
                                                         total == 0
-                                                                ? "No duplicate candidates found."
+                                                                ? tr("ui.no_duplicate_candidates_found")
                                                                 : String.format(
-                                                                        "Hashing... %,d / %,d files",
+                                                                        tr("ui.hashing_d_d_files"),
                                                                         processed,
                                                                         total
                                                                 )       
@@ -4007,7 +3139,7 @@ public class MainView {
 
                 duplicateScanning = true;
 
-                analyseButton.setText("Cancel Analysis");
+                analyseButton.setText(tr("ui.cancel_analysis"));
 
                 progressBar.setVisible(true);
                 progressBar.setManaged(true);
@@ -4051,7 +3183,7 @@ public class MainView {
                                 hasResults
                         );
 
-                        analyseButton.setText("Analyse Again");
+                        analyseButton.setText(tr("ui.analyse_again"));
 
                         progressBar.setVisible(false);
                         progressBar.setManaged(false);
@@ -4059,7 +3191,7 @@ public class MainView {
                         if (latestDuplicateGroups.isEmpty()) {
 
                                 statusLabel.setText(
-                                        "No duplicate files found."
+                                        tr("ui.no_duplicate_files_found")
                                 );
 
                                 statusLabel.setVisible(true);
@@ -4082,15 +3214,15 @@ public class MainView {
 
                         analyseButton.setText(
                                 duplicateAnalysisCompleted
-                                        ? "Analyse Again"
-                                        : "Analyse Duplicates"
+                                        ? tr("ui.analyse_again")
+                                        : tr("ui.analyse_duplicates")
                         );
 
                         progressBar.setVisible(false);
                         progressBar.setManaged(false);
 
                         statusLabel.setText(
-                                "Duplicate analysis failed."
+                                tr("ui.duplicate_analysis_failed")
                         );
 
                         statusLabel.setVisible(true);
@@ -4111,15 +3243,15 @@ public class MainView {
 
                         analyseButton.setText(
                                 duplicateAnalysisCompleted
-                                        ? "Analyse Again"
-                                        : "Analyse Duplicates"
+                                        ? tr("ui.analyse_again")
+                                        : tr("ui.analyse_duplicates")
                         );
 
                         progressBar.setVisible(false);
                         progressBar.setManaged(false);
 
                         statusLabel.setText(
-                                "Analysis cancelled."
+                                tr("ui.analysis_cancelled")
                         );
 
                         statusLabel.setVisible(true);
@@ -4147,14 +3279,14 @@ public class MainView {
         );
 
         // Card heading
-        Label exactCardTitle = new Label("Content match");
+        Label exactCardTitle = new Label(tr("ui.content_match"));
         exactCardTitle.getStyleClass().add(
                 "duplicates-scan-card-title"
         );
 
         // Card subtitle
         Label exactCardSubtitle = new Label(
-                "Compare file contents to identify exact duplicates."
+                tr("ui.compare_file_contents_to_identify_exact_duplicates")
         );
 
         exactCardSubtitle.setWrapText(true);
@@ -4217,7 +3349,7 @@ public class MainView {
         );
 
         Label similarDescription = new Label(
-                "Find visually similar images, even when their sizes or resolutions differ."
+                tr("ui.find_visually_similar_images_even_when_their_sizes_or_resolutions_differ")
         );
         similarDescription.setWrapText(true);
         similarDescription.getStyleClass().add(
@@ -4225,10 +3357,11 @@ public class MainView {
         );
 
         Label sensitivityLabel =
-                new Label("Detection Sensitivity");
+                new Label(tr("ui.detection_sensitivity"));
 
         ComboBox<String> sensitivityCombo =
                 new ComboBox<>();
+        I18n.localizeChoices(sensitivityCombo);
 
         sensitivityCombo.getItems().addAll(
                 "Strict",
@@ -4240,7 +3373,7 @@ public class MainView {
         sensitivityCombo.setPrefWidth(200);
 
         Button similarAnalyseButton =
-                new Button("Analyse Similar Images");
+                new Button(tr("ui.analyse_similar_images"));
 
         similarAnalyseButton.getStyleClass().add(
                 "duplicates-analyse-button"
@@ -4314,7 +3447,7 @@ public class MainView {
                 similarResultsScroll.setManaged(false);
 
                 similarStatusLabel.setText(
-                        "Detection mode changed. Analyse again."
+                        tr("ui.detection_mode_changed_analyse_again")
                 );
         });
 
@@ -4324,7 +3457,7 @@ public class MainView {
 
         if (latestScanResult == null) {
         similarStatusLabel.setText(
-                "Scan a folder before analysing images."
+                tr("ui.scan_a_folder_before_analysing_images")
         );
         } else if (similarAnalysisCompleted) {
                 similarStatusLabel.setText(
@@ -4332,7 +3465,7 @@ public class MainView {
                 );
         } else {
                 similarStatusLabel.setText(
-                        "No similar image analysis yet."
+                        tr("ui.no_similar_image_analysis_yet")
                 );
         }
 
@@ -4366,7 +3499,7 @@ public class MainView {
                         default -> 0.16;
                 };
 
-                similarAnalyseButton.setText("Cancel Analysis");
+                similarAnalyseButton.setText(tr("ui.cancel_analysis"));
 
                 similarProgressBar.setProgress(0);
                 similarProgressBar.setVisible(true);
@@ -4379,7 +3512,7 @@ public class MainView {
                 sensitivityCombo.setDisable(true);
 
                 similarStatusLabel.setText(
-                        "Analysing images..."
+                        tr("ui.analysing_images")
                 );
 
                 Task<List<SimilarImagePair>> similarTask =
@@ -4398,7 +3531,7 @@ public class MainView {
                                                 updateProgress(processed, Math.max(total, 1));
 
                                                 updateMessage(
-                                                        "Reading images... "
+                                                        tr("ui.reading_images")
                                                                 + processed + " / " + total
                                                 );
                                                 }
@@ -4424,7 +3557,7 @@ public class MainView {
                         similarProgressBar.setVisible(false);
                         similarProgressBar.setManaged(false);
 
-                        similarAnalyseButton.setText("Analyse Similar Images");
+                        similarAnalyseButton.setText(tr("ui.analyse_similar_images"));
                         similarAnalyseButton.setDisable(latestScanResult == null);
 
                         sensitivityCombo.setDisable(false);
@@ -4440,7 +3573,7 @@ public class MainView {
 
                         if (latestScanResult != sourceScan) {
                                 similarStatusLabel.setText(
-                                        "Scan changed. Please analyse again."
+                                        tr("ui.scan_changed_please_analyse_again")
                                 );
                                 return;
                         }
@@ -4467,7 +3600,7 @@ public class MainView {
                         finishSimilarTask.run();
 
                         similarStatusLabel.setText(
-                                "Similar image analysis failed."
+                                tr("ui.similar_image_analysis_failed")
                         );
 
                         similarTask.getException().printStackTrace();
@@ -4478,7 +3611,7 @@ public class MainView {
                         finishSimilarTask.run();
 
                         similarStatusLabel.setText(
-                                "Analysis cancelled."
+                                tr("ui.analysis_cancelled")
                         );
                 });
 
@@ -4490,7 +3623,7 @@ public class MainView {
 
         // Similar Images analysis card
         Label similarCardTitle = new Label(
-                "Visual similarity"
+                tr("ui.visual_similarity")
         );
 
         similarCardTitle.getStyleClass().add(
@@ -4688,7 +3821,7 @@ public class MainView {
 
                         Label emptyLabel =
                                 new Label(
-                                        "No scan history yet."
+                                        tr("ui.no_scan_history_yet")
                                 );
 
                         emptyLabel.getStyleClass().add(
@@ -4703,7 +3836,7 @@ public class MainView {
                 }
 
                 Button clearHistoryButton =
-                        new Button("Clear History");
+                        new Button(tr("ui.clear_history"));
 
                 clearHistoryButton.getStyleClass().add(
                         "secondary-button"
@@ -4717,27 +3850,26 @@ public class MainView {
                                 );
 
                         confirmation.setTitle(
-                                "Clear History"
+                                tr("ui.clear_history")
                         );
 
                         confirmation.setHeaderText(
-                                "Clear all scan history?"
+                                tr("ui.clear_all_scan_history")
                         );
 
                         confirmation.setContentText(
-                                "This will remove all scan history from FileFlow. "
-                                        + "Your files will not be affected."
+                                tr("ui.this_will_remove_all_scan_history_from_fileflow_your_files_will_not_be_affected")
                         );
 
                         ButtonType clearButtonType =
                                 new ButtonType(
-                                        "Clear History",
+                                        tr("ui.clear_history"),
                                         ButtonBar.ButtonData.OK_DONE
                                 );
 
                         ButtonType cancelButtonType =
                                 new ButtonType(
-                                        "Cancel",
+                                        tr("common.cancel"),
                                         ButtonBar.ButtonData.CANCEL_CLOSE
                                 );
 
@@ -4749,8 +3881,7 @@ public class MainView {
                                 );
 
                         ButtonType result =
-                                confirmation
-                                        .showAndWait()
+                                showOceanDialog(confirmation)
                                         .orElse(
                                                 cancelButtonType
                                         );
@@ -4768,8 +3899,8 @@ public class MainView {
                         } catch (SQLException exception) {
 
                                 showDatabaseError(
-                                        "Unable to Clear History",
-                                        "FileFlow could not clear your scan history."
+                                        tr("ui.unable_to_clear_history"),
+                                        tr("ui.fileflow_could_not_clear_your_scan_history")
                                 );
 
                                 exception.printStackTrace();
@@ -4784,13 +3915,13 @@ public class MainView {
                         Priority.ALWAYS
                 );
 
-                Label historyTitle = new Label("Previous scans");
+                Label historyTitle = new Label(tr("ui.previous_scans"));
                 historyTitle.getStyleClass().add("history-page-title");
 
                 Label historyCount = new Label(
                         historyEntries.size() == 1
-                                ? "1 scan in your history"
-                                : historyEntries.size() + " scans in your history"
+                                ? tr("ui.1_scan_in_your_history")
+                                : historyEntries.size() + tr("ui.scans_in_your_history")
                 );
                 historyCount.getStyleClass().add("history-page-subtitle");
 
@@ -4849,7 +3980,7 @@ public class MainView {
                         Label detailsLabel =
                                 new Label(
                                         String.format(
-                                                "Scanned %s · %,d files · %s",
+                                                tr("ui.scanned_s_d_files_s"),
                                                 scannedTime,
                                                 entry.getFileCount(),
                                                 FileSizeFormatter.format(
@@ -4909,7 +4040,7 @@ public class MainView {
                                 "history-icon-box"
                         );
 
-                        Button scanAgainButton = new Button("Scan Again");
+                        Button scanAgainButton = new Button(tr("ui.scan_again"));
 
                         scanAgainButton.getStyleClass().add("history-scan-again-button");
 
@@ -4931,21 +4062,21 @@ public class MainView {
                         MenuItem openFolderItem =
 
                                 new MenuItem(
-                                                "Open Folder"
+                                                tr("ui.open_folder")
                                 );
 
                         MenuItem copyPathItem =
                                 new MenuItem(
-                                        "Copy Path"
+                                        tr("ui.copy_path")
                                 );
 
                         MenuItem removeHistoryItem =
                                 new MenuItem(
-                                        "Remove from History"
+                                        tr("ui.remove_from_history")
                                 );
 
                         ContextMenu historyMenu =
-                                new ContextMenu(
+                                oceanMenu(
                                         openFolderItem,
                                         copyPathItem,
                                         new SeparatorMenuItem(),
@@ -5034,8 +4165,8 @@ public class MainView {
         } catch (SQLException exception) {
                 content.getChildren().add(
                         createDatabaseErrorState(
-                                "History is temporarily unavailable",
-                                "FileFlow could not load your scan history.",
+                                tr("ui.history_is_temporarily_unavailable"),
+                                tr("ui.fileflow_could_not_load_your_scan_history"),
                                 this::refreshCurrentPage
                         )
                 );
@@ -5045,20 +4176,75 @@ public class MainView {
                 return scrollPane;
         }
 
+    private void applyLanguageChange() {
+        root.getStyleClass().remove("language-zh");
+        if (I18n.instance().language() == AppLanguage.SIMPLIFIED_CHINESE) root.getStyleClass().add("language-zh");
+        cancelActiveShortcutCapture();
+        hideQuickInfo();
+        if (quickInfoPanel != null) {
+            ((javafx.scene.layout.Pane) ((StackPane) root.getCenter()).getChildren().get(1)).getChildren().remove(quickInfoPanel);
+            quickInfoPanel = null;
+        }
+        if (sharedFileMenu != null) { sharedFileMenu.hide(); sharedFileMenu = null; }
+        refreshButton.setText(tr("common.refresh"));
+        scanButton.setText(scanning ? tr("ui.cancel_scan") : tr("ui.scan_folder"));
+        if (homeScanButton != null) homeScanButton.setText(scanning ? tr("ui.cancel_scan") : tr("ui.scan_a_folder"));
+        if (displayedStorageVolume != null) {
+            storageUsedLabel.setText(FileSizeFormatter.format(displayedStorageVolume.getUsedBytes()) + tr("ui.used")
+                    + FileSizeFormatter.format(displayedStorageVolume.getTotalBytes()) + tr("ui.total"));
+            storageFreeLabel.setText(FileSizeFormatter.format(displayedStorageVolume.getFreeBytes()) + tr("ui.free"));
+        } else if (storageNameLabel != null) {
+            storageNameLabel.setText(tr("ui.storage")); storageUsedLabel.setText(tr("ui.unavailable"));
+        }
+        updateOceanStatus();
+        refreshCurrentPage();
+    }
+
+    private VBox createLanguageSettingsCard() {
+        Label title = OceanComponents.label(tr("settings.language.title"), "settings-card-title");
+        Label description = OceanComponents.label(tr("settings.language.description"), "settings-card-description");
+        description.setWrapText(true);
+        ComboBox<AppLanguage> languages = new ComboBox<>();
+        languages.getItems().setAll(AppLanguage.values());
+        languages.setValue(I18n.instance().language());
+        languages.setAccessibleText(tr("settings.language.label"));
+        languages.setId("language-selector");
+        languages.setMinWidth(180);
+        languages.setCellFactory(list -> new ListCell<>() {
+            @Override protected void updateItem(AppLanguage value, boolean empty) {
+                super.updateItem(value, empty);
+                setText(empty || value == null ? null : value.toString());
+                setStyle("-fx-text-fill: #e5efff; -fx-font-family: 'Microsoft YaHei UI';");
+            }
+        });
+        languages.setOnAction(event -> {
+            AppLanguage selected = languages.getValue();
+            if (selected != null && !I18n.instance().setLanguage(selected)) showStatusWarning(tr("settings.language.save_failed"));
+        });
+        Label hint = OceanComponents.label(tr("settings.language.saved"), "settings-card-description");
+        hint.setWrapText(true);
+        VBox card = new VBox(12, title, description, languages, hint);
+        card.getStyleClass().add("settings-card");
+        return card;
+    }
+
     private VBox createSettingsContent() {
         VBox content = new VBox(18);
         content.getStyleClass().add(
                 "settings-content"
         );
 
-        Label safetyTitle = new Label("Safety");
+        Label safetyTitle = new Label(tr("ui.safety"));
 
         safetyTitle.getStyleClass().add("settings-section-title");
 
-        CheckBox confirmDeleteCheckBox =
-                new CheckBox(
-                        "Confirm before moving files to Recycle Bin"
-                );
+        SlideSwitch confirmDeleteCheckBox = new SlideSwitch(tr("ui.confirm_before_moving_files_to_recycle_bin"));
+        Label confirmDeleteTitle = OceanComponents.label(tr("ui.confirm_before_moving_files_to_recycle_bin"), "settings-action-title");
+        confirmDeleteTitle.setWrapText(true);
+        confirmDeleteTitle.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(confirmDeleteTitle, Priority.ALWAYS);
+        HBox safetyRow = new HBox(18, confirmDeleteTitle, confirmDeleteCheckBox);
+        safetyRow.setAlignment(Pos.CENTER_LEFT);
 
         boolean confirmBeforeDelete =
                 preferences.getBoolean(
@@ -5071,8 +4257,7 @@ public class MainView {
         );
 
         Label confirmDeleteDescription = new Label(
-                "When enabled, FileFlow asks for confirmation "
-                + "before moving an individual file to the Recycle Bin."
+                tr("ui.when_enabled_fileflow_asks_for_confirmation_before_moving_an_individual_file_to_the_r")
         );
 
         confirmDeleteDescription.setWrapText(
@@ -5086,9 +4271,7 @@ public class MainView {
         );
 
         Label deleteWarning = new Label(
-                "Files moved to the Recycle Bin can be restored "
-                + "while they remain there. Disk space may not "
-                + "be freed until the Recycle Bin is emptied."
+                tr("ui.files_moved_to_the_recycle_bin_can_be_restored_while_they_remain_there_disk_space_may")
         );
 
         deleteWarning.setWrapText(
@@ -5119,7 +4302,7 @@ public class MainView {
         VBox safetyCard =
                 new VBox(
                         10,
-                        confirmDeleteCheckBox,
+                        safetyRow,
                         confirmDeleteDescription,
                         deleteWarning
                 );
@@ -5129,6 +4312,7 @@ public class MainView {
         );
 
         content.getChildren().addAll(
+                createLanguageSettingsCard(),
                 safetyTitle,
                 safetyCard,
                 createKeyboardShortcutsSettingsCard()
@@ -5141,7 +4325,7 @@ public class MainView {
 
                 Label titleLabel =
                         new Label(
-                                "Keyboard Shortcuts"
+                                tr("ui.keyboard_shortcuts")
                         );
                 titleLabel.getStyleClass().add(
                         "settings-card-title"
@@ -5149,7 +4333,7 @@ public class MainView {
 
                 Label descriptionLabel =
                         new Label(
-                                "Customise shortcuts for common FileFlow actions."
+                                tr("ui.customise_shortcuts_for_common_fileflow_actions")
                         );
                 descriptionLabel.getStyleClass().add(
                         "settings-card-description"
@@ -5159,22 +4343,22 @@ public class MainView {
                         new VBox(
                                 8,
                                 createShortcutSettingRow(
-                                        "Refresh current scan",
+                                        tr("ui.refresh_current_scan"),
                                         ShortcutAction.REFRESH_SCAN
                                 ),
                                 createShortcutSettingRow(
-                                        "Focus file search",
+                                        tr("ui.focus_file_search"),
                                         ShortcutAction.FOCUS_SEARCH
                                 ),
                                 createShortcutSettingRow(
-                                        "Scan a new folder",
+                                        tr("ui.scan_a_new_folder"),
                                         ShortcutAction.SCAN_FOLDER
                                 )
                         );
 
                 Button resetButton =
                         new Button(
-                                "Reset to Defaults"
+                                tr("ui.reset_to_defaults")
                         );
 
                 resetButton.getStyleClass().add(
@@ -5241,7 +4425,7 @@ public class MainView {
 
                 Button changeButton =
                         new Button(
-                                "Change"
+                                tr("ui.change")
                         );
 
                 changeButton.getStyleClass().add(
@@ -5307,11 +4491,11 @@ public class MainView {
                         shortcutLabel.getText();
 
                 shortcutLabel.setText(
-                        "Press a shortcut..."
+                        tr("ui.press_a_shortcut")
                 );
 
                 changeButton.setText(
-                        "Cancel"
+                        tr("common.cancel")
                 );
 
                 activeShortcutCaptureHandler =
@@ -5341,7 +4525,7 @@ public class MainView {
                                 if (!hasShortcutModifier(event)) {
 
                                 shortcutLabel.setText(
-                                        "Use a modifier key"
+                                        tr("ui.use_a_modifier_key")
                                 );
 
                                 return;
@@ -5361,7 +4545,7 @@ public class MainView {
                                 if (conflict != null) {
 
                                 shortcutLabel.setText(
-                                        "Already in use"
+                                        tr("ui.already_in_use")
                                 );
 
                                 return;
@@ -5485,7 +4669,7 @@ public class MainView {
                                 activeShortcutCaptureAction;
 
                         changeButton.setText(
-                                "Change"
+                                tr("ui.change")
                         );
 
                         changeButton.setOnAction(event ->
@@ -5507,7 +4691,7 @@ public class MainView {
 
         
         private void showBulkRecycleBinDialog(
-                ListView<FileItem> fileList,
+                TableView<FileItem> fileList,
                 Runnable updateSelectionUi
         ) {
 
@@ -5518,7 +4702,7 @@ public class MainView {
                 if (scanning || duplicateScanning
                         || currentSimilarTask != null) {
                         showStatusWarning(
-                                "Please finish the current scan or analysis first."
+                                tr("ui.please_finish_the_current_scan_or_analysis_first")
                         );
                         return;
                 }
@@ -5537,9 +4721,9 @@ public class MainView {
                                 LinkOption.NOFOLLOW_LINKS
                         )) {
                         showFileActionError(
-                                "Folder Selected",
-                                "Bulk Recycle Bin currently supports files only.",
-                                "Remove folders from your selection before retrying:\n"
+                                tr("ui.folder_selected"),
+                                tr("ui.bulk_recycle_bin_currently_supports_files_only"),
+                                tr("ui.remove_folders_from_your_selection_before_retrying")
                                         + path
                         );
                         return;
@@ -5556,8 +4740,8 @@ public class MainView {
                                 LinkOption.NOFOLLOW_LINKS
                         )) {
                         showFileActionError(
-                                "Invalid Selection",
-                                "An item is missing or is not a regular file.",
+                                tr("ui.invalid_selection"),
+                                tr("ui.an_item_is_missing_or_is_not_a_regular_file"),
                                 path.toString()
                         );
                         return;
@@ -5571,8 +4755,8 @@ public class MainView {
                         } catch (IOException | ArithmeticException exception) {
 
                         showFileActionError(
-                                "Unable to Validate Selection",
-                                "The selected files could not be verified.",
+                                tr("ui.unable_to_validate_selection"),
+                                tr("ui.the_selected_files_could_not_be_verified"),
                                 path + "\n" + exception.getMessage()
                         );
                         return;
@@ -5584,25 +4768,21 @@ public class MainView {
                         Alert.AlertType.WARNING
                 );
 
-                confirmation.setTitle("Bulk Recycle Bin");
+                confirmation.setTitle(tr("ui.bulk_recycle_bin"));
                 applyDarkDialogStyle(confirmation);
                 confirmation.getDialogPane().setGraphic(null);
 
                 applyDarkDialogStyle(confirmation);
 
                 confirmation.setHeaderText(
-                        "Move " + targets.size()
-                                + " files to the Recycle Bin?"
+                        tr("ui.move") + targets.size()
+                                + tr("ui.files_to_the_recycle_bin")
                 );
 
                 confirmation.setContentText(
-                        "Selected size: "
+                        tr("ui.selected_size")
                                 + FileSizeFormatter.format(totalBytes)
-                                + "\n\nFiles can be restored from the Windows "
-                                + "Recycle Bin while they remain there."
-                                + "\n\nFileFlow tags and favourites for moved "
-                                + "files will be removed and are not "
-                                + "automatically restored."
+                                + tr("ui.files_can_be_restored_from_the_windows_recycle_bin_while_they_remain_there_fileflow_t")
                 );
 
                 TextArea details = new TextArea(
@@ -5625,7 +4805,7 @@ public class MainView {
                 confirmation.getDialogPane().setExpanded(true);
 
                 ButtonType moveButtonType = new ButtonType(
-                        "Move to Recycle Bin",
+                        tr("files.recycle"),
                         ButtonBar.ButtonData.OK_DONE
                 );
 
@@ -5634,7 +4814,7 @@ public class MainView {
                         moveButtonType
                 );
 
-                ButtonType answer = confirmation.showAndWait()
+                ButtonType answer = showOceanDialog(confirmation)
                         .orElse(ButtonType.CANCEL);
 
                 if (answer != moveButtonType) {
@@ -5654,7 +4834,7 @@ public class MainView {
                                 LinkOption.NOFOLLOW_LINKS
                         )) {
                                 throw new IOException(
-                                        "File is missing or has changed type."
+                                        tr("ui.file_is_missing_or_has_changed_type")
                                 );
                         }
 
@@ -5696,18 +4876,18 @@ public class MainView {
                                 : Alert.AlertType.WARNING
                 );
 
-                result.setTitle("Bulk Recycle Bin Results");
+                result.setTitle(tr("ui.bulk_recycle_bin_results"));
 
                 result.setHeaderText(
-                        moved.size() + " file(s) moved to Recycle Bin"
+                        moved.size() + tr("ui.file_s_moved_to_recycle_bin")
                 );
 
                 String message =
                         "Moved: " + moved.size()
-                        + "\nFailed: " + failures.size();
+                        + tr("ui.failed") + failures.size();
 
                 if (!failures.isEmpty()) {
-                        message += "\n\nFailed items:\n"
+                        message += tr("ui.failed_items")
                                 + String.join(
                                         "\n",
                                         failures.stream().limit(5).toList()
@@ -5715,7 +4895,7 @@ public class MainView {
                 }
 
                 result.setContentText(message);
-                result.showAndWait();
+                showOceanDialog(result);
         }
 
         
@@ -5744,7 +4924,7 @@ public class MainView {
     private void showBulkTagDialog(
                 List<String> existingTags,
                 Map<Path, List<String>> fileTags,
-                ListView<FileItem> fileList
+                TableView<FileItem> fileList
     ) {
 
         if (selectedFilePaths.isEmpty()) {
@@ -5757,15 +4937,15 @@ public class MainView {
 
         Dialog<String> dialog = new Dialog<>();
 
-        dialog.setTitle("Tag Selected Items");
+        dialog.setTitle(tr("ui.tag_selected_items"));
         dialog.setHeaderText(
-                "Add a tag to " + targets.size() + " selected items"
+                tr("ui.add_a_tag_to") + targets.size() + tr("ui.selected_items")
         );
 
         dialog.initOwner(root.getScene().getWindow());
 
         ButtonType applyType = new ButtonType(
-                "Apply Tag",
+                tr("ui.apply_tag"),
                 ButtonBar.ButtonData.OK_DONE
         );
 
@@ -5776,24 +4956,23 @@ public class MainView {
 
         ComboBox<String> tagBox = new ComboBox<>();
         tagBox.getItems().addAll(existingTags);
-        tagBox.setPromptText("Choose an existing tag");
+        tagBox.setPromptText(tr("ui.choose_an_existing_tag"));
         tagBox.setMaxWidth(Double.MAX_VALUE);
 
         TextField newTagField = new TextField();
-        newTagField.setPromptText("Or create a new tag");
+        newTagField.setPromptText(tr("ui.or_create_a_new_tag_79919"));
 
         Label note = new Label(
-                "Selected folders receive the tag themselves. "
-                + "Files inside folders are not tagged recursively."
+                tr("ui.selected_folders_receive_the_tag_themselves_files_inside_folders_are_not_tagged_recur")
         );
 
         note.setWrapText(true);
 
         VBox content = new VBox(
                 10,
-                new Label("Existing tag"),
+                new Label(tr("ui.existing_tag_eea45")),
                 tagBox,
-                new Label("New tag"),
+                new Label(tr("ui.new_tag")),
                 newTagField,
                 note
         );
@@ -5838,7 +5017,7 @@ public class MainView {
                         : tagBox.getValue();
         });
 
-        dialog.showAndWait().ifPresent(tag -> {
+        showOceanDialog(dialog).ifPresent(tag -> {
 
                 int succeeded = 0;
                 List<Path> failed = new ArrayList<>();
@@ -5872,8 +5051,7 @@ public class MainView {
                         } catch (SQLException exception) {
 
                                 showStatusWarning(
-                                        "Tags were applied, but the file list "
-                                        + "could not reload tag metadata."
+                                        tr("ui.tags_were_applied_but_the_file_list_could_not_reload_tag_metadata")
                                 );
 
                                 exception.printStackTrace();
@@ -5892,34 +5070,34 @@ public class MainView {
                                 : Alert.AlertType.WARNING
                 );
 
-                result.setTitle("Bulk Tag Results");
+                result.setTitle(tr("ui.bulk_tag_results"));
 
                 result.setHeaderText(
                         failed.isEmpty()
-                                ? "Tag applied successfully"
-                                : "Some items could not be tagged"
+                                ? tr("ui.tag_applied_successfully")
+                                : tr("ui.some_items_could_not_be_tagged")
                 );
 
                 result.setContentText(
                         String.format(
-                                "Tag: %s%nSuccessful: %d%nFailed: %d",
+                                tr("ui.tag_s_nsuccessful_d_nfailed_d"),
                                 tag,
                                 succeeded,
                                 failed.size()
                         )
                 );
 
-                result.showAndWait();
+                showOceanDialog(result);
         });
     }
 
     private void populateFileList(
-            ListView<FileItem> fileList, 
+            TableView<FileItem> fileList,
             String searchText, 
             String selectedType,
             String selectedSort
         ) {
-        String keyword = searchText.toLowerCase();
+        String keyword = searchText.toLowerCase(Locale.ROOT);
 
         Comparator<FileItem> comparator = switch (selectedSort) {
             case "Name Z-A" ->
@@ -5948,34 +5126,32 @@ public class MainView {
                         ? lastWorkspaceScanSnapshot.items()
                         : latestScanResult.getItems();
 
-        List<FileItem> filteredItems = sourceItems.stream()
-                .filter(item -> {
-                        if (filesViewMode == FilesViewMode.ALL_FILES) {
-                                return !item.isDirectory();
-                        }
+        cancelFileListing();
+        long generation = fileListingGeneration;
+        FilesViewMode mode = filesViewMode;
+        Path folder = currentFolder;
+        fileListingTask = fileListExecutor.submit(() -> {
+                List<FileItem> filteredItems = sourceItems.stream()
+                        .filter(item -> mode == FilesViewMode.ALL_FILES ? !item.isDirectory()
+                                : folder != null && folder.equals(item.getPath().getParent()))
+                        .filter(item -> item.getName().toLowerCase(Locale.ROOT).contains(keyword))
+                        .filter(item -> matchesType(item, selectedType))
+                        .sorted(comparator)
+                        .toList();
+                Platform.runLater(() -> {
+                        if (generation == fileListingGeneration && fileList.getScene() != null
+                                && "Files".equals(pageTitle.getText())) fileList.getItems().setAll(filteredItems);
+                });
+        });
+    }
 
-                        if (currentFolder == null) {
-                                return false;
-                        }
-
-                        Path parent = item.getPath().getParent();
-
-                        return parent != null && parent.equals(currentFolder);
-                })
-                .filter(item ->
-                        item.getName()
-                                .toLowerCase()
-                                .contains(keyword)
-                )
-                .filter(item ->
-                        matchesType(item, selectedType)
-                )
-                .sorted(comparator)
-                .toList();
-
-        fileList.getItems().setAll(filteredItems);
-
-        fileList.refresh();
+    private void cancelFileListing() {
+        fileListingGeneration++;
+        if (fileListingTask != null) {
+            fileListingTask.cancel(false);
+            if (fileListingTask instanceof Runnable queued) fileListExecutor.remove(queued);
+            fileListingTask = null;
+        }
     }
 
     private boolean matchesType(FileItem item, String selectedType) {
@@ -5999,7 +5175,7 @@ public class MainView {
 
                 if (tags.isEmpty()) {
                         tagList.getChildren().add(
-                                new Label("No tags yet.")
+                                new Label(tr("ui.no_tags_yet"))
                         );
                         return;
                 }
@@ -6011,8 +5187,8 @@ public class MainView {
 
                         Label tagCountLabel = new Label(
                                 files.size() == 1
-                                        ? "1 file"
-                                        : files.size() + " files"
+                                        ? tr("ui.1_file")
+                                        : files.size() + tr("ui.files")
                         );
 
                         tagCountLabel.getStyleClass().add(
@@ -6024,7 +5200,7 @@ public class MainView {
                                 "tag-more-button"
                         );
 
-                        MenuItem deleteTagItem = new MenuItem("Delete Tag");
+                        MenuItem deleteTagItem = new MenuItem(tr("ui.delete_tag"));
 
                         deleteTagItem.setOnAction(event -> {
 
@@ -6032,16 +5208,16 @@ public class MainView {
                                         Alert.AlertType.CONFIRMATION
                                 );
 
-                                confirmation.setTitle("Delete Tag");
+                                confirmation.setTitle(tr("ui.delete_tag"));
                                 confirmation.setHeaderText(
-                                        "Delete \"" + tag + "\"?"
+                                        tr("ui.delete") + tag + tr("ui.")
                                 );
 
                                 confirmation.setContentText(
-                                        "This will remove the tag from all files."
+                                        tr("ui.this_will_remove_the_tag_from_all_files")
                                 );
 
-                                confirmation.showAndWait().ifPresent(buttonType -> {
+                                showOceanDialog(confirmation).ifPresent(buttonType -> {
 
                                         if (buttonType == ButtonType.OK) {
 
@@ -6054,8 +5230,8 @@ public class MainView {
                                         } catch (SQLException e) {
 
                                                 showDatabaseError(
-                                                        "Unable to Delete Tag",
-                                                        "FileFlow could not delete this tag."
+                                                        tr("ui.unable_to_delete_tag"),
+                                                        tr("ui.fileflow_could_not_delete_this_tag")
                                                 );
 
                                                 e.printStackTrace();
@@ -6064,7 +5240,7 @@ public class MainView {
                                 });
                         });
 
-                        ContextMenu tagMenu = new ContextMenu(deleteTagItem);
+                        ContextMenu tagMenu = oceanMenu(deleteTagItem);
 
                         tagMenuButton.setOnAction(event ->
                                 tagMenu.show(
@@ -6157,7 +5333,7 @@ public class MainView {
                         });
 
                         if (files.isEmpty()) {
-                                Label emptyLabel = new Label("No files with this tag.");
+                                Label emptyLabel = new Label(tr("ui.no_files_with_this_tag"));
                                 emptyLabel.getStyleClass().add("tag-empty");
 
                                 fileList.getChildren().add(emptyLabel);
@@ -6226,8 +5402,8 @@ public class MainView {
 
 
                                                         showDatabaseError(
-                                                                "Unable to Remove Tag",
-                                                                "FileFlow could not remove this tag from the file."
+                                                                tr("ui.unable_to_remove_tag"),
+                                                                tr("ui.fileflow_could_not_remove_this_tag_from_the_file")
                                                         );
                                                         e.printStackTrace();
                                                 }
@@ -6237,13 +5413,13 @@ public class MainView {
 
                                         removeButton.setTooltip(
                                                 new javafx.scene.control.Tooltip(
-                                                        "Remove this tag from file"
+                                                        tr("ui.remove_this_tag_from_file")
                                                 )
                                         );
 
                                         moreButton.setTooltip(
                                                 new javafx.scene.control.Tooltip(
-                                                        "More file actions"
+                                                        tr("ui.more_file_actions")
                                                 )
                                         );
 
@@ -6278,7 +5454,7 @@ public class MainView {
                                         fileRow.setMaxWidth(Double.MAX_VALUE);
 
                                         PauseTransition clickDelay =
-                                                new PauseTransition(Duration.millis(280));
+                                                new PauseTransition(Duration.millis(160));
 
                                         clickDelay.setOnFinished(event -> {
                                                 showQuickInfo(filePath);
@@ -6353,8 +5529,8 @@ public class MainView {
 
                         tagList.getChildren().add(
                                 createDatabaseErrorState(
-                                        "Tags are temporarily unavailable",
-                                        "FileFlow could not load your tags.",
+                                        tr("ui.tags_are_temporarily_unavailable"),
+                                        tr("ui.fileflow_could_not_load_your_tags"),
                                         () -> populateTagList(tagList)
                                 )
                         );
@@ -6369,7 +5545,7 @@ public class MainView {
                 }
 
                 DirectoryChooser directoryChooser = new DirectoryChooser();
-                directoryChooser.setTitle("Select Folder");
+                directoryChooser.setTitle(tr("ui.select_folder"));
 
                 File selectedFolder = directoryChooser.showDialog(
                         root.getScene().getWindow()
@@ -6395,8 +5571,8 @@ public class MainView {
                 if (!Files.exists(selectedPath)) {
 
                         showScanError(
-                                "Folder Not Found",
-                                "This folder no longer exists.",
+                                tr("ui.folder_not_found"),
+                                tr("ui.this_folder_no_longer_exists"),
                                 selectedPath.toString()
                         );
 
@@ -6406,8 +5582,8 @@ public class MainView {
                 if (!Files.isDirectory(selectedPath)) {
 
                         showScanError(
-                                "Invalid Folder",
-                                "The selected path is not a folder.",
+                                tr("ui.invalid_folder"),
+                                tr("ui.the_selected_path_is_not_a_folder"),
                                 selectedPath.toString()
                         );
 
@@ -6417,8 +5593,8 @@ public class MainView {
                 if (!Files.isReadable(selectedPath)) {
 
                         showScanError(
-                                "Folder Cannot Be Read",
-                                "FileFlow does not have permission to read this folder.",
+                                tr("ui.folder_cannot_be_read"),
+                                tr("ui.fileflow_does_not_have_permission_to_read_this_folder"),
                                 selectedPath.toString()
                         );
 
@@ -6433,7 +5609,7 @@ public class MainView {
                                         this::isCancelled,
                                         count -> updateMessage(
                                                 String.format(
-                                                        "Scanning... %,d items",
+                                                        tr("ui.scanning_d_items"),
                                                         count
                                                 )
                                         )
@@ -6494,7 +5670,7 @@ public class MainView {
                                 );
                         } catch (SQLException exception) {
                                 showStatusWarning(
-                                        "Scan completed, but history could not be saved."
+                                        tr("ui.scan_completed_but_history_could_not_be_saved")
                                 );
 
                                 exception.printStackTrace();
@@ -6560,7 +5736,7 @@ public class MainView {
                 } catch (IOException exception) {
 
                         showStatusWarning(
-                                "Automatic folder monitoring is unavailable."
+                                tr("ui.automatic_folder_monitoring_is_unavailable")
                         );
 
                         exception.printStackTrace();
@@ -6703,7 +5879,7 @@ public class MainView {
                 setScanningState(true);
 
                 scanStatusLabel.setText(
-                        "Refreshing..."
+                        tr("ui.refreshing")
                 );
 
                 scanStatusLabel.setVisible(true);
@@ -6822,7 +5998,7 @@ public class MainView {
 
                 Button retryButton =
                         new Button(
-                                "Try Again"
+                                tr("ui.try_again")
                         );
 
                 retryButton.getStyleClass().add(
@@ -6871,7 +6047,7 @@ public class MainView {
                         details
                 );
 
-                alert.showAndWait();
+                showOceanDialog(alert);
         }
 
         private void showDatabaseError(
@@ -6893,10 +6069,10 @@ public class MainView {
                 );
 
                 alert.setContentText(
-                        "Your files have not been changed."
+                        tr("ui.your_files_have_not_been_changed")
                 );
 
-                alert.showAndWait();
+                showOceanDialog(alert);
         }
 
         private void showStatusWarning(
@@ -6951,7 +6127,7 @@ public class MainView {
                         details
                 );
 
-                alert.showAndWait();
+                showOceanDialog(alert);
         }
 
         private void handleScanFailure(
@@ -6962,8 +6138,8 @@ public class MainView {
                 if (exception instanceof AccessDeniedException) {
 
                         showScanError(
-                                "Permission Denied",
-                                "FileFlow could not access part of this folder.",
+                                tr("ui.permission_denied"),
+                                tr("ui.fileflow_could_not_access_part_of_this_folder"),
                                 exception.getMessage()
                         );
 
@@ -6973,8 +6149,8 @@ public class MainView {
                 if (exception instanceof NoSuchFileException) {
 
                         showScanError(
-                                "Folder Changed During Scan",
-                                "A file or folder disappeared while FileFlow was scanning.",
+                                tr("ui.folder_changed_during_scan"),
+                                tr("ui.a_file_or_folder_disappeared_while_fileflow_was_scanning"),
                                 exception.getMessage()
                         );
 
@@ -6984,8 +6160,8 @@ public class MainView {
                 if (exception instanceof IOException) {
 
                         showScanError(
-                                "Scan Failed",
-                                "FileFlow could not finish scanning this folder.",
+                                tr("ui.scan_failed"),
+                                tr("ui.fileflow_could_not_finish_scanning_this_folder"),
                                 selectedPath.toString()
                         );
 
@@ -6993,8 +6169,8 @@ public class MainView {
                 }
 
                 showScanError(
-                        "Unexpected Scan Error",
-                        "Something unexpected happened while scanning this folder.",
+                        tr("ui.unexpected_scan_error"),
+                        tr("ui.something_unexpected_happened_while_scanning_this_folder"),
                         selectedPath.toString()
                 );
 
@@ -7003,9 +6179,10 @@ public class MainView {
 
         private void setScanningState(boolean scanning) {
                 this.scanning = scanning;
+                updateOceanStatus();
 
                 scanButton.setText(
-                        scanning ? "Cancel Scan" : "Scan Folder" 
+                        scanning ? tr("ui.cancel_scan") : tr("ui.scan_folder")
                 );
 
                 scanProgressBar.setVisible(scanning);
@@ -7021,7 +6198,7 @@ public class MainView {
                 if (homeScanButton != null) {
                         homeScanButton.setDisable(scanning);
                         homeScanButton.setText(
-                                scanning ? "Cancel Scan" : "Scan Folder"
+                                scanning ? tr("ui.cancel_scan") : tr("ui.scan_folder")
                         );
                 }
 
@@ -7045,18 +6222,18 @@ public class MainView {
 
                 Dialog<ButtonType> dialog = new Dialog<>();
 
-                dialog.setTitle("Manage Scan Folders");
+                dialog.setTitle(tr("ui.manage_scan_folders"));
                 dialog.setHeaderText(null);
 
                 dialog.initOwner(root.getScene().getWindow());
 
                 ButtonType saveButtonType = new ButtonType(
-                        "Save Folders",
+                        tr("ui.save_folders"),
                         ButtonBar.ButtonData.OK_DONE
                 );
 
                 ButtonType scanWorkspaceButtonType = new ButtonType(
-                        "Scan Workspace",
+                        tr("ui.scan_workspace"),
                         ButtonBar.ButtonData.APPLY
                 );
 
@@ -7067,7 +6244,7 @@ public class MainView {
                 );
 
                 Label description = new Label(
-                        "Drag folders here, or use Add Folder to select them."
+                        tr("ui.drag_folders_here_or_use_add_folder_to_select_them")
                 );
                 description.setWrapText(true);
 
@@ -7104,11 +6281,11 @@ public class MainView {
                 );
                 dropIcon.getStyleClass().add("workspace-drop-icon");
 
-                Label dropTitle = new Label("Drop folders here");
+                Label dropTitle = new Label(tr("ui.drop_folders_here"));
                 dropTitle.getStyleClass().add("workspace-drop-title");
 
                 Label dropHint = new Label(
-                        "Drag one or multiple folders from File Explorer"
+                        tr("ui.drag_one_or_multiple_folders_from_file_explorer")
                 );
                 dropHint.getStyleClass().add("workspace-drop-hint");
                 dropHint.setWrapText(true);
@@ -7154,8 +6331,8 @@ public class MainView {
                         );
 
                         feedbackLabel.setText(
-                                added + " folder(s) added, "
-                                        + skipped + " skipped."
+                                added + tr("ui.folder_s_added")
+                                        + skipped + tr("ui.skipped")
                         );
 
                         return added;
@@ -7235,13 +6412,13 @@ public class MainView {
 
                 dropZone.setOnDragDropped(dropHandler);
 
-                Button addButton = new Button("Add Folder");
+                Button addButton = new Button(tr("ui.add_folder"));
                 addButton.getStyleClass().add("secondary-button");
 
                 addButton.setOnAction(event -> {
 
                         DirectoryChooser chooser = new DirectoryChooser();
-                        chooser.setTitle("Add Folder to Scan Workspace");
+                        chooser.setTitle(tr("ui.add_folder_to_scan_workspace"));
 
                         File selectedFolder = chooser.showDialog(
                                 dialog.getDialogPane().getScene().getWindow()
@@ -7257,7 +6434,7 @@ public class MainView {
                                 || !Files.isReadable(selectedPath)) {
 
                         feedbackLabel.setText(
-                                "This folder cannot be accessed."
+                                tr("ui.this_folder_cannot_be_accessed")
                         );
                                 return;
                         }
@@ -7269,8 +6446,7 @@ public class MainView {
                         if (!changed) {
 
                                 feedbackLabel.setText(
-                                        "This folder is already included "
-                                        + "in another selected folder."
+                                        tr("ui.this_folder_is_already_included_in_another_selected_folder")
                                 );
                                 return;
                         }
@@ -7283,10 +6459,10 @@ public class MainView {
 
                         if (draft.size() <= previousCount) {
                                 feedbackLabel.setText(
-                                        "Parent folder added. Covered child folders removed."
+                                        tr("ui.parent_folder_added_covered_child_folders_removed")
                                 );
                         } else {
-                                feedbackLabel.setText("Folder added.");
+                                feedbackLabel.setText(tr("ui.folder_added"));
                         }
                 });
 
@@ -7324,7 +6500,7 @@ public class MainView {
 
                 dialog.setResultConverter(buttonType -> buttonType);
 
-                dialog.showAndWait().ifPresent(result -> {
+                showOceanDialog(dialog).ifPresent(result -> {
 
                         if (result != saveButtonType
                                 && result != scanWorkspaceButtonType) {
@@ -7339,6 +6515,8 @@ public class MainView {
                         for (Path path : selectedRoots) {
                                 scanWorkspace.addRoot(path);
                         }
+
+                        updateOceanStatus();
 
                         // Scan only when explicitly requested
                         if (result == scanWorkspaceButtonType) {
@@ -7360,14 +6538,14 @@ public class MainView {
 
                 countLabel.setText(
                         roots.size() == 1
-                                ? "1 folder selected"
-                                : roots.size() + " folders selected"
+                                ? tr("ui.1_folder_selected")
+                                : roots.size() + tr("ui.folders_selected")
                 );
 
                 if (roots.isEmpty()) {
 
                         Label emptyLabel = new Label(
-                                "No folders selected. Click Add Folder to begin."
+                                tr("ui.no_folders_selected_click_add_folder_to_begin")
                         );
 
                         rootsBox.getChildren().add(emptyLabel);
@@ -7392,7 +6570,7 @@ public class MainView {
                                 Priority.ALWAYS
                         );
 
-                        Button removeButton = new Button("Remove");
+                        Button removeButton = new Button(tr("ui.remove"));
 
                         removeButton.getStyleClass().add(
                                 "secondary-button"
@@ -7507,13 +6685,13 @@ public class MainView {
 
                         Alert alert = new Alert(Alert.AlertType.INFORMATION);
 
-                        alert.setTitle("Scan Workspace");
-                        alert.setHeaderText("No folders selected");
+                        alert.setTitle(tr("ui.scan_workspace"));
+                        alert.setHeaderText(tr("ui.no_folders_selected"));
                         alert.setContentText(
-                                "Add at least one folder before scanning."
+                                tr("ui.add_at_least_one_folder_before_scanning")
                         );
 
-                        alert.showAndWait();
+                        showOceanDialog(alert);
                         return;
                 }
                 
@@ -7531,7 +6709,7 @@ public class MainView {
                                 @Override
                                 protected WorkspaceScanSnapshot call() {
 
-                                updateMessage("Preparing workspace scan...");
+                                updateMessage(tr("ui.preparing_workspace_scan"));
 
                                 WorkspaceScanService service =
                                         new WorkspaceScanService(fileScanService);
@@ -7551,7 +6729,7 @@ public class MainView {
 
                                                 updateMessage(
                                                         String.format(
-                                                                "Folder %d/%d: %s (%,d items)",
+                                                                tr("ui.folder_d_d_s_d_items"),
                                                                 progress.folderIndex(),
                                                                 progress.totalFolders(),
                                                                 folderName,
@@ -7600,13 +6778,13 @@ public class MainView {
                                         Alert.AlertType.INFORMATION
                                 );
 
-                                alert.setTitle("Workspace Refresh");
-                                alert.setHeaderText("Refresh cancelled");
+                                alert.setTitle(tr("ui.workspace_refresh"));
+                                alert.setHeaderText(tr("ui.refresh_cancelled"));
                                 alert.setContentText(
-                                        "Your previous workspace results were preserved."
+                                        tr("ui.your_previous_workspace_results_were_preserved")
                                 );
 
-                                alert.showAndWait();
+                                showOceanDialog(alert);
                                 return;
                         }
 
@@ -7675,8 +6853,7 @@ public class MainView {
                         if (refreshExisting && !refreshed.failures().isEmpty()) {
 
                                 showStatusWarning(
-                                        "Some folders could not be refreshed. "
-                                        + "Previous results were preserved where available."
+                                        tr("ui.some_folders_could_not_be_refreshed_previous_results_were_preserved_where_available")
                                 );
                         }
 
@@ -7696,18 +6873,18 @@ public class MainView {
 
                         Alert alert = new Alert(Alert.AlertType.ERROR);
 
-                        alert.setTitle("Workspace Scan Failed");
+                        alert.setTitle(tr("ui.workspace_scan_failed"));
                         alert.setHeaderText(
-                                "An unexpected error interrupted the scan."
+                                tr("ui.an_unexpected_error_interrupted_the_scan")
                         );
 
                         alert.setContentText(
                                 error == null
-                                        ? "Unknown error."
+                                        ? tr("ui.unknown_error")
                                         : String.valueOf(error.getMessage())
                         );
 
-                        alert.showAndWait();
+                        showOceanDialog(alert);
                 });
 
                 // Reuse the existing top-bar scan indicator
@@ -7752,7 +6929,7 @@ public class MainView {
                         } catch (SQLException exception) {
 
                                 showStatusWarning(
-                                        "Some workspace scan history could not be saved."
+                                        tr("ui.some_workspace_scan_history_could_not_be_saved")
                                 );
 
                                 exception.printStackTrace();
@@ -7774,34 +6951,29 @@ public class MainView {
 
                 Alert alert = new Alert(alertType);
 
-                alert.setTitle("Workspace Scan Results");
+                alert.setTitle(tr("ui.workspace_scan_results"));
 
                 if (snapshot.cancelled()) {
 
                         alert.setHeaderText(
-                                "Workspace scan cancelled"
+                                tr("ui.workspace_scan_cancelled")
                         );
 
                 } else if (failed > 0) {
 
                         alert.setHeaderText(
-                                "Workspace scan completed with issues"
+                                tr("ui.workspace_scan_completed_with_issues")
                         );
 
                 } else {
 
                         alert.setHeaderText(
-                                "Workspace scan completed"
+                                tr("ui.workspace_scan_completed")
                         );
                 }
 
                 String message = String.format(
-                        "Folders completed: %d%n"
-                                + "Folders failed: %d%n"
-                                + "Files found: %,d%n"
-                                + "Total file size: %,d bytes%n%n"
-                                + "Results are available in Files. "
-                                + "Use the Workspace selector to switch between scanned folders.",
+                        tr("ui.folders_completed_d_nfolders_failed_d_nfiles_found_d_ntotal_file_size_d_bytes_n_nresu"),
                         completed,
                         failed,
                         snapshot.fileCount(),
@@ -7842,7 +7014,7 @@ public class MainView {
                         alert.getDialogPane().setExpanded(false);
                 }
 
-                alert.showAndWait();
+                showOceanDialog(alert);
         }
 
         private void handleScanAction() {
@@ -7870,21 +7042,7 @@ public class MainView {
         private Button createFileActionsButton(Path filePath) {
                 Button moreButton = new Button("⋯");
                 moreButton.getStyleClass().add("more-button");
-
-                ContextMenu fileMenu =
-                        createFileContextMenu(
-                                filePath
-                        );
-
-                moreButton.setOnAction(event ->
-                        fileMenu.show(
-                                moreButton,
-                                Side.BOTTOM,
-                                0,
-                                0
-                        )
-                );
-
+                moreButton.setOnAction(event -> createFileContextMenu(filePath).show(moreButton, Side.BOTTOM, 0, 0));
                 return moreButton;
         }
 
@@ -7937,8 +7095,8 @@ public class MainView {
                 if (!Files.exists(filePath)) {
 
                         showFileActionError(
-                                "File No Longer Exists",
-                                "This file has been moved or deleted.",
+                                tr("ui.file_no_longer_exists"),
+                                tr("ui.this_file_has_been_moved_or_deleted"),
                                 filePath.toString()
                         );
 
@@ -7964,8 +7122,8 @@ public class MainView {
                 } catch (IOException exception) {
 
                         showFileActionError(
-                                "Unable to Open File",
-                                "FileFlow could not open this file.",
+                                tr("ui.unable_to_open_file"),
+                                tr("ui.fileflow_could_not_open_this_file"),
                                 filePath.toString()
                         );
 
@@ -7973,95 +7131,69 @@ public class MainView {
                 }
         }
 
-        private ContextMenu createFileContextMenu(
-                Path filePath
-        ) {
+        private ContextMenu oceanMenu(MenuItem... items) {
+                ContextMenu menu = new ContextMenu(items);
+                menu.getStyleClass().add("ocean-context-menu");
+                if (I18n.instance().language() == AppLanguage.SIMPLIFIED_CHINESE) menu.getStyleClass().add("language-zh");
+                menu.getScene().getStylesheets().setAll(getClass().getResource("/css/ocean-popup.css").toExternalForm());
+                menu.getScene().setFill(javafx.scene.paint.Color.TRANSPARENT);
+                menu.getScene().getRoot().setStyle("-fx-background-color: transparent;");
+                return menu;
+        }
 
-                MenuItem openItem =
-                        new MenuItem("Open");
-
-                MenuItem showInFolderItem =
-                        new MenuItem("Show in Folder");
-
-                MenuItem copyPathItem =
-                        new MenuItem("Copy Path");
-
-                ContextMenu fileMenu =
-                        new ContextMenu(
-                                openItem,
-                                showInFolderItem,
-                                copyPathItem
-                        );
-
-                if (!Files.isDirectory(filePath)) {
-
-                        MenuItem deleteItem =
-                                new MenuItem("Move to Recycle Bin");
-
-                        deleteItem.getStyleClass().add(
-                                "danger-menu-item"
-                        );
-
-                        deleteItem.setOnAction(event ->
-                                handleDeleteFile(filePath)
-                        );
-
-                        fileMenu.getItems().addAll(
-                                new SeparatorMenuItem(),
-                                deleteItem
-                        );
+        private ContextMenu createFileContextMenu(Path filePath) {
+                if (sharedFileMenu == null) {
+                        MenuItem open = new MenuItem(tr("ui.open"));
+                        MenuItem show = new MenuItem(tr("ui.show_in_folder"));
+                        MenuItem copy = new MenuItem(tr("ui.copy_path"));
+                        sharedDeleteItem = new MenuItem(tr("files.recycle"));
+                        sharedDeleteItem.getStyleClass().add("danger-menu-item");
+                        open.setOnAction(event -> openFile(menuPath));
+                        show.setOnAction(event -> {
+                                try { filePlatformService.showInFolder(menuPath); }
+                                catch (IOException error) { showFileActionError(tr("ui.unable_to_show_file"), tr("ui.could_not_open_the_containing_folder"), menuPath.toString()); }
+                        });
+                        copy.setOnAction(event -> {
+                                try { filePlatformService.copyPath(menuPath); }
+                                catch (IOException error) { showFileActionError(tr("ui.unable_to_copy_path"), error.getMessage(), menuPath.toString()); }
+                        });
+                        sharedDeleteItem.setOnAction(event -> handleDeleteFile(menuPath));
+                        sharedFileMenu = oceanMenu(open, show, copy, new SeparatorMenuItem(), sharedDeleteItem);
                 }
-
-                openItem.setOnAction(event ->
-                        openFile(filePath)
-                );
-
-                showInFolderItem.setOnAction(event -> {
-
-                        if (!Files.exists(filePath)) {
-                                showFileActionError(
-                                        "File Not Found",
-                                        "This file no longer exists.",
-                                        filePath.toString()
-                                );
-                                return;
-                        }
-
+                sharedFileMenu.hide();
+                menuPath = filePath;
+                FileItem item = findScannedFileItem(filePath);
+                sharedDeleteItem.setVisible(item != null && !item.isDirectory());
+                if (item == null) {
                         try {
-                                filePlatformService.showInFolder(filePath);
+                                metadataExecutor.execute(() -> {
+                                        boolean regular = Files.isRegularFile(filePath);
+                                        Platform.runLater(() -> {
+                                                if (filePath.equals(menuPath)) sharedDeleteItem.setVisible(regular);
+                                        });
+                                });
+                        } catch (java.util.concurrent.RejectedExecutionException ignored) { }
+                }
+                return sharedFileMenu;
+        }
 
-                        } catch (IOException exception) {
-                                showFileActionError(
-                                        "Unable to Show File",
-                                        "Could not open the containing folder.",
-                                        filePath.toString()
-                                );
-
-                                exception.printStackTrace();
-                        }
-                });
-
-                copyPathItem.setOnAction(event -> {
-
-                        try {
-
-                        filePlatformService.copyPath(
-                                filePath
-                        );
-
-                        } catch (IOException exception) {
-
-                        exception.printStackTrace();
-                        }
-                });
-
-                return fileMenu;
+        private <R> java.util.Optional<R> showOceanDialog(Dialog<R> dialog) {
+                OceanDialogChrome.install(dialog);
+                applyDarkDialogStyle(dialog);
+                I18n.localizeDialog(dialog);
+                if (dialog.getOwner() == null && root.getScene() != null) {
+                        dialog.initOwner(root.getScene().getWindow());
+                }
+                dialog.getDialogPane().getScene().setFill(javafx.scene.paint.Color.web("#102038"));
+                return dialog.showAndWait();
         }
 
         private void applyDarkDialogStyle(Dialog<?> dialog) {
                 var pane = dialog.getDialogPane();
 
-                pane.getStyleClass().add("ff-dark-dialog");
+                if (!pane.getStyleClass().contains("ff-dark-dialog")) pane.getStyleClass().add("ff-dark-dialog");
+                if (!pane.getStyleClass().contains("ocean-dialog")) pane.getStyleClass().add("ocean-dialog");
+                if (I18n.instance().language() == AppLanguage.SIMPLIFIED_CHINESE) pane.getStyleClass().add("language-zh");
 
                 for (String css : root.getStylesheets()) {
                         if (!pane.getStylesheets().contains(css)) {
@@ -8093,29 +7225,28 @@ public class MainView {
                         Alert.AlertType.CONFIRMATION
                 );
 
-                confirmation.setTitle("Move to Recycle Bin");
+                confirmation.setTitle(tr("files.recycle"));
                 applyDarkDialogStyle(confirmation);
                 confirmation.getDialogPane().setGraphic(null);
 
                 applyDarkDialogStyle(confirmation);
 
                 confirmation.setHeaderText(
-                        "Move this file to the Recycle Bin?"
+                        tr("ui.move_this_file_to_the_recycle_bin")
                 );
 
                 confirmation.setContentText(
                         filePath.getFileName()
-                        + "\n\nYou can restore this file from the "
-                        + "Windows Recycle Bin while it remains there."
+                        + tr("ui.you_can_restore_this_file_from_the_windows_recycle_bin_while_it_remains_there")
                 );
 
                 ButtonType moveButtonType = new ButtonType(
-                        "Move to Recycle Bin",
+                        tr("files.recycle"),
                         ButtonBar.ButtonData.OK_DONE
                 );
 
                 ButtonType cancelButtonType = new ButtonType(
-                        "Cancel",
+                        tr("common.cancel"),
                         ButtonBar.ButtonData.CANCEL_CLOSE
                 );
 
@@ -8125,7 +7256,7 @@ public class MainView {
                 );
 
                 CheckBox dontAskAgain =
-                        new CheckBox("Don't ask me again");
+                        new CheckBox(tr("ui.don_t_ask_me_again"));
 
                 confirmation.getDialogPane().setExpandableContent(
                         dontAskAgain
@@ -8133,7 +7264,7 @@ public class MainView {
 
                 confirmation.getDialogPane().setExpanded(true);
 
-                ButtonType result = confirmation.showAndWait()
+                ButtonType result = showOceanDialog(confirmation)
                         .orElse(cancelButtonType);
 
                 if (result != moveButtonType) {
@@ -8155,8 +7286,8 @@ public class MainView {
                 if (!Files.exists(filePath)) {
 
                         showFileActionError(
-                                "File No Longer Exists",
-                                "This file has already been moved or deleted.",
+                                tr("ui.file_no_longer_exists"),
+                                tr("ui.this_file_has_already_been_moved_or_deleted"),
                                 filePath.toString()
                         );
 
@@ -8189,13 +7320,13 @@ public class MainView {
                 } catch (IOException exception) {
                         Alert errorAlert = new Alert(Alert.AlertType.ERROR);
 
-                        errorAlert.setTitle("Delete Failed");
+                        errorAlert.setTitle(tr("ui.delete_failed"));
 
-                        errorAlert.setHeaderText("Unable to delete the file.");
+                        errorAlert.setHeaderText(tr("ui.unable_to_delete_the_file"));
 
                         errorAlert.setContentText(exception.getMessage());
 
-                        errorAlert.showAndWait();
+                        showOceanDialog(errorAlert);
                 }
         }
 
@@ -8240,8 +7371,7 @@ public class MainView {
                         refreshWorkspaceScan();
                 } else {
                         showStatusWarning(
-                                "Workspace scan is still running. "
-                                + "Refresh after it completes."
+                                tr("ui.workspace_scan_is_still_running_refresh_after_it_completes")
                         );
                 }
 
@@ -8267,7 +7397,7 @@ public class MainView {
 
 
                 scanStatusLabel.setText(
-                        "Refreshing..."
+                        tr("ui.refreshing")
                 );
 
                 scanStatusLabel.setVisible(
@@ -8437,24 +7567,9 @@ public class MainView {
         }
 
         private void refreshCurrentPage() {
-
-                String currentTitle =
-                        pageTitle.getText();
-
-                navItems.stream()
-                        .filter(navItem ->
-                                navItem.getText()
-                                        .equals(
-                                                currentTitle
-                                        )
-                        )
-                        .findFirst()
-                        .ifPresent(navItem ->
-                                selectNavItem(
-                                        navItem,
-                                        currentTitle
-                                )
-                        );
+                String currentTitle = pageTitle.getText();
+                navItems.stream().filter(item -> currentTitle.equals(item.getUserData())).findFirst()
+                        .ifPresent(item -> selectNavItem(item, currentTitle));
         }
 
         private void hideRefreshStatus() {
@@ -8510,7 +7625,7 @@ public class MainView {
         private void updateBrowseHeader(
                 Button backButton,
                 HBox breadcrumbBar,
-                ListView<FileItem> fileList,
+                TableView<FileItem> fileList,
                 TextField searchField,
                 ComboBox<String> typeFilter,
                 ComboBox<String> sortBy
@@ -8651,7 +7766,7 @@ public class MainView {
                                 normalizedRoot.relativize(parent);
 
                         return relativeParent.toString().isEmpty()
-                                ? "Scan root"
+                                ? tr("ui.scan_root")
                                 : relativeParent.toString();
                         }
                 }
@@ -8690,11 +7805,11 @@ public class MainView {
                         .mapToLong(FileItem::getSizeBytes)
                         .sum();
 
-                Label titleLabel = new Label("File Categories");
+                Label titleLabel = new Label(tr("ui.file_categories"));
                 titleLabel.getStyleClass().add("categories-title");
 
                 Label subtitleLabel = new Label(
-                        "Storage breakdown for this scan"
+                        tr("ui.storage_breakdown_for_this_scan")
                 );
                 subtitleLabel.getStyleClass().add("categories-subtitle");
 
@@ -8770,12 +7885,12 @@ public class MainView {
                         }
 
                         Label nameLabel = new Label(
-                                getFileTypeDisplayName(type)
+                                I18n.choice(getFileTypeDisplayName(type))
                         );
                         nameLabel.getStyleClass().add("category-name");
 
                         Label countLabel = new Label(
-                                fileCount + " files"
+                                fileCount + tr("ui.files")
                         );
                         countLabel.getStyleClass().add("category-count");
 
@@ -8829,9 +7944,7 @@ public class MainView {
                 LocalDateTime dateTime
         ) {
         DateTimeFormatter formatter =
-                DateTimeFormatter.ofPattern(
-                        "dd MMM yyyy, HH:mm"
-                );
+                I18n.dateTimeFormatter();
 
         return dateTime.format(formatter);
         }
@@ -8902,14 +8015,14 @@ public class MainView {
                         ImageIO.createImageInputStream(path.toFile())) {
 
                         if (input == null) {
-                        return "Unknown resolution";
+                        return tr("ui.unknown_resolution");
                         }
 
                         Iterator<ImageReader> readers =
                                 ImageIO.getImageReaders(input);
 
                         if (!readers.hasNext()) {
-                        return "Unknown resolution";
+                        return tr("ui.unknown_resolution");
                         }
 
                         ImageReader reader = readers.next();
@@ -8927,7 +8040,7 @@ public class MainView {
                         }
 
                 } catch (IOException | RuntimeException exception) {
-                        return "Unknown resolution";
+                        return tr("ui.unknown_resolution");
                 }
         }
 
@@ -8938,7 +8051,7 @@ public class MainView {
 
                 if (scanning || currentSimilarTask != null) {
                         showStatusWarning(
-                                "Please finish the current analysis or scan first."
+                                tr("ui.please_finish_the_current_analysis_or_scan_first")
                         );
                         return;
                 }
@@ -8981,19 +8094,18 @@ public class MainView {
 
                 Alert confirmation = new Alert(Alert.AlertType.WARNING);
 
-                confirmation.setTitle("Resolve Similar Images");
+                confirmation.setTitle(tr("ui.resolve_similar_images"));
 
                 confirmation.setHeaderText(
-                        "Move " + toDelete.size() + " image(s) to Recycle Bin?"
+                        tr("ui.move") + toDelete.size() + tr("ui.image_s_to_recycle_bin")
                 );
 
                 confirmation.setContentText(
-                        "Images to keep: " + toKeep.size()
-                                + "\nImages to delete: " + toDelete.size()
-                                + "\nSpace to reclaim: "
+                        tr("ui.images_to_keep") + toKeep.size()
+                                + tr("ui.images_to_delete") + toDelete.size()
+                                + tr("ui.space_to_reclaim")
                                 + FileSizeFormatter.format(reclaimableBytes)
-                                + "\n\nImages will be moved to the Recycle Bin. "
-                                + "You can restore them while they remain there."
+                                + tr("ui.images_will_be_moved_to_the_recycle_bin_you_can_restore_them_while_they_remain_there")
                 );
 
                 TextArea details = new TextArea(
@@ -9010,7 +8122,7 @@ public class MainView {
                 confirmation.getDialogPane().setExpanded(true);
 
                 ButtonType deleteButton = new ButtonType(
-                        "Move to Recycle Bin",
+                        tr("files.recycle"),
                         ButtonBar.ButtonData.OK_DONE
                 );
 
@@ -9019,7 +8131,7 @@ public class MainView {
                         deleteButton
                 );
 
-                if (confirmation.showAndWait()
+                if (showOceanDialog(confirmation)
                         .orElse(ButtonType.CANCEL) != deleteButton) {
                         return;
                 }
@@ -9029,8 +8141,8 @@ public class MainView {
 
                         if (!Files.isRegularFile(item.getPath())) {
                         showFileActionError(
-                                "Resolve Cancelled",
-                                "An image you wanted to keep is missing.",
+                                tr("ui.resolve_cancelled"),
+                                tr("ui.an_image_you_wanted_to_keep_is_missing"),
                                 item.getPath().toString()
                         );
                         return;
@@ -9048,7 +8160,7 @@ public class MainView {
                         if (!Files.isRegularFile(path)
                                 || Files.size(path) != item.getSizeBytes()) {
                                 throw new IOException(
-                                        "File is missing or has changed since the scan."
+                                        tr("ui.file_is_missing_or_has_changed_since_the_scan")
                                 );
                         }
 
@@ -9063,8 +8175,8 @@ public class MainView {
                         } catch (IOException exception) {
 
                         showFileActionError(
-                                "Unable to Delete Image",
-                                "Deletion stopped. Some files may already have been deleted.",
+                                tr("ui.unable_to_delete_image"),
+                                tr("ui.deletion_stopped_some_files_may_already_have_been_deleted"),
                                 path.toString()
                         );
 
@@ -9095,7 +8207,7 @@ public class MainView {
         private String getSimilarImageSummary() {
 
                 if (latestSimilarPairs.isEmpty()) {
-                        return "No similar images found.";
+                        return tr("ui.no_similar_images_found");
                 }
 
                 List<SimilarImageGroup> groups =
@@ -9112,7 +8224,7 @@ public class MainView {
                         .count();
 
                 return String.format(
-                        "%d similar groups · %d images",
+                        tr("ui.d_similar_groups_d_images"),
                         groups.size(),
                         imageCount
                 );
@@ -9124,7 +8236,7 @@ public class MainView {
                 container.getChildren().clear();
 
                 PauseTransition similarClickDelay =
-                        new PauseTransition(Duration.millis(280));
+                        new PauseTransition(Duration.millis(160));
 
                 List<SimilarImageGroup> groups =
                         similarImageService.groupSimilarPairs(
@@ -9137,7 +8249,7 @@ public class MainView {
 
                         // Group title
                         Label groupTitle = new Label(
-                                String.format("Similar Group %02d", groupNumber)
+                                String.format(tr("ui.similar_group_02d"), groupNumber)
                         );
 
                         groupTitle.getStyleClass().add(
@@ -9146,7 +8258,7 @@ public class MainView {
 
                         // Image count badge
                         Label groupCount = new Label(
-                                group.files().size() + " images"
+                                group.files().size() + tr("ui.images_f514e")
                         );
 
                         groupCount.getStyleClass().add(
@@ -9206,17 +8318,17 @@ public class MainView {
                                         item.getSizeBytes()
                                 );
 
-                                Label resolutionLabel = new Label("Reading resolution...");
+                                Label resolutionLabel = new Label(tr("ui.reading_resolution"));
                                 Label sizeLabel = new Label(fileSize);
 
                                 resolutionLabel.setStyle(
                                         "-fx-font-size: 11px;" +
-                                        "-fx-text-fill: #64748b;"
+                                        "-fx-text-fill: #9fbfe8;"
                                 );
 
                                 sizeLabel.setStyle(
                                         "-fx-font-size: 11px;" +
-                                        "-fx-text-fill: #64748b;"
+                                        "-fx-text-fill: #9fbfe8;"
                                 );
 
                                 Region spacer = new Region();
@@ -9324,7 +8436,7 @@ public class MainView {
                                 imageGrid.getChildren().add(imageCard);
                         }
 
-                        Button resolveButton = new Button("Resolve");
+                        Button resolveButton = new Button(tr("ui.resolve"));
 
                         resolveButton.getStyleClass().addAll(
                                 "secondary-button",
@@ -9339,13 +8451,13 @@ public class MainView {
 
                         Dialog<List<Path>> dialog = new Dialog<>();
 
-                        dialog.setTitle("Resolve Similar Images");
+                        dialog.setTitle(tr("ui.resolve_similar_images"));
                         dialog.setHeaderText(
-                                "Select the images you want to delete"
+                                tr("ui.select_the_images_you_want_to_delete")
                         );
 
                         ButtonType reviewType = new ButtonType(
-                                "Review Selection",
+                                tr("ui.review_selection"),
                                 ButtonBar.ButtonData.OK_DONE
                         );
 
@@ -9400,7 +8512,7 @@ public class MainView {
                                         .toList();
                         });
 
-                        dialog.showAndWait().ifPresent(selectedPaths -> {
+                        showOceanDialog(dialog).ifPresent(selectedPaths -> {
 
                                 if (selectedPaths.isEmpty()) {
                                         return;
@@ -9408,11 +8520,11 @@ public class MainView {
 
                                 if (selectedPaths.size() == group.files().size()) {
 
-                                        new Alert(
+                                        showOceanDialog(new Alert(
                                                 Alert.AlertType.WARNING,
-                                                "You must keep at least one image.",
+                                                tr("ui.you_must_keep_at_least_one_image"),
                                                 ButtonType.OK
-                                        ).showAndWait();
+                                        ));
 
                                         return;
                                 }
@@ -9488,7 +8600,7 @@ public class MainView {
 
                         // Group title
                         Label groupTitle = new Label(
-                                String.format("Duplicate Group %02d", groupNumber)
+                                String.format(tr("ui.duplicate_group_02d"), groupNumber)
                         );
 
                         groupTitle.getStyleClass().add(
@@ -9498,7 +8610,7 @@ public class MainView {
                         // File count and individual file size
                         Label summaryLabel = new Label(
                                 String.format(
-                                        "%,d copies · %s each",
+                                        tr("ui.d_copies_s_each"),
                                         group.getFiles().size(),
                                         FileSizeFormatter.format(
                                                 group.getFileSizeBytes()
@@ -9526,7 +8638,7 @@ public class MainView {
                         Label reclaimableBadge = new Label(
                                 FileSizeFormatter.format(
                                         group.getReclaimableBytes()
-                                ) + " reclaimable"
+                                ) + tr("ui.reclaimable")
                         );
 
                         reclaimableBadge.getStyleClass().add(
@@ -9547,7 +8659,7 @@ public class MainView {
                         arrowLabel.getStyleClass().add("duplicate-group-arrow");
 
                         Button resolveButton =
-                                new Button("Resolve");
+                                new Button(tr("ui.resolve"));
 
                         resolveButton.getStyleClass().addAll(
                                 "secondary-button",
@@ -9577,18 +8689,18 @@ public class MainView {
                                 );
 
                         dialog.setTitle(
-                                "Resolve Duplicates"
+                                tr("ui.resolve_duplicates")
                         );
 
                         dialog.setHeaderText(
-                                "Choose the copy you want to keep"
+                                tr("ui.choose_the_copy_you_want_to_keep")
                         );
 
                         dialog.setContentText(
-                                "Keep:"
+                                tr("duplicates.keep_label")
                         );
 
-                        dialog.showAndWait()
+                        showOceanDialog(dialog)
                                 .ifPresent(pathToKeep -> {
 
                                 long copiesToDelete =
@@ -9603,18 +8715,16 @@ public class MainView {
                                         );
 
                                 confirmation.setTitle(
-                                        "Resolve Duplicates"
+                                        tr("ui.resolve_duplicates")
                                 );
 
                                 confirmation.setHeaderText(
-                                        "Keep this copy and delete the others?"
+                                        tr("ui.keep_this_copy_and_delete_the_others")
                                 );
 
                                 confirmation.setContentText(
                                         String.format(
-                                                "FileFlow will keep:%n%n%s%n%n"
-                                                        + "and move %,d duplicate copy/copies to the Recycle Bin.%n"
-                                                        + "About %s may be freed after the Recycle Bin is emptied.",
+                                                tr("ui.fileflow_will_keep_n_n_s_n_nand_move_d_duplicate_copy_copies_to_the_recycle_bin_nabou"),
                                                 pathToKeep,
                                                 copiesToDelete,
                                                 FileSizeFormatter.format(
@@ -9625,13 +8735,13 @@ public class MainView {
 
                                 ButtonType resolveButtonType =
                                         new ButtonType(
-                                                "Move to Recycle Bin",
+                                                tr("files.recycle"),
                                                 ButtonBar.ButtonData.OK_DONE
                                         );
 
                                 ButtonType cancelButtonType =
                                         new ButtonType(
-                                                "Cancel",
+                                                tr("common.cancel"),
                                                 ButtonBar.ButtonData.CANCEL_CLOSE
                                         );
 
@@ -9643,8 +8753,7 @@ public class MainView {
                                         );
 
                                 ButtonType result =
-                                        confirmation
-                                                .showAndWait()
+                                        showOceanDialog(confirmation)
                                                 .orElse(
                                                         cancelButtonType
                                                 );
@@ -9656,8 +8765,8 @@ public class MainView {
                                 if (!Files.isRegularFile(pathToKeep)) {
 
                                         showFileActionError(
-                                                "Resolve Cancelled",
-                                                "The copy you chose to keep is no longer available.",
+                                                tr("ui.resolve_cancelled"),
+                                                tr("ui.the_copy_you_chose_to_keep_is_no_longer_available"),
                                                 pathToKeep.toString()
                                         );
 
@@ -9685,8 +8794,8 @@ public class MainView {
                                         } catch (IOException exception) {
 
                                                 showFileActionError(
-                                                        "Unable to Resolve Duplicates",
-                                                        "FileFlow could not delete one of the duplicate files.",
+                                                        tr("ui.unable_to_resolve_duplicates"),
+                                                        tr("ui.fileflow_could_not_delete_one_of_the_duplicate_files"),
                                                         duplicatePath.toString()
                                                 );
 
@@ -9798,7 +8907,7 @@ public class MainView {
                                 .sum();
 
                 VBox groupsCard = createSummaryCard(
-                        "Groups",
+                        tr("ui.groups"),
                         String.format(
                                 "%,d",
                                 latestDuplicateGroups.size()
@@ -9806,7 +8915,7 @@ public class MainView {
                 );
 
                 VBox copiesCard = createSummaryCard(
-                        "Extra Copies",
+                        tr("ui.extra_copies"),
                         String.format(
                                 "%,d",
                                 extraCopies
@@ -9814,7 +8923,7 @@ public class MainView {
                 );
 
                 VBox reclaimableCard = createSummaryCard(
-                        "Reclaimable",
+                        tr("ui.reclaimable_6c5fb"),
                         FileSizeFormatter.format(reclaimableBytes)
                 );
 
@@ -9995,141 +9104,105 @@ public class MainView {
                 });
         }
 
-        private void showQuickInfo(Path filePath) {
+        private void cancelQuickInfoMetadata() {
+                if (quickInfoMetadata != null) {
+                        quickInfoMetadata.cancel(false);
+                        if (quickInfoMetadata instanceof Runnable queued) metadataExecutor.remove(queued);
+                        quickInfoMetadata = null;
+                }
+        }
 
-                Path path = filePath.toAbsolutePath().normalize();
+        private void hideQuickInfo() {
+                quickInfoGeneration++;
+                cancelQuickInfoMetadata();
+                if (quickInfoPanel != null) {
+                        quickInfoPanel.setVisible(false);
+                        quickInfoImage.getChildren().clear();
+                }
+        }
 
-                Label title = new Label("Quick Info");
+        private String quickInfoType(FileItem item) {
+                if (item.isDirectory()) return "Folder";
+                return switch (item.getType()) {
+                        case IMAGE -> "Image"; case VIDEO -> "Video"; case AUDIO -> "Audio";
+                        case DOCUMENT -> "Document"; case ARCHIVE -> "Archive"; case CODE -> "Code";
+                        default -> "File";
+                };
+        }
+
+        private void ensureQuickInfoPanel() {
+                if (quickInfoPanel != null) return;
+                Label title = new Label(tr("files.quick_info"));
                 title.setStyle("-fx-font-size: 17px; -fx-font-weight: bold;");
+                Button close = new Button("×");
+                close.setAccessibleText(tr("ui.close_quick_info"));
+                close.getStyleClass().add("quick-info-close");
+                close.setOnAction(event -> hideQuickInfo());
+                Region spacer = new Region(); HBox.setHgrow(spacer, Priority.ALWAYS);
+                HBox header = new HBox(10, title, spacer, close); header.setAlignment(Pos.CENTER_LEFT);
+                quickInfoName = new Label(); quickInfoName.setWrapText(true);
+                quickInfoName.setStyle("-fx-font-size: 15px; -fx-font-weight: bold;");
+                quickInfoType = new Label(); quickInfoSize = new Label(); quickInfoModified = new Label();
+                quickInfoLocation = new Label(); quickInfoLocation.setWrapText(true);
+                quickInfoImage = new StackPane();
+                quickInfoImage.setMinSize(220, 160); quickInfoImage.setPrefSize(220, 160); quickInfoImage.setMaxSize(220, 160);
+                quickInfoPanel = new VBox(14, header, quickInfoImage, quickInfoName, new javafx.scene.control.Separator(),
+                        quickInfoType, quickInfoSize, quickInfoModified, quickInfoLocation);
+                quickInfoPanel.getStyleClass().add("quick-info-panel");
+                quickInfoPanel.setManaged(false);
+                var layers = (StackPane) root.getCenter();
+                var overlay = (javafx.scene.layout.Pane) layers.getChildren().get(1);
+                overlay.getChildren().add(quickInfoPanel);
+                overlay.requestLayout();
+        }
 
-                Button closeButton = new Button("×");
-                closeButton.getStyleClass().add("quick-info-close");
+        private void applyQuickInfo(Path path, String type, String size, String modified) {
+                quickInfoType.setText(tr("files.info.type", I18n.choice(type)));
+                quickInfoSize.setText(tr("files.info.size", size));
+                quickInfoModified.setText(tr("files.info.modified", modified));
+                quickInfoImage.getChildren().setAll(createQuickInfoPreview(path, type));
+        }
 
-                closeButton.setOnAction(event -> root.setRight(null));
-
-                Region spacer = new Region();
-                HBox.setHgrow(spacer, Priority.ALWAYS);
-
-                HBox header = new HBox(10, title, spacer, closeButton);
-                header.setAlignment(Pos.CENTER_LEFT);
-
-                String fileName = path.getFileName() == null
-                        ? path.toString()
-                        : path.getFileName().toString();
-
-                Label nameLabel = new Label(fileName);
-                nameLabel.setWrapText(true);
-                nameLabel.setStyle("-fx-font-size: 15px; -fx-font-weight: bold;");
-
-                String type;
-
-                if (Files.isDirectory(path)) {
-
-                        type = "Folder";
-
-                        } else {
-
-                        FileItem scannedItem = findScannedFileItem(path);
-
-                        if (scannedItem != null) {
-
-                                type = switch (scannedItem.getType()) {
-                                case IMAGE -> "Image";
-                                case VIDEO -> "Video";
-                                case AUDIO -> "Audio";
-                                case DOCUMENT -> "Document";
-                                case ARCHIVE -> "Archive";
-                                case CODE -> "Code";
-                                default -> "File";
-                                };
-
-                        } else {
-
-                                type = "File";
-
+        private void showQuickInfo(Path filePath) {
+                Path path = filePath.toAbsolutePath().normalize();
+                cancelQuickInfoMetadata();
+                long generation = ++quickInfoGeneration;
+                ensureQuickInfoPanel();
+                quickInfoName.setText(path.getFileName() == null ? path.toString() : path.getFileName().toString());
+                quickInfoLocation.setText(tr("files.info.location", path));
+                quickInfoPanel.setVisible(true);
+                FileItem item = findScannedFileItem(path);
+                if (item != null) {
+                        String modified = item.getLastModified() == null ? tr("ui.unavailable")
+                                : item.getLastModified().format(I18n.dateTimeFormatter());
+                        applyQuickInfo(path, quickInfoType(item), item.isDirectory() ? "—" : FileSizeFormatter.format(item.getSizeBytes()), modified);
+                        return;
+                }
+                applyQuickInfo(path, "File", tr("common.loading"), tr("common.loading"));
+                try {
+                        quickInfoMetadata = metadataExecutor.submit(() -> {
                                 try {
-                                String mimeType = Files.probeContentType(path);
-
-                                if (mimeType != null) {
-                                        if (mimeType.startsWith("image/")) {
-                                        type = "Image";
-                                        } else if (mimeType.startsWith("video/")) {
-                                        type = "Video";
-                                        } else if (mimeType.startsWith("audio/")) {
-                                        type = "Audio";
-                                        }
+                                        var attributes = Files.readAttributes(path, java.nio.file.attribute.BasicFileAttributes.class);
+                                        String mime = attributes.isDirectory() ? null : Files.probeContentType(path);
+                                        String type = attributes.isDirectory() ? "Folder" : mime != null && mime.startsWith("image/") ? "Image"
+                                                : mime != null && mime.startsWith("video/") ? "Video" : mime != null && mime.startsWith("audio/") ? "Audio" : "File";
+                                        String size = attributes.isDirectory() ? "—" : FileSizeFormatter.format(attributes.size());
+                                        String modified = attributes.lastModifiedTime().toInstant().atZone(java.time.ZoneId.systemDefault())
+                                                .format(I18n.dateTimeFormatter());
+                                        Platform.runLater(() -> {
+                                                if (quickInfoGeneration == generation && quickInfoPanel.isVisible()) applyQuickInfo(path, type, size, modified);
+                                        });
+                                } catch (IOException | SecurityException failure) {
+                                        Platform.runLater(() -> {
+                                                if (quickInfoGeneration == generation && quickInfoPanel.isVisible()) applyQuickInfo(path, "File", tr("ui.unavailable"), tr("ui.unavailable"));
+                                        });
                                 }
-
-                                } catch (IOException exception) {
-                                }
-                        }
-                }
-                String size = "Unavailable";
-                String modified = "Unavailable";
-
-                if (Files.exists(path)) {
-                        try {
-                        size = Files.isDirectory(path)
-                                ? "—"
-                                : FileSizeFormatter.format(Files.size(path));
-
-                        modified = Files.getLastModifiedTime(path)
-                                .toInstant()
-                                .atZone(java.time.ZoneId.systemDefault())
-                                .format(DateTimeFormatter.ofPattern(
-                                        "dd MMM yyyy, HH:mm"
-                                ));
-
-                        } catch (IOException | SecurityException exception) {
-                        }
-                }
-
-                Label typeLabel = new Label("Type: " + type);
-                Label sizeLabel = new Label("Size: " + size);
-                Label modifiedLabel = new Label("Modified: " + modified);
-
-                Label pathLabel = new Label("Location:\n" + path);
-                pathLabel.setWrapText(true);
-
-                Node preview = createQuickInfoPreview(path, type);
-
-                VBox inspector = new VBox(
-                        14,
-                        header,
-                        preview,
-                        nameLabel,
-                        new javafx.scene.control.Separator(),
-                        typeLabel,
-                        sizeLabel,
-                        modifiedLabel,
-                        pathLabel
-                );
-
-                inspector.setPrefWidth(290);
-                inspector.setMinWidth(260);
-
-                inspector.getStyleClass().add("quick-info-panel");
-
-                System.out.println(
-                        "Scene stylesheets: "
-                        + root.getScene().getStylesheets()
-                );
-
-                System.out.println(
-                        "Root stylesheets: "
-                        + root.getStylesheets()
-                );
-
-                System.out.println(
-                        "Center stylesheets: "
-                        + ((Parent) root.getCenter()).getStylesheets()
-                );
-
-                root.setRight(inspector);
+                        });
+                } catch (java.util.concurrent.RejectedExecutionException ignored) { applyQuickInfo(path, "File", tr("ui.unavailable"), tr("ui.unavailable")); }
         }
 
         private Node createQuickInfoPreview(Path path, String type) {
-                return createQuickInfoPreview(path, type, 250, 180);
+                return createQuickInfoPreview(path, type, 220, 160);
         }
 
         private Node createQuickInfoPreview(
@@ -10151,65 +9224,23 @@ public class MainView {
                         type.equalsIgnoreCase("Image")
                         || type.endsWith(" Image");
 
-                if (isImage && Files.isRegularFile(path)) {
-
-                        Label loadingLabel =
-                                new Label("Loading preview...");
-
-                        previewBox.getChildren().add(loadingLabel);
-
-                        Image image = new Image(
-                                path.toUri().toString(),
-                                width,
-                                height,
-                                true,
-                                true,
-                                true
-                        );
-
-                        ImageView imageView = new ImageView(image);
-
-                        imageView.setFitWidth(width);
-                        imageView.setFitHeight(height);
-                        imageView.setPreserveRatio(true);
-                        imageView.setSmooth(true);
-
-                        Runnable updatePreview = () -> {
-
-                        if (image.isError()) {
-
-                                previewBox.getChildren().setAll(
-                                        new Label("Preview unavailable")
-                                );
-
-                        } else if (image.getProgress() >= 1.0) {
-
-                                previewBox.getChildren().setAll(imageView);
-                        }
-                        };
-
-                        image.progressProperty().addListener(
-                                (observable, oldValue, newValue) ->
-                                        updatePreview.run()
-                        );
-
-                        image.errorProperty().addListener(
-                                (observable, oldValue, newValue) ->
-                                        updatePreview.run()
-                        );
-
-                        updatePreview.run();
-
+                if ("Folder".equals(type)) {
+                        Node folder = createFolderListPreview();
+                        folder.setScaleX(2.2);
+                        folder.setScaleY(2.2);
+                        previewBox.getChildren().add(folder);
+                } else if (isImage) {
+                        return filePreviewFactory.createImagePreview(path, width, height, tr("ui.loading_preview"));
                 } else {
 
                         String placeholder = switch (type) {
-                        case "Folder" -> "FOLDER";
-                        case "Document" -> "DOCUMENT";
-                        case "Video" -> "VIDEO";
-                        case "Audio" -> "AUDIO";
-                        case "Archive" -> "ARCHIVE";
-                        case "Code" -> "CODE";
-                        default -> "FILE";
+                        case "Folder" -> tr("ui.folder");
+                        case "Document" -> tr("ui.document");
+                        case "Video" -> tr("ui.video");
+                        case "Audio" -> tr("ui.audio_1ab8e");
+                        case "Archive" -> tr("ui.archive");
+                        case "Code" -> tr("ui.code_16de2");
+                        default -> tr("ui.file");
                         };
 
                         Label placeholderLabel = new Label(placeholder);
@@ -10217,7 +9248,7 @@ public class MainView {
                         placeholderLabel.setStyle(
                                 "-fx-font-size: 20px;" +
                                 "-fx-font-weight: bold;" +
-                                "-fx-text-fill: #64748b;"
+                                "-fx-text-fill: #9fbfe8;"
                         );
 
                         previewBox.getChildren().add(placeholderLabel);
@@ -10248,66 +9279,7 @@ public class MainView {
                         ".*\\.(jpg|jpeg|png|gif|bmp)"
                 );
 
-                if (!isImage || !Files.isRegularFile(filePath)) {
-                        return filePreviewFactory.createFallback();
-                }
-
-                StackPane preview = new StackPane();
-
-                preview.setPrefSize(56, 42);
-                preview.setMinSize(56, 42);
-                preview.setMaxSize(56, 42);
-
-                preview.getStyleClass().addAll(
-                        "file-preview",
-                        "file-preview-image"
-                );
-
-                Label fallback = new Label("IMAGE");
-                fallback.getStyleClass().add(
-                        "file-preview-placeholder"
-                );
-
-                preview.getChildren().add(fallback);
-
-                Image image = new Image(
-                        filePath.toUri().toString(),
-                        112,
-                        84,
-                        true,
-                        true,
-                        true
-                );
-
-                ImageView imageView = new ImageView(image);
-
-                imageView.setFitWidth(56);
-                imageView.setFitHeight(42);
-                imageView.setPreserveRatio(true);
-                imageView.setSmooth(true);
-
-                Runnable updatePreview = () -> {
-
-                        if (image.isError()) {
-                        preview.getChildren().setAll(fallback);
-
-                        } else if (image.getProgress() >= 1.0) {
-                        preview.getChildren().setAll(imageView);
-                        }
-                };
-
-                image.progressProperty().addListener(
-                        (observable, oldValue, newValue) ->
-                                updatePreview.run()
-                );
-
-                image.errorProperty().addListener(
-                        (observable, oldValue, newValue) ->
-                                updatePreview.run()
-                );
-
-                updatePreview.run();
-
-                return preview;
+                if (!isImage) return filePreviewFactory.createFallback();
+                return filePreviewFactory.createImagePreview(filePath, 56, 42, tr("ui.image"));
         }
 }

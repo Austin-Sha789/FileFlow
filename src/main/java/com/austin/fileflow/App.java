@@ -10,6 +10,8 @@ import com.austin.fileflow.repository.FavouriteRepo;
 import com.austin.fileflow.repository.ScanHistoryRepo;
 import com.austin.fileflow.repository.TagRepo;
 import com.austin.fileflow.ui.MainView;
+import com.austin.fileflow.ui.AppIcon;
+import com.austin.fileflow.ui.OceanWindowChrome;
 import com.austin.fileflow.platform.FilePlatformService;
 import com.austin.fileflow.service.ShortcutManager;
 import com.austin.fileflow.service.FileScanService;
@@ -52,10 +54,15 @@ public class App extends Application
             filePreviewFactory
         );
 
-        Scene scene = new Scene(mainView.getView(), 1200, 760);
+        Scene scene = new Scene(mainView.getView(), 1280, 800);
         scene.getStylesheets().add(getClass().getResource("/css/app.css").toExternalForm());
 
+        scene.getStylesheets().add(getClass().getResource("/css/ocean.css").toExternalForm());
+        stage.setMinWidth(1060);
+        stage.setMinHeight(680);
+        AppIcon.install(stage);
         stage.setTitle("FileFlow");
+        OceanWindowChrome.install(stage, scene);
         stage.setScene(scene);
         stage.show();
     }
