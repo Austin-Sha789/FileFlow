@@ -293,7 +293,7 @@
     -fx-min-height: 34; -fx-pref-height: 34; -fx-max-height: 34;
 }
 .ocean-app .button.ocean-caption-button:hover { -fx-background-color: #223650; }
-.ocean-app .button.ocean-caption-button:focused { -fx-background-color: #1b3557; }
+.ocean-app .button.ocean-caption-button:focused { -fx-background-color: transparent; }
 .ocean-app .button.ocean-window-close:hover { -fx-background-color: #b83d52; }
 .ocean-app .ocean-caption-icon { -fx-fill: transparent; -fx-stroke: #c3d3e9; -fx-stroke-width: 1.25; }
 .ocean-app .ocean-window-close:hover .ocean-caption-icon { -fx-stroke: white; }
@@ -428,3 +428,29 @@
     -fx-font-size: 9px;
     -fx-text-fill: #f4f8ff;
 }
+
+/* Explicit state selectors override the original light-theme rules. */
+.ocean-app .exact-duplicate-group-card .duplicate-group-header:hover,
+.ocean-app .duplicate-group-header:hover { -fx-background-color: #203954; -fx-background-radius: 8; }
+.ocean-app .similar-group-count { -fx-background-color: #244260; -fx-text-fill: #c0dcff; -fx-background-radius: 12; }
+.ocean-app .similar-image-group-card .separator .line { -fx-border-color: #304863; }
+
+/* The workspace is part of the sidebar surface; navigation and storage stay fixed. */
+.ocean-app .ocean-sidebar-workspace { -fx-background-color: transparent; -fx-border-width: 0; -fx-spacing: 6; }
+.ocean-app .workspace-folder-list, .ocean-app .workspace-folder-scroll,
+.ocean-app .workspace-folder-scroll > .viewport, .ocean-app .workspace-dot-rail {
+    -fx-background-color: transparent; -fx-background-insets: 0; -fx-border-width: 0; -fx-padding: 0;
+}
+.ocean-app .workspace-folder-scroll:focused { -fx-background-color: transparent; }
+.ocean-app .workspace-folder-scroll > .scroll-bar { -fx-opacity: 0; -fx-pref-width: 0; -fx-pref-height: 0; }
+.ocean-app .ocean-folder-shortcut:active { -fx-background-color: #1b3655; -fx-text-fill: #edf5ff; -fx-background-radius: 6; }
+.ocean-app .workspace-folder-dot { -fx-cursor: hand; }
+.ocean-app .workspace-folder-dot:focused { -fx-stroke: #d4eaff; -fx-stroke-width: 1; }
+
+.ocean-app .sidebar .nav-item { -fx-padding: 8 12; }
+.ocean-app .sidebar:compact { -fx-spacing: 3; -fx-padding: 10; }
+.ocean-app .sidebar:compact .nav-item { -fx-padding: 4 12; }
+.ocean-app .sidebar:compact .sidebar-storage-card { -fx-padding: 9; -fx-spacing: 5; }
+.ocean-app .sidebar:compact .sidebar-storage-root, .ocean-app .sidebar:compact .sidebar-storage-detail { -fx-font-size: 10px; }
+.ocean-app .sidebar:compact .ocean-sidebar-caption { -fx-padding: 5 10 2 10; }
+.ocean-app .sidebar:compact .ocean-sidebar-workspace { -fx-padding: 4 0 0 0; -fx-spacing: 4; }

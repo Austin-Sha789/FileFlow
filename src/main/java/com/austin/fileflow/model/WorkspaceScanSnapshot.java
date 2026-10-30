@@ -113,6 +113,24 @@ public record WorkspaceScanSnapshot(
         return WorkspaceScanSnapshot.from(mergedReport);
     }
 
+    /** Called on the scan worker so aggregating large libraries does not block the application thread. */
+    public static WorkspaceScanSnapshot withRoot(WorkspaceScanSnapshot previous, Path previousRoot,
+            ScanResult previousResult, Path root, ScanResult result) {
+        Map<Path, ScanResult> results = new LinkedHashMap<>();
+        if (previous != null) results.putAll(previous.resultsByRoot());
+        else if (previousRoot != null && previousResult != null) results.put(previousRoot.toAbsolutePath().normalize(), previousResult);
+        results.put(root.toAbsolutePath().normalize(), result);
+        Map<Path, FileItem> uniqueItems = new LinkedHashMap<>();
+        for (ScanResult scan : results.values()) for (FileItem item : scan.getItems()) {
+            uniqueItems.putIfAbsent(item.getPath().toAbsolutePath().normalize(), item);
+        }
+        // The freshly scanned root wins when a saved parent/child overlap in All Files.
+        for (FileItem item : result.getItems()) uniqueItems.put(item.getPath().toAbsolutePath().normalize(), item);
+        List<MultiScanCoordinator.FailedRoot> failures = previous == null ? List.of() : previous.failures().stream()
+                .filter(failure -> !failure.root().toAbsolutePath().normalize().equals(root.toAbsolutePath().normalize())).toList();
+        return new WorkspaceScanSnapshot(results, new ArrayList<>(uniqueItems.values()), failures, false);
+    }
+
     public int completedFolderCount() {
         return resultsByRoot.size();
     }

@@ -30,6 +30,7 @@ public final class ThumbnailView extends StackPane {
     private final PauseTransition settle = new PauseTransition(Duration.millis(100));
     private CompletableFuture<ThumbnailLoader.Thumbnail> request;
     private boolean failed;
+    private java.util.List<ThumbnailViewportTracker> viewportTrackers = java.util.List.of();
     private final boolean retainFallbackOnFailure;
 
     public ThumbnailView(ThumbnailLoader loader, Path path, int width, int height, String fallback) {
@@ -51,18 +52,31 @@ public final class ThumbnailView extends StackPane {
         getChildren().addAll(placeholder, image);
         settle.setOnFinished(event -> load());
         sceneProperty().addListener((observable, before, after) -> {
+            detachViewportTrackers();
             if (after == null) {
                 release(); image.setImage(null); placeholder.setVisible(true); failed = false;
-            } else schedule();
+            } else {
+                viewportTrackers = ThumbnailViewportTracker.attach(this);
+                schedule();
+            }
         });
-        localToSceneTransformProperty().addListener(observable -> {
-            if (!inViewport()) release(); else schedule();
+        localToSceneTransformProperty().addListener(observable -> viewportChanged());
+        parentProperty().addListener((observable, before, after) -> {
+            detachViewportTrackers();
+            if (getScene() != null) viewportTrackers = ThumbnailViewportTracker.attach(this);
         });
         visibleProperty().addListener(observable -> { if (!isVisible()) release(); else schedule(); });
     }
 
+    private void detachViewportTrackers() {
+        for (var tracker : viewportTrackers) tracker.detach(this);
+        viewportTrackers = java.util.List.of();
+    }
+
+    void viewportChanged() { if (!inViewport()) release(); else schedule(); }
+
     private boolean inViewport() {
-        if (getScene() == null) return false;
+        if (getScene() == null || getScene().getWindow() == null || !getScene().getWindow().isShowing()) return false;
         var bounds = localToScene(getBoundsInLocal());
         for (Node parent = this; parent != null; parent = parent.getParent()) {
             if (!parent.isVisible()) return false;

@@ -75,7 +75,17 @@ public final class OceanWindowChrome {
             maximize.setAccessibleText(maximizeText); maximize.setTooltip(new Tooltip(maximizeText));
             close.setAccessibleText(tr("common.close")); close.setTooltip(new Tooltip(tr("common.close")));
         });
+        stage.iconifiedProperty().addListener((observable, before, after) -> resetControls(controls));
+        stage.focusedProperty().addListener((observable, before, after) -> resetControls(controls));
         installResize(stage, scene);
+    }
+
+    private static void resetControls(HBox controls) {
+        for (Node node : controls.getChildren()) if (node instanceof CaptionButton button) button.resetPointerState();
+    }
+
+    private static final class CaptionButton extends Button {
+        void resetPointerState() { disarm(); setHover(false); setPressed(false); }
     }
 
     private static Button control(String accessibleName, String path, Runnable action) {
@@ -83,7 +93,8 @@ public final class OceanWindowChrome {
         icon.setContent(path);
         icon.getStyleClass().add("ocean-caption-icon");
         icon.setMouseTransparent(true);
-        Button button = new Button();
+        Button button = new CaptionButton();
+        button.setFocusTraversable(false);
         button.setGraphic(icon);
         button.setAccessibleText(accessibleName);
         button.setTooltip(new Tooltip(accessibleName));

@@ -1,0 +1,11 @@
+# Saved workspace folders and thumbnail scrolling
+
+The sidebar keeps navigation and disk information fixed. Only the saved-folder list scrolls, on the same sidebar surface. Each folder has a marker in the dot rail: hovering highlights the marker, scrolling briefly highlights its position, and clicking/keyboard-activating a dot scrolls to that folder. Short windows use compact navigation spacing to retain a usable folder area. Disk selection opens a menu rather than expanding the sidebar.
+
+Scanning another folder appends it to the library and preserves other scan results during the session. Clicking a previously scanned folder switches to its cached result. Folder paths persist in Java Preferences under the service package's `workspace-folders` node. On a fresh launch, clicking a saved folder scans it again; file metadata and duplicate/similar-image results are not stored as persistent scan snapshots. Manage Folders remains the way to add/remove the selected folder library; removal is applied when saving. (The existing dialog supports additions/removals; insertion order follows selection order.)
+
+Saved parent and child folders remain distinct shortcuts. `ScanWorkspace(false)` retains both; batch scan plans use the default overlap-merging mode, so the same directory tree is not scanned repeatedly. New single-root results are combined on the scan worker. The aggregate file list deduplicates paths and prefers fresh metadata from the new scan.
+
+`ThumbnailViewportTracker` attaches one coalesced listener set per ScrollPane, with weak owners/members and explicit detach. Scroll position and viewport changes recheck visible thumbnails after the scroll state updates. This fixes offscreen favourites and later similar-image rows staying at their placeholders. Existing bounded background image/video loaders, cancellation, and virtualized file tables remain in use. Hidden windows do not request or retry thumbnails.
+
+The caption buttons are not focus targets; losing focus and iconify/restore reset hover/pressed/armed state. Duplicate group hover and similar-image badge/separator colors explicitly override the old light theme.

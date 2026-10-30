@@ -9,6 +9,10 @@ import java.util.Objects;
 public final class ScanWorkspace {
 
     private final List<Path> roots = new ArrayList<>();
+    private final boolean mergeOverlaps;
+
+    public ScanWorkspace() { this(true); }
+    public ScanWorkspace(boolean mergeOverlaps) { this.mergeOverlaps = mergeOverlaps; }
 
     // Add a folder to the workspace
     public boolean addRoot(Path path) {
@@ -21,9 +25,9 @@ public final class ScanWorkspace {
         List<Path> candidates = new ArrayList<>(roots);
         candidates.add(normalized);
 
-        // Remove duplicates and overlapping folders
-        List<Path> plannedRoots =
-                ScanRootPlanner.plan(candidates);
+        // Folder libraries retain nested entries; actual batch scan plans still merge overlaps.
+        List<Path> plannedRoots = mergeOverlaps ? ScanRootPlanner.plan(candidates)
+                : candidates.stream().distinct().toList();
 
         if (roots.equals(plannedRoots)) {
             return false;

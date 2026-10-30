@@ -138,7 +138,8 @@ public class MainView {
     private Label oceanShortcutHint;
     private Button oceanBackButton;
     private Button oceanCancelScan;
-    private VBox oceanWorkspaceRoots;
+    private com.austin.fileflow.ui.component.WorkspaceFolderList oceanWorkspaceRoots;
+    private final com.austin.fileflow.service.WorkspaceFoldersStore workspaceFoldersStore = new com.austin.fileflow.service.WorkspaceFoldersStore();
     private final List<String> oceanNavigationHistory = new ArrayList<>();
     private boolean oceanGoingBack;
 
@@ -203,14 +204,14 @@ public class MainView {
     private final List<Label> navItems = new ArrayList<>();
     private Button homeScanButton;
     private boolean scanning;
-    private Task<ScanResult> currentScanTask;
+    private Task<?> currentScanTask;
     private final ProgressBar scanProgressBar;
     private final Label scanStatusLabel;
     private final FilePlatformService filePlatformService;
     private final RecycleBinService recycleBinService =
         new RecycleBinService();
     private Path scanRootPath;
-    private final ScanWorkspace scanWorkspace = new ScanWorkspace();
+    private final ScanWorkspace scanWorkspace = new ScanWorkspace(false);
     // Tracks cancellation of a multi-folder scan
     private AtomicBoolean workspaceCancelRequested;
 
@@ -264,6 +265,7 @@ public class MainView {
         this.duplicateService = duplicateService;
         this.storageService = storageService;
         this.filePreviewFactory = filePreviewFactory;
+        for (Path savedFolder : workspaceFoldersStore.load()) scanWorkspace.addRoot(savedFolder);
 
         scanProgressBar = new ProgressBar();
 
@@ -309,16 +311,11 @@ public class MainView {
         });
 
         VBox sidebar = createSidebar();
-        ScrollPane sidebarScroll = new ScrollPane(sidebar);
-        sidebarScroll.setFitToWidth(true);
-        sidebarScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        sidebarScroll.setPrefWidth(208);
-        sidebarScroll.setMinWidth(196);
-        sidebarScroll.setMaxWidth(208);
-        sidebarScroll.getStyleClass().add("ocean-sidebar-scroll");
-        sidebar.minHeightProperty().bind(sidebarScroll.heightProperty().subtract(2));
-        root.setLeft(sidebarScroll);
-        BorderPane.setMargin(sidebarScroll, new Insets(0, 8, 0, 0));
+        sidebar.setMinHeight(0);
+        sidebar.setMinWidth(196); sidebar.setPrefWidth(208); sidebar.setMaxWidth(208);
+        root.setLeft(sidebar);
+        BorderPane.setMargin(sidebar, new Insets(0, 8, 0, 0));
+
         javafx.scene.layout.Pane inspectorLayer = new javafx.scene.layout.Pane() {
             @Override protected void layoutChildren() {
                 if (quickInfoPanel != null) quickInfoPanel.resizeRelocate(Math.max(0, getWidth() - 272), 0, 272, getHeight());
@@ -444,6 +441,8 @@ public class MainView {
         sidebar.setPrefWidth(208);
         sidebar.setMinWidth(0);
         sidebar.getStyleClass().add("sidebar");
+        sidebar.heightProperty().addListener((observable, before, after) -> sidebar.pseudoClassStateChanged(
+                javafx.css.PseudoClass.getPseudoClass("compact"), after.doubleValue() < 600));
 
         Label home = new Label(tr("nav.home"));
         home.getStyleClass().add("nav-item");
@@ -591,21 +590,22 @@ public class MainView {
 
         selectNavItem(home, "Home");
 
-        Region sidebarSpacer = new Region();
-        VBox.setVgrow(
-                sidebarSpacer,
-                Priority.ALWAYS
-        );
-
         VBox storageCard = createStorageCard();
         Label workspaceTitle = OceanComponents.label(tr("ui.your_workspace"), "ocean-sidebar-caption");
         workspaceTitle.textProperty().bind(I18n.binding("ui.your_workspace"));
-        oceanWorkspaceRoots = new VBox(3);
+        oceanWorkspaceRoots = new com.austin.fileflow.ui.component.WorkspaceFolderList();
+        VBox.setVgrow(oceanWorkspaceRoots, Priority.ALWAYS);
         Button manage = OceanComponents.action(tr("ui.manage_folders"), "plus", "ocean-folder-shortcut", this::showScanWorkspaceDialog);
         manage.textProperty().bind(I18n.binding("ui.manage_folders"));
         manage.setMaxWidth(Double.MAX_VALUE);
         VBox workspace = new VBox(8, workspaceTitle, oceanWorkspaceRoots, manage);
         workspace.getStyleClass().add("ocean-sidebar-workspace");
+        workspace.setMinHeight(0);
+        VBox.setVgrow(workspace, Priority.ALWAYS);
+        storageCard.setMinHeight(Region.USE_PREF_SIZE);
+        manage.setMinHeight(Region.USE_PREF_SIZE);
+        workspaceTitle.setMinHeight(Region.USE_PREF_SIZE);
+        for (Label item : navItems) item.setMinHeight(Region.USE_PREF_SIZE);
 
         sidebar.getChildren().addAll(
                 home,
@@ -617,7 +617,6 @@ public class MainView {
                 history,
                 settings,
                 workspace,
-                sidebarSpacer,
                 storageCard
         );
 
@@ -687,116 +686,18 @@ public class MainView {
                 "sidebar-storage-card"
         );
 
-        VBox storageVolumesBox = new VBox(8);
-
-        storageVolumesBox.getStyleClass().add("sidebar-storage-volumes");
-
-        ScrollPane storageVolumesScroll =
-                new ScrollPane(
-                        storageVolumesBox
-                );
-
-        storageVolumesScroll.setFitToWidth(
-                true
-        );
-
-        storageVolumesScroll.setHbarPolicy(
-                ScrollPane.ScrollBarPolicy.NEVER
-        );
-
-        storageVolumesScroll.setVbarPolicy(
-                ScrollPane.ScrollBarPolicy.AS_NEEDED
-        );
-
-        storageVolumesScroll.setMaxHeight(
-                240
-        );
-
-        storageVolumesScroll.setPrefViewportHeight(
-                240
-        );
-
-        storageVolumesScroll.setVisible(
-                false
-        );
-
-        storageVolumesScroll.setManaged(
-                false
-        );
-
-        storageVolumesScroll.getStyleClass().add(
-                "sidebar-storage-scroll"
-        );
-
-        storageVolumesBox.setFillWidth(
-                true
-        );
-
         storageVolumesButton.setOnAction(event -> {
-
-                boolean expanding =
-                        !storageVolumesScroll.isVisible();
-
-                if (expanding) {
-
-                        storageVolumesBox
-                                .getChildren()
-                                .clear();
-
-                        for (StorageVolume volume
-                                : storageService.getAvailableVolumes()) {
-
-                        if (currentStorageRoot != null
-                                && volume.getRootPath().equals(currentStorageRoot)
-                        ) {
-                                continue;
-                        }
-
-                        VBox volumeCard =
-                                createStorageVolumeCard(
-                                        volume
-                                );
-
-                        volumeCard.setOnMouseClicked(
-                                mouseEvent -> {
-
-                                        updateStorageCard(
-                                                volume.getRootPath()
-                                        );
-
-                                        storageVolumesScroll.setVisible(
-                                                false
-                                        );
-
-                                        storageVolumesScroll.setManaged(
-                                                false
-                                        );
-
-                                        storageVolumesButton.setGraphic(createChevronRightIcon());
-                                }
-                        );
-
-                        storageVolumesBox
-                                .getChildren()
-                                .add(
-                                        volumeCard
-                                );
-                        }
+                ContextMenu menu = oceanMenu();
+                for (StorageVolume volume : storageService.getAvailableVolumes()) {
+                        javafx.scene.control.RadioMenuItem item = new javafx.scene.control.RadioMenuItem(
+                                volume.getName() + "  (" + volume.getRootPath() + ")");
+                        item.setSelected(volume.getRootPath().equals(currentStorageRoot));
+                        item.setOnAction(selected -> updateStorageCard(volume.getRootPath()));
+                        menu.getItems().add(item);
                 }
-
-                storageVolumesScroll.setVisible(
-                        expanding
-                );
-
-                storageVolumesScroll.setManaged(
-                        expanding
-                );
-
-                storageVolumesButton.setGraphic(
-                        expanding
-                                ? createChevronDownIcon()
-                                : createChevronRightIcon()
-                );
+                storageVolumesButton.setGraphic(createChevronDownIcon());
+                menu.setOnHidden(hidden -> storageVolumesButton.setGraphic(createChevronRightIcon()));
+                menu.show(storageVolumesButton, Side.RIGHT, 8, 0);
         });
 
         Path initialPath = 
@@ -806,13 +707,7 @@ public class MainView {
 
         updateStorageCard(initialPath);
 
-        VBox storageSection = new VBox(
-                8,
-                storageCard,
-                storageVolumesScroll
-        );
-
-        return storageSection;
+        return new VBox(storageCard);
     }
 
     private void updateStorageCard(Path path) {
@@ -1138,22 +1033,18 @@ public class MainView {
             oceanCancelScan.setManaged(scanning);
         }
         if (oceanWorkspaceRoots == null) return;
-        oceanWorkspaceRoots.getChildren().clear();
         List<Path> roots = new ArrayList<>(scanWorkspace.getRoots());
         if (roots.isEmpty() && scanRootPath != null) roots.add(scanRootPath);
-        for (Path path : roots.stream().limit(3).toList()) {
-            Button shortcut = OceanComponents.action(getPathDisplayName(path), "folder", "ocean-folder-shortcut", () -> {
-                if (lastWorkspaceScanSnapshot != null && lastWorkspaceScanSnapshot.resultsByRoot().containsKey(path)) {
-                    activateWorkspaceRoot(path);
-                } else if (!path.equals(scanRootPath)) {
-                    startScan(path);
-                }
-                navigateOcean("Files");
-            });
-            shortcut.setTooltip(new Tooltip(path.toString()));
-            shortcut.setMaxWidth(Double.MAX_VALUE);
-            oceanWorkspaceRoots.getChildren().add(shortcut);
-        }
+        oceanWorkspaceRoots.setFolders(roots, scanRootPath, path -> {
+            if (scanning) return;
+            if (lastWorkspaceScanSnapshot != null && lastWorkspaceScanSnapshot.resultsByRoot().containsKey(path)) {
+                activateWorkspaceRoot(path);
+                return;
+            } else if (!path.equals(scanRootPath) || latestScanResult == null) {
+                startScan(path);
+            }
+            navigateOcean("Files");
+        });
     }
 
     private VBox createSummaryCard(String title, String value) {
@@ -5602,10 +5493,13 @@ public class MainView {
                         return;
                 }
 
-                Task<ScanResult> scanTask = new Task<>() {
-                        @Override 
-                        protected ScanResult call() throws Exception {
-                                return fileScanService.scan(
+                WorkspaceScanSnapshot previousWorkspace = lastWorkspaceScanSnapshot;
+                Path previousRoot = scanRootPath;
+                ScanResult previousResult = latestScanResult;
+                Task<WorkspaceScanSnapshot> scanTask = new Task<>() {
+                        @Override
+                        protected WorkspaceScanSnapshot call() throws Exception {
+                                ScanResult scanned = fileScanService.scan(
                                         selectedPath,
                                         this::isCancelled,
                                         count -> updateMessage(
@@ -5615,6 +5509,7 @@ public class MainView {
                                                 )
                                         )
                                 );
+                                return WorkspaceScanSnapshot.withRoot(previousWorkspace, previousRoot, previousResult, selectedPath, scanned);
                         }
                 };
 
@@ -5625,10 +5520,11 @@ public class MainView {
                 scanTask.setOnSucceeded(event -> {
                         scanStatusLabel.textProperty().unbind();
 
-                        latestScanResult = scanTask.getValue();
-
-                        // A successful standalone scan replaces workspace browsing
-                        lastWorkspaceScanSnapshot = null;
+                        WorkspaceScanSnapshot completed = scanTask.getValue();
+                        latestScanResult = completed.resultsByRoot().get(selectedPath.toAbsolutePath().normalize());
+                        lastWorkspaceScanSnapshot = completed.resultsByRoot().size() > 1 ? completed : null;
+                        scanWorkspace.addRoot(selectedPath);
+                        saveWorkspaceFolders();
 
                         rebuildScannedItemIndex();
 
@@ -6215,7 +6111,7 @@ public class MainView {
         private void showScanWorkspaceDialog() {
 
                 // Work on a temporary copy so Cancel discards changes
-                ScanWorkspace draft = new ScanWorkspace();
+                ScanWorkspace draft = new ScanWorkspace(false);
 
                 for (Path path : scanWorkspace.getRoots()) {
                         draft.addRoot(path);
@@ -6517,6 +6413,8 @@ public class MainView {
                                 scanWorkspace.addRoot(path);
                         }
 
+                        saveWorkspaceFolders();
+                        reconcileSavedWorkspaceRoots(selectedRoots);
                         updateOceanStatus();
 
                         // Scan only when explicitly requested
@@ -6527,6 +6425,30 @@ public class MainView {
         }
 
         
+        private void saveWorkspaceFolders() {
+                if (!workspaceFoldersStore.save(scanWorkspace.getRoots())) showStatusWarning(tr("workspace.save_failed"));
+        }
+
+        private void reconcileSavedWorkspaceRoots(List<Path> selectedRoots) {
+                if (lastWorkspaceScanSnapshot != null) {
+                        lastWorkspaceScanSnapshot = WorkspaceScanSnapshot.mergeRefresh(lastWorkspaceScanSnapshot,
+                                new WorkspaceScanSnapshot(Map.of(), List.of(), List.of(), false), selectedRoots);
+                }
+                if (scanRootPath != null && !selectedRoots.contains(scanRootPath)) {
+                        if (lastWorkspaceScanSnapshot != null && !lastWorkspaceScanSnapshot.resultsByRoot().isEmpty()) {
+                                activateWorkspaceRoot(lastWorkspaceScanSnapshot.resultsByRoot().keySet().iterator().next());
+                                return;
+                        }
+                        latestScanResult = null; scanRootPath = null; currentFolder = null;
+                        autoRefreshDelay.stop(); autoRefreshPending = false;
+                        try { folderWatcher.close(); } catch (IOException ignored) { }
+                        latestDuplicateGroups = List.of(); duplicateAnalysisCompleted = false;
+                        latestSimilarPairs = List.of(); similarAnalysisCompleted = false;
+                        rebuildScannedItemIndex(); filePreviewFactory.clearCache();
+                }
+                refreshCurrentPage();
+        }
+
         private void refreshScanWorkspaceRows(
                 VBox rootsBox,
                 Label countLabel,
