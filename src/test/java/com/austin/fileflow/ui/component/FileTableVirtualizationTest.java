@@ -550,6 +550,95 @@ class FileTableVirtualizationTest {
             assertEquals(1, ((List<?>) viewField(reference.get(), "latestSimilarPairs")).size());
         });
     }
+    private String nativeInstallerName() {
+        var platform = com.austin.fileflow.update.UpdateService.Platform.current();
+        org.junit.jupiter.api.Assumptions.assumeTrue(!platform.os().equals("unsupported") && !platform.arch().equals("unsupported"));
+        return "FileFlow-1.1.0-" + platform.os() + "-" + platform.arch() + (platform.os().equals("windows") ? ".msi" : ".dmg");
+    }
+    private UpdateSettingsCard createUpdateCard(com.austin.fileflow.update.UpdateFixtureServer server, Path directory,
+            java.util.concurrent.atomic.AtomicReference<Path> opened, java.util.concurrent.atomic.AtomicInteger exited) {
+        var card = new UpdateSettingsCard(server.service(directory), "1.0.0", opened::set, uri -> { }, exited::incrementAndGet,
+                dialog -> java.util.Optional.of(dialog.getDialogPane().getButtonTypes().stream().filter(type -> type.getButtonData() == ButtonBar.ButtonData.OK_DONE).findFirst().orElseThrow()));
+        StackPane root = new StackPane(card); root.getStyleClass().add("ocean-app");
+        stage = new Stage(); Scene scene = new Scene(root, 1000, 650); scene.getStylesheets().addAll(getClass().getResource("/css/app.css").toExternalForm(), getClass().getResource("/css/ocean.css").toExternalForm());
+        stage.setScene(scene); stage.show(); return card;
+    }
+    @Test void updateDownloadRequiresAnExplicitVerifiedInstallClick(@org.junit.jupiter.api.io.TempDir Path directory) throws Exception {
+        try (var server = new com.austin.fileflow.update.UpdateFixtureServer()) {
+            server.available(nativeInstallerName());
+            var reference = new java.util.concurrent.atomic.AtomicReference<UpdateSettingsCard>();
+            var opened = new java.util.concurrent.atomic.AtomicReference<Path>(); var exited = new AtomicInteger();
+            try {
+                onFx(() -> { reference.set(createUpdateCard(server, directory, opened, exited)); reference.get().checkUpdates(); });
+                awaitCondition(() -> stage.getScene().getRoot().lookup("#updates-download").isVisible());
+                assertEquals(0, server.downloads.get()); assertNull(opened.get());
+                onFx(() -> ((Button) stage.getScene().getRoot().lookup("#updates-download")).fire());
+                awaitCondition(() -> stage.getScene().getRoot().lookup("#updates-install").isVisible());
+                assertNull(opened.get()); assertEquals(0, exited.get());
+                onFx(() -> ((Button) stage.getScene().getRoot().lookup("#updates-install")).fire());
+                awaitCondition(() -> exited.get() == 1);
+                assertArrayEquals(server.payload, java.nio.file.Files.readAllBytes(opened.get()));
+            } finally { onFx(() -> { if (reference.get() != null) reference.get().close(); }); }
+        }
+    }
+    @Test void tamperedUpdateCannotLaunchFromTheSettingsCard(@org.junit.jupiter.api.io.TempDir Path directory) throws Exception {
+        try (var server = new com.austin.fileflow.update.UpdateFixtureServer()) {
+            String name = nativeInstallerName(); server.available(name);
+            var reference = new java.util.concurrent.atomic.AtomicReference<UpdateSettingsCard>();
+            var opened = new java.util.concurrent.atomic.AtomicReference<Path>(); var exited = new AtomicInteger();
+            try {
+                onFx(() -> { reference.set(createUpdateCard(server, directory, opened, exited)); reference.get().checkUpdates(); });
+                awaitCondition(() -> stage.getScene().getRoot().lookup("#updates-download").isVisible());
+                onFx(() -> reference.get().downloadUpdate());
+                awaitCondition(() -> stage.getScene().getRoot().lookup("#updates-install").isVisible());
+                java.nio.file.Files.write(directory.resolve(name), new byte[server.payload.length]);
+                onFx(() -> reference.get().installUpdate());
+                awaitCondition(() -> ((Label) stage.getScene().getRoot().lookup("#updates-status")).getText().equals(com.austin.fileflow.i18n.I18n.tr("updates.integrity_failed")));
+                assertNull(opened.get()); assertEquals(0, exited.get());
+                onFx(() -> assertTrue(stage.getScene().getRoot().lookup("#updates-download").isVisible()));
+            } finally { onFx(() -> { if (reference.get() != null) reference.get().close(); }); }
+        }
+    }
+    @Test void updateSettingsDistinguishNoReleaseNoPackageAndServiceErrors(@org.junit.jupiter.api.io.TempDir Path directory) throws Exception {
+        try (var server = new com.austin.fileflow.update.UpdateFixtureServer()) {
+            server.status.set(404); var reference = new java.util.concurrent.atomic.AtomicReference<UpdateSettingsCard>();
+            try {
+                onFx(() -> { reference.set(createUpdateCard(server, directory, new java.util.concurrent.atomic.AtomicReference<>(), new AtomicInteger())); reference.get().checkUpdates(); });
+                awaitCondition(() -> ((Label) stage.getScene().getRoot().lookup("#updates-status")).getText().equals(com.austin.fileflow.i18n.I18n.tr("updates.no_release")));
+                server.status.set(200); server.response.set(server.release("v1.1.0")); onFx(() -> reference.get().checkUpdates());
+                awaitCondition(() -> ((Label) stage.getScene().getRoot().lookup("#updates-status")).getText().equals(com.austin.fileflow.i18n.I18n.tr("updates.no_package")));
+                server.status.set(429); onFx(() -> reference.get().checkUpdates());
+                awaitCondition(() -> ((Label) stage.getScene().getRoot().lookup("#updates-status")).getText().equals(com.austin.fileflow.i18n.I18n.tr("updates.rate_limit")));
+                onFx(() -> { assertFalse(stage.getScene().getRoot().lookup("#updates-download").isVisible()); assertFalse(stage.getScene().getRoot().lookup("#updates-install").isVisible()); });
+            } finally { onFx(() -> { if (reference.get() != null) reference.get().close(); }); }
+        }
+    }
+    @Test void cancellingUpdateDownloadKeepsTheInterfaceResponsiveAndRetryable(@org.junit.jupiter.api.io.TempDir Path directory) throws Exception {
+        try (var server = new com.austin.fileflow.update.UpdateFixtureServer()) {
+            server.response.set(server.release("v1.1.0", server.asset(nativeInstallerName(), "/stall", true)));
+            var reference = new java.util.concurrent.atomic.AtomicReference<UpdateSettingsCard>();
+            try {
+                onFx(() -> { reference.set(createUpdateCard(server, directory, new java.util.concurrent.atomic.AtomicReference<>(), new AtomicInteger())); reference.get().checkUpdates(); });
+                awaitCondition(() -> stage.getScene().getRoot().lookup("#updates-download").isVisible());
+                onFx(() -> reference.get().downloadUpdate()); assertTrue(server.stalled.await(3, TimeUnit.SECONDS));
+                onFx(() -> reference.get().cancel());
+                awaitCondition(() -> ((Label) stage.getScene().getRoot().lookup("#updates-status")).getText().equals(com.austin.fileflow.i18n.I18n.tr("updates.cancelled")));
+                server.available(nativeInstallerName()); onFx(() -> reference.get().checkUpdates());
+                awaitCondition(() -> stage.getScene().getRoot().lookup("#updates-download").isVisible());
+                onFx(() -> reference.get().downloadUpdate()); awaitCondition(() -> stage.getScene().getRoot().lookup("#updates-install").isVisible());
+            } finally { server.releaseStall.countDown(); onFx(() -> { if (reference.get() != null) reference.get().close(); }); }
+        }
+    }
+    @Test void updateCardIsRetainedWhenNavigatingAwayFromSettings(@org.junit.jupiter.api.io.TempDir Path directory) throws Exception {
+        onFx(() -> {
+            var view = createWorkspaceView(directory);
+            invokeView(view, "navigateOcean", new Class<?>[]{String.class}, "Settings"); Object first = viewField(view, "updatesCard");
+            assertNotNull(first);
+            invokeView(view, "navigateOcean", new Class<?>[]{String.class}, "Home");
+            invokeView(view, "navigateOcean", new Class<?>[]{String.class}, "Settings");
+            assertSame(first, viewField(view, "updatesCard"));
+        });
+    }
     private static final class EmptyActions implements FileRowCell.Actions {
         public Node preview(FileItem item) { return new Label("TXT"); }
         public String location(FileItem item) { return "fixture"; }

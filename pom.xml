@@ -6,7 +6,7 @@
 
   <groupId>com.austin</groupId>
   <artifactId>fileflow</artifactId>
-  <version>1.0-SNAPSHOT</version>
+  <version>1.0.0-SNAPSHOT</version>
 
   <name>fileflow</name>
   <!-- FIXME change it to the project's website -->
@@ -19,6 +19,11 @@
   </properties>
 
   <dependencies>
+    <dependency>
+      <groupId>com.google.code.gson</groupId>
+      <artifactId>gson</artifactId>
+      <version>2.15.0</version>
+    </dependency>
     <dependency>
         <groupId>org.junit.jupiter</groupId>
         <artifactId>junit-jupiter</artifactId>
@@ -49,7 +54,11 @@
 
   <build>
     <resources>
-      <resource><directory>src/main/resources</directory></resource>
+      <resource><directory>src/main/resources</directory><excludes><exclude>app-version.properties</exclude></excludes></resource>
+      <resource>
+        <directory>src/main/resources</directory><filtering>true</filtering>
+        <includes><include>app-version.properties</include></includes>
+      </resource>
       <resource>
         <directory>tools/ffmpeg</directory>
         <targetPath>native</targetPath>

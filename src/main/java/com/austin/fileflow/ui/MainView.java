@@ -146,6 +146,7 @@ public class MainView {
     private final BorderPane root;
     private StorageVolume displayedStorageVolume;
     private VBox quickInfoPanel;
+    private com.austin.fileflow.ui.component.UpdateSettingsCard updatesCard;
     private StackPane quickInfoImage;
     private Label quickInfoName, quickInfoType, quickInfoSize, quickInfoModified, quickInfoLocation;
     private long quickInfoGeneration;
@@ -354,6 +355,7 @@ public class MainView {
                                                         fileListExecutor.shutdownNow();
                                                         metadataExecutor.shutdownNow();
                                                         filePreviewFactory.close();
+                                                        if (updatesCard != null) updatesCard.close();
                                                         autoRefreshDelay.stop();
                                                         autoRefreshPending = false;
 
@@ -4213,10 +4215,20 @@ public class MainView {
                 createLanguageSettingsCard(),
                 safetyTitle,
                 safetyCard,
-                createKeyboardShortcutsSettingsCard()
+                createKeyboardShortcutsSettingsCard(),
+                createUpdatesSettingsCard()
         );
 
         return content;
+    }
+
+    private VBox createUpdatesSettingsCard() {
+        if (updatesCard == null) updatesCard = new com.austin.fileflow.ui.component.UpdateSettingsCard(
+                dialog -> showOceanDialog(dialog), () -> {
+                    if (root.getScene() != null && root.getScene().getWindow() != null) root.getScene().getWindow().hide();
+                    Platform.exit();
+                });
+        return updatesCard;
     }
 
     private VBox createKeyboardShortcutsSettingsCard() {
