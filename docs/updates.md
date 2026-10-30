@@ -5,9 +5,9 @@ Settings → Software updates（设置 → 软件更新）支持手动检查正�
 ## 更新来源与版本
 
 - 来源固定为本仓库 GitHub Releases 的 latest API，仅接受正式发布，跳过草稿和预发布。
-- `pom.xml` 的 `project.version` 是版本来源；构建时仅过滤 `app-version.properties`，程序读取该资源进行语义版本比较。开发版本目前为 `1.0.0-SNAPSHOT`。
-- 推送代码不会生成更新。目前仓库没有正式 Release，检查时会显示“目前尚未发布正式版本”。
-- 当前仓库尚无原生安装包发布流水线。此功能完成了检查、下载、校验和调用安装包的流程；首次发布仍需准备实际可安装、可升级的包。
+- `pom.xml` 的 `project.version` 是版本来源；构建时仅过滤 `app-version.properties`，程序读取该资源进行语义版本比较。首个安装包版本为 `1.0.0`。
+- 推送代码不会自动公开更新。通过 GitHub Actions 的 `Release installers` 手动运行发布，三个目标平台全部构建、自检并校验成功后才公开 Release。
+- 原生安装包流水线位于 `.github/workflows/release.yml`，构建脚本为 `scripts/package-release.py`。当前输出 Windows x64 MSI、Mac Apple Silicon DMG、Mac Intel DMG，均内置 Java 运行环境和高清图标。
 
 ## 安装包名称
 
@@ -32,12 +32,15 @@ Mac 也支持 `.pkg`。优先匹配当前架构，再考虑 Mac 通用包；Wind
 
 ## 以后发布新版本
 
-1. 修改 `pom.xml` 为正式版本，例如 `1.1.0`，运行测试并构建。
-2. 在各目标系统构建原生安装包，并验证旧版本升级、卸载和数据保留。
-3. 创建对应的 Git 标签与正式 GitHub Release，上传按上述规则命名的安装包；发布说明会在设置页显示。
-4. 老版本用户点击“检查更新”即可下载；下载完成后点击“安装更新”并确认。
+1. 修改 `pom.xml` 为正式版本，例如 `1.1.0`，添加 `docs/releases/1.1.0.md` 发布说明，运行回归测试并推送。
+2. 在 GitHub Actions → `Release installers` → Run workflow 中填写版本号（不带 v）。
+3. 流水线在 Windows、Mac ARM、Mac Intel 上运行测试、生成自带 Java 的应用并启动自检，随后生成安装包。
+4. 三个任务全部成功后，发布任务核对附件与 SHA-256，创建目标提交的标签和草稿 Release，附件上传成功才公开。失败时查看 Actions 日志，修复后重试；不要用相同版本覆盖已经公开的包。
+5. 老版本用户点击“检查更新”即可下载；下载完成后点击“安装更新”并确认。正式分发前仍应人工验证安装、卸载和跨版本升级。
 
-首次分发安装包前，还需把当前相对路径 `fileflow.db` 迁移到稳定的用户数据目录，并确定 Windows 安装器的升级标识、Mac 应用身份及签名方式。这些属于安装包发布工作，当前检查更新功能不会改动用户数据库。原生包应在对应操作系统构建；不能仅在 Windows 上生成并验证 Mac 安装包。
+数据库已移至稳定用户目录：Windows `%LOCALAPPDATA%/FileFlow`，Mac `~/Library/Application Support/FileFlow`。从旧源码运行目录启动时会用 SQLite 一致性复制迁移旧库并保留原文件，已有目标库不会被覆盖。Windows 使用固定升级 UUID，Mac 应用标识为 `com.austin.fileflow`。
+
+首版未进行开发者身份签名，Mac 只有运行所需的 ad-hoc 签名、未经 Apple 公证，首次启动可能受到系统安全检查限制。签名与公证需要后续配置证书。MOV 缩略图的已知问题记录在 Issue #1。原生包在各自目标系统构建，不能在 Windows 上直接生成 Mac 原生安装包。
 
 ## 验证
 
