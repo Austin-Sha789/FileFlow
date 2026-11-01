@@ -606,7 +606,18 @@ public class MainView {
         Button manage = OceanComponents.action(tr("ui.manage_folders"), "plus", "ocean-folder-shortcut", this::showScanWorkspaceDialog);
         manage.textProperty().bind(I18n.binding("ui.manage_folders"));
         manage.setMaxWidth(Double.MAX_VALUE);
-        VBox workspace = new VBox(8, workspaceTitle, oceanWorkspaceRoots, manage);
+        Region workspaceHeaderSpacer = new Region();
+        HBox.setHgrow(workspaceHeaderSpacer, Priority.ALWAYS);
+        Button addWorkspace = OceanComponents.action("", "plus", "ocean-icon-button", this::addWorkspaceFolder);
+        addWorkspace.setId("workspace-add-button");
+        addWorkspace.accessibleTextProperty().bind(I18n.binding("workspace.add"));
+        Tooltip addWorkspaceHint = new Tooltip();
+        addWorkspaceHint.textProperty().bind(I18n.binding("workspace.add"));
+        addWorkspace.setTooltip(addWorkspaceHint);
+        HBox workspaceHeader = new HBox(6, workspaceTitle, workspaceHeaderSpacer, addWorkspace);
+        workspaceHeader.setAlignment(Pos.CENTER_LEFT);
+        workspaceHeader.setMinHeight(Region.USE_PREF_SIZE);
+        VBox workspace = new VBox(8, workspaceHeader, oceanWorkspaceRoots, manage);
         workspace.getStyleClass().add("ocean-sidebar-workspace");
         workspace.setMinHeight(0);
         VBox.setVgrow(workspace, Priority.ALWAYS);
@@ -4128,6 +4139,18 @@ public class MainView {
         return card;
     }
 
+    private VBox createPrivacySettingsCard() {
+        Label title = OceanComponents.label(tr("settings.privacy.title"), "settings-card-title");
+        Label description = OceanComponents.label(tr("settings.privacy.description"), "settings-card-description");
+        description.setWrapText(true);
+        Label updates = OceanComponents.label(tr("settings.privacy.updates"), "settings-card-description");
+        updates.setWrapText(true);
+        VBox card = new VBox(12, title, description, updates);
+        card.setId("privacy-settings-card");
+        card.getStyleClass().add("settings-card");
+        return card;
+    }
+
     private VBox createSettingsContent() {
         VBox content = new VBox(18);
         content.getStyleClass().add(
@@ -4213,6 +4236,7 @@ public class MainView {
 
         content.getChildren().addAll(
                 createLanguageSettingsCard(),
+                createPrivacySettingsCard(),
                 safetyTitle,
                 safetyCard,
                 createKeyboardShortcutsSettingsCard(),
@@ -6125,6 +6149,29 @@ public class MainView {
         }
 
         
+        private void addWorkspaceFolder() {
+                if (scanning) {
+                        showStatusWarning(tr("ui.workspace_scan_is_still_running_refresh_after_it_completes"));
+                        return;
+                }
+                DirectoryChooser chooser = new DirectoryChooser();
+                chooser.setTitle(tr("ui.add_folder_to_scan_workspace"));
+                File selected = chooser.showDialog(root.getScene().getWindow());
+                if (selected == null) return;
+                Path path = selected.toPath();
+                if (!Files.isDirectory(path) || !Files.isReadable(path)) {
+                        showStatusWarning(tr("ui.this_folder_cannot_be_accessed"));
+                        return;
+                }
+                if (!scanWorkspace.addRoot(path)) {
+                        showStatusWarning(tr("workspace.already_added"));
+                        return;
+                }
+                saveWorkspaceFolders();
+                reconcileSavedWorkspaceRoots(scanWorkspace.getRoots());
+                updateOceanStatus();
+        }
+
         private void showScanWorkspaceDialog() {
 
                 // Work on a temporary copy so Cancel discards changes
@@ -6384,6 +6431,18 @@ public class MainView {
                         }
                 });
 
+                Button removeAllButton = new Button(tr("workspace.remove_all"));
+                removeAllButton.setId("workspace-remove-all-button");
+                removeAllButton.getStyleClass().add("danger-button");
+                removeAllButton.setDisable(draft.isEmpty());
+                rootsBox.getChildren().addListener((javafx.collections.ListChangeListener<Node>) change ->
+                        removeAllButton.setDisable(draft.isEmpty()));
+                removeAllButton.setOnAction(event -> {
+                        draft.clear();
+                        refreshScanWorkspaceRows(rootsBox, countLabel, draft);
+                        feedbackLabel.setText(tr("workspace.all_removed"));
+                });
+
                 HBox workspaceToolbar = new HBox();
                 workspaceToolbar.setAlignment(Pos.CENTER_LEFT);
                 workspaceToolbar.setSpacing(12);
@@ -6394,6 +6453,7 @@ public class MainView {
                 workspaceToolbar.getChildren().addAll(
                         countLabel,
                         toolbarSpacer,
+                        removeAllButton,
                         addButton
                 );
 

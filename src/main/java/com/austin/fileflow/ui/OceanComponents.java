@@ -5,6 +5,13 @@ import static com.austin.fileflow.i18n.I18n.tr;
 import com.austin.fileflow.model.FileType;
 import java.util.Map;
 import javafx.geometry.Pos;
+import javafx.animation.Interpolator;
+import javafx.animation.KeyFrame;
+import javafx.animation.KeyValue;
+import javafx.animation.Timeline;
+import javafx.scene.shape.Arc;
+import javafx.scene.shape.ArcType;
+import javafx.util.Duration;
 import javafx.scene.Group;
 import javafx.scene.AccessibleRole;
 import javafx.scene.AccessibleAction;
@@ -198,7 +205,7 @@ public final class OceanComponents {
         chart.setMinSize(150, 150);
         chart.setPrefSize(160, 160);
         chart.setMaxSize(160, 160);
-        Circle hole = new Circle(48);
+        Circle hole = new Circle(60);
         hole.getStyleClass().add("ocean-donut-hole");
         Label size = label(total, "ocean-donut-total");
         Label caption = label(tr("ui.in_this_scan"), "ocean-muted");
@@ -207,6 +214,23 @@ public final class OceanComponents {
         StackPane pane = new StackPane(chart, hole, text);
         pane.setMinSize(160, 160);
         pane.setMaxSize(160, 160);
+        // Reveal only the chart; the center text stays stable throughout the animation.
+        Arc reveal = new Arc(80, 80, 120, 120, 90, 0);
+        reveal.setType(ArcType.ROUND);
+        Timeline entrance = new Timeline(
+                new KeyFrame(Duration.ZERO, new KeyValue(reveal.lengthProperty(), 0)),
+                new KeyFrame(Duration.millis(650),
+                        new KeyValue(reveal.lengthProperty(), -360, Interpolator.EASE_BOTH)));
+        entrance.setOnFinished(event -> chart.setClip(null));
+        pane.sceneProperty().addListener((observable, previous, scene) -> {
+            entrance.stop();
+            if (scene == null) {
+                chart.setClip(null);
+            } else {
+                chart.setClip(reveal);
+                entrance.playFromStart();
+            }
+        });
         return pane;
     }
 }
