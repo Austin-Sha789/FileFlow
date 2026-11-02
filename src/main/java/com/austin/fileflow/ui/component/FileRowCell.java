@@ -188,7 +188,7 @@ public final class FileRowCell extends TableCell<FileItem, FileItem> {
         preview.setVisible(!details); preview.setManaged(!details);
         metadata.setVisible(details); metadata.setManaged(details);
         if (details) metadata.setText(tr("files.metadata",
-                com.austin.fileflow.i18n.I18n.choice(item.isDirectory() ? "Folder" : switch (item.getType()) {
+                item.isDirectory() ? tr("files.kind.folder") : com.austin.fileflow.i18n.I18n.choice(switch (item.getType()) {
                     case IMAGE -> "Images"; case VIDEO -> "Videos"; case AUDIO -> "Audio";
                     case DOCUMENT -> "Documents"; case ARCHIVE -> "Archives"; case CODE -> "Code"; case OTHER -> "Other";
                 }), item.isDirectory() ? "—" : com.austin.fileflow.util.FileSizeFormatter.format(item.getSizeBytes()),
