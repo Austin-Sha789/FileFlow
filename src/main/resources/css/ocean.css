@@ -519,3 +519,6 @@
 .ocean-app .files-grid-card.file-row-multi-selected { -fx-background-color: #224a74; -fx-border-color: #6baaff; }
 .ocean-app .files-grid-card .add-tag-button { -fx-padding: 5 10; }
 .ocean-app .files-grid-card .favourite-button, .ocean-app .files-grid-card .more-button { -fx-padding: 3 7; }
+
+.ocean-app .files-grid-card .favourite-button { -fx-padding: 0 2; }
+.ocean-app .files-grid-card .favourite-button.is-favourite .ocean-line-icon { -fx-fill: #8fbeff; -fx-stroke: #8fbeff; }

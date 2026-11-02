@@ -91,7 +91,7 @@ public final class FilesGridView extends ListView<Integer> {
         selection.setVisible(actions.selectionMode()); selection.setManaged(actions.selectionMode());
         selection.setSelected(actions.selected(item.getPath().toAbsolutePath().normalize()));
         selection.setOnAction(event -> { actions.select(item.getPath().toAbsolutePath().normalize(), selection.isSelected()); refresh(); });
-        Button star = new Button(actions.favourite(item.getPath()) ? "★" : "☆");
+        Button star = new Button("", com.austin.fileflow.ui.OceanComponents.icon("star", 17));
         star.getStyleClass().addAll("favourite-button", actions.favourite(item.getPath()) ? "is-favourite" : "not-favourite");
         star.setAccessibleText(tr(actions.favourite(item.getPath()) ? "files.favourite.remove_accessible" : "files.favourite.add_accessible", item.getName()));
         star.setOnAction(event -> { actions.toggleFavourite(item); refresh(); });
