@@ -100,7 +100,29 @@ public final class FilesGridView extends ListView<Integer> {
         Button more = new Button("⋯"); more.getStyleClass().add("more-button"); more.setAccessibleText(tr("ui.more_file_actions"));
         more.setOnAction(event -> actions.menu(item.getPath()).show(more, Side.BOTTOM, 0, 0));
         HBox buttons = new HBox(5, selection, tag, star, more); buttons.setAlignment(Pos.CENTER_LEFT);
-        VBox card = new VBox(5, cover, name, size, buttons);
+        HBox metadata = new HBox(6, size);
+        metadata.setAlignment(Pos.CENTER_LEFT);
+        List<String> savedTags = actions.tags(item);
+        if (!savedTags.isEmpty()) {
+            Region spacer = new Region(); HBox.setHgrow(spacer, Priority.ALWAYS);
+            MenuButton tags = new MenuButton(tr("files.tags.count", savedTags.size()));
+            tags.getStyleClass().add("more-button");
+            tags.setOnShown(event -> {
+                if (!tags.getItems().isEmpty()) {
+                    var popup = tags.getItems().get(0).getParentPopup();
+                    if (popup != null) popup.getScene().getStylesheets().setAll(
+                            FilesGridView.class.getResource("/css/ocean-popup.css").toExternalForm());
+                }
+            });
+            tags.setAccessibleText(String.join(", ", savedTags));
+            for (String savedTag : savedTags) {
+                MenuItem remove = new MenuItem(tr("files.tag.remove_accessible", savedTag));
+                remove.setOnAction(event -> { actions.removeTag(item, savedTag); refresh(); });
+                tags.getItems().add(remove);
+            }
+            metadata.getChildren().addAll(spacer, tags);
+        }
+        VBox card = new VBox(5, cover, name, metadata, buttons);
         card.setMinSize(width, cardHeight()); card.setPrefSize(width, cardHeight()); card.setMaxSize(width, cardHeight());
         card.getStyleClass().add("files-grid-card");
         if (actions.selectionMode() && actions.selected(item.getPath().toAbsolutePath().normalize())) card.getStyleClass().add("file-row-multi-selected");
