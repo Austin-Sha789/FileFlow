@@ -509,3 +509,13 @@
 /* macOS supplies the real window frame and traffic lights. */
 .ocean-app.ocean-platform-mac { -fx-border-width: 0; }
 .ocean-app.ocean-platform-mac .ocean-brand-box { -fx-alignment: center-right; }
+
+/* Virtualized Files presentation controls and thumbnail grid. */
+.ocean-app .files-appearance-controls > .label { -fx-text-fill: #b3c6e0; }
+.ocean-app .files-grid { -fx-background-color: transparent; -fx-border-width: 0; -fx-padding: 0; }
+.ocean-app .files-grid .list-cell { -fx-background-color: transparent; -fx-padding: 6 0; }
+.ocean-app .files-grid-card { -fx-background-color: #16283e; -fx-border-color: #304a68; -fx-border-radius: 12; -fx-background-radius: 12; -fx-padding: 10; }
+.ocean-app .files-grid-card:hover, .ocean-app .files-grid-card:focused { -fx-background-color: #203956; -fx-border-color: #6baaff; }
+.ocean-app .files-grid-card.file-row-multi-selected { -fx-background-color: #224a74; -fx-border-color: #6baaff; }
+.ocean-app .files-grid-card .add-tag-button { -fx-padding: 5 10; }
+.ocean-app .files-grid-card .favourite-button, .ocean-app .files-grid-card .more-button { -fx-padding: 3 7; }

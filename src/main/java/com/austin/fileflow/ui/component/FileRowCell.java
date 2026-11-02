@@ -29,6 +29,7 @@ import javafx.scene.layout.VBox;
 public final class FileRowCell extends TableCell<FileItem, FileItem> {
     public interface Actions {
         Node preview(FileItem item);
+        default Node preview(FileItem item, int width, int height) { return preview(item); }
         String location(FileItem item);
         boolean showLocation();
         boolean favourite(Path path);

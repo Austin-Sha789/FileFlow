@@ -1903,6 +1903,7 @@ public class MainView {
         fileColumn.setSortable(false);
         fileColumn.setReorderable(false);
         fileList.getColumns().add(fileColumn);
+        StackPane fileViews = new StackPane(fileList);
 
         PauseTransition quickInfoDelay =
                 new PauseTransition(Duration.millis(160));
@@ -2049,7 +2050,7 @@ public class MainView {
 
                 // Update stars and button label after database changes
                 updateSelectionUi.run();
-                fileList.refresh();
+                refreshFilesPresentation(fileList);
 
                 Alert result = new Alert(
                         failed == 0
@@ -2093,7 +2094,7 @@ public class MainView {
 
                 updateSelectionUi.run();
 
-                fileList.refresh();
+                refreshFilesPresentation(fileList);
         });
 
         selectFilesButton.setOnAction(event -> {
@@ -2114,7 +2115,7 @@ public class MainView {
 
                 updateSelectionUi.run();
 
-                fileList.refresh();
+                refreshFilesPresentation(fileList);
         });
 
         fileList.getSelectionModel()
@@ -2165,8 +2166,8 @@ public class MainView {
                 controlsRow.setVisible(true);
                 controlsRow.setManaged(true);
 
-                fileList.setVisible(true);
-                fileList.setManaged(true);
+                fileViews.setVisible(true);
+                fileViews.setManaged(true);
 
                 updateFilesViewControls(browseHeader);
 
@@ -2196,8 +2197,8 @@ public class MainView {
                 controlsRow.setVisible(true);
                 controlsRow.setManaged(true);
 
-                fileList.setVisible(true);
-                fileList.setManaged(true);
+                fileViews.setVisible(true);
+                fileViews.setManaged(true);
 
                 updateFilesViewControls(browseHeader);
 
@@ -2218,8 +2219,8 @@ public class MainView {
                 controlsRow.setVisible(false);
                 controlsRow.setManaged(false);
 
-                fileList.setVisible(false);
-                fileList.setManaged(false);
+                fileViews.setVisible(false);
+                fileViews.setManaged(false);
 
                 categoriesContent.setVisible(true);
                 categoriesContent.setManaged(true);
@@ -2237,8 +2238,8 @@ public class MainView {
                                 controlsRow.setVisible(true);
                                 controlsRow.setManaged(true);
 
-                                fileList.setVisible(true);
-                                fileList.setManaged(true);
+                                fileViews.setVisible(true);
+                                fileViews.setManaged(true);
 
                                 updateFilesViewControls(browseHeader);
 
@@ -2287,12 +2288,15 @@ public class MainView {
         });
 
         fileList.setFixedCellSize(filesAppearance.rowHeight());
-        toolbar.getChildren().add(filesAppearance.controls(() -> {
-            fileList.setFixedCellSize(filesAppearance.rowHeight());
-            fileList.refresh();
-        }));
-        fileColumn.setCellFactory(column -> new FileRowCell(new FileRowCell.Actions() {
+        FileRowCell.Actions fileActions = new FileRowCell.Actions() {
             public Node preview(FileItem item) { return createUnifiedFilePreview(item); }
+            public Node preview(FileItem item, int width, int height) {
+                if (item.getType() == FileType.IMAGE && !item.isDirectory())
+                    return filePreviewFactory.createImagePreview(item.getPath(), width, height, item.getExtension());
+                if (item.getType() == FileType.VIDEO && !item.isDirectory())
+                    return filePreviewFactory.createVideoPreview(item.getPath(), width, height);
+                return createUnifiedFilePreview(item);
+            }
             public String location(FileItem item) { return getWorkspaceFileLocation(item.getPath()); }
             public boolean showLocation() { return filesViewMode == FilesViewMode.ALL_FILES; }
             public boolean favourite(Path path) { return favouritePaths.contains(path); }
@@ -2321,7 +2325,7 @@ public class MainView {
                     tagRepo.removeTagFromFile(item.getPath(), tag);
                     List<String> saved = fileTags.get(item.getPath());
                     if (saved != null) { saved.remove(tag); if (saved.isEmpty()) fileTags.remove(item.getPath()); }
-                    fileList.refresh();
+                    refreshFilesPresentation(fileList);
                 } catch (SQLException exception) {
                     showDatabaseError(tr("ui.unable_to_remove_tag"), tr("ui.fileflow_could_not_remove_this_tag_from_the_file"));
                 }
@@ -2405,7 +2409,7 @@ public class MainView {
                                                         itemTags.add(selectedTag);
                                                 }
 
-                                                fileList.refresh();
+                                                refreshFilesPresentation(fileList);
                                         } catch (SQLException e) {
                                                 showDatabaseError(
                                                         tr("ui.unable_to_add_tag"),
@@ -2417,7 +2421,30 @@ public class MainView {
                                 });
 
             }
-        }, filesAppearance));
+        };
+        fileColumn.setCellFactory(column -> new FileRowCell(fileActions, filesAppearance));
+        com.austin.fileflow.ui.component.FilesGridView grid = new com.austin.fileflow.ui.component.FilesGridView(
+                fileList, fileActions, filesAppearance, item -> {
+                    fileList.getSelectionModel().clearSelection();
+                    fileList.getSelectionModel().select(item);
+                });
+        fileList.getProperties().put("files.grid", grid);
+        fileViews.getChildren().add(grid);
+        VBox.setVgrow(fileViews, Priority.ALWAYS);
+        Runnable applyAppearance = () -> {
+            boolean useGrid = filesAppearance.layout() == com.austin.fileflow.ui.component.FilesViewOptions.Layout.GRID;
+            int anchor = grid.isManaged() ? grid.firstVisibleItem() : firstVisibleFileIndex(fileList);
+            fileList.setVisible(!useGrid); fileList.setManaged(!useGrid);
+            fileList.setFixedCellSize(filesAppearance.rowHeight());
+            grid.setActive(useGrid);
+            refreshFilesPresentation(fileList);
+            if (useGrid) grid.scrollToItem(anchor); else fileList.scrollTo(anchor);
+        };
+        grid.setActive(false);
+        toolbar.getChildren().add(filesAppearance.controls(applyAppearance));
+        applyAppearance.run();
+        fileViews.setVisible(filesViewMode != FilesViewMode.CATEGORIES);
+        fileViews.setManaged(filesViewMode != FilesViewMode.CATEGORIES);
 
         VBox.setVgrow(fileList, Priority.ALWAYS);
 
@@ -2474,7 +2501,7 @@ public class MainView {
         );
 
         filesContent.getChildren().add(selectionBar);
-        filesContent.getChildren().add(fileList);
+        filesContent.getChildren().add(fileViews);
 
         return filesContent;
     }
@@ -4803,7 +4830,7 @@ public class MainView {
                 updateSelectionUi.run();
 
                 fileList.getSelectionModel().clearSelection();
-                fileList.refresh();
+                refreshFilesPresentation(fileList);
 
                 // Refresh the scan once, not after every file
                 if (!moved.isEmpty()) {
@@ -5001,7 +5028,7 @@ public class MainView {
                                 existingTags.add(tag);
                         }
 
-                        fileList.refresh();
+                        refreshFilesPresentation(fileList);
                 }
 
                 Alert result = new Alert(
@@ -5029,6 +5056,18 @@ public class MainView {
 
                 showOceanDialog(result);
         });
+    }
+
+    private int firstVisibleFileIndex(TableView<FileItem> table) {
+        return table.lookupAll(".table-row-cell").stream()
+                .filter(node -> node instanceof javafx.scene.control.TableRow<?> row && !row.isEmpty() && row.getBoundsInParent().getMaxY() > 0)
+                .mapToInt(node -> ((javafx.scene.control.TableRow<?>)node).getIndex()).min().orElse(0);
+    }
+
+    private void refreshFilesPresentation(TableView<FileItem> table) {
+        table.refresh();
+        if (table.getProperties().get("files.grid") instanceof com.austin.fileflow.ui.component.FilesGridView grid
+                && grid.isManaged()) grid.refresh();
     }
 
     private void populateFileList(

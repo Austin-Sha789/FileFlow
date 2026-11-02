@@ -10,7 +10,7 @@ import javafx.util.StringConverter;
 
 /** Presentation preferences are independent from folder, filters, sorting and scan results. */
 public final class FilesViewOptions {
-    public enum Layout { LIST, DETAILS }
+    public enum Layout { LIST, GRID, DETAILS }
     public enum Size { COMPACT, COMFORTABLE, LARGE }
     private final Preferences preferences;
     private Layout layout;
