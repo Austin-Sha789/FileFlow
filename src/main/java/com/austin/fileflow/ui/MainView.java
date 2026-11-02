@@ -2598,6 +2598,10 @@ public class MainView {
 
         filesContent.getChildren().add(selectionBar);
         filesContent.getChildren().add(fileViews);
+        if (filesViewMode == FilesViewMode.CATEGORIES) {
+            categoriesButton.fire();
+            categoriesButton.setSelected(true);
+        }
 
         return filesContent;
     }
@@ -5157,7 +5161,8 @@ public class MainView {
 
     private int firstVisibleFileIndex(TableView<FileItem> table) {
         return table.lookupAll(".table-row-cell").stream()
-                .filter(node -> node instanceof javafx.scene.control.TableRow<?> row && !row.isEmpty() && row.getBoundsInParent().getMaxY() > 0)
+                .filter(node -> node instanceof javafx.scene.control.TableRow<?> row && !row.isEmpty() && row.isVisible() && row.getBoundsInParent().getMaxY() > 0
+                        && row.getBoundsInParent().getMinY() < table.getHeight())
                 .mapToInt(node -> ((javafx.scene.control.TableRow<?>)node).getIndex()).min().orElse(0);
     }
 

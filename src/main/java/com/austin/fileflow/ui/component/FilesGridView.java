@@ -60,7 +60,8 @@ public final class FilesGridView extends ListView<Integer> {
     }
     public int firstVisibleItem() {
         return lookupAll(".list-cell").stream().filter(node -> node instanceof ListCell<?> cell
-                        && !cell.isEmpty() && cell.getBoundsInParent().getMaxY() > 0)
+                        && !cell.isEmpty() && cell.isVisible() && cell.getBoundsInParent().getMaxY() > 0
+                        && cell.getBoundsInParent().getMinY() < getHeight())
                 .mapToInt(node -> ((ListCell<?>)node).getIndex() * columns).min().orElse(0);
     }
     public void scrollToItem(int index) { scrollTo(Math.max(0, index) / columns); }
