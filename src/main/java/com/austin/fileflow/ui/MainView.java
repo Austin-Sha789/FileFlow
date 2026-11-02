@@ -233,6 +233,8 @@ public class MainView {
     private final Preferences preferences = Preferences.userNodeForPackage(MainView.class);
     private final com.austin.fileflow.ui.component.FilesViewOptions filesAppearance =
             new com.austin.fileflow.ui.component.FilesViewOptions(preferences);
+    private List<Path> activeAnalysisPaths = List.of();
+    private String dashboardAnalysisFocus;
     private FilesViewMode filesViewMode = FilesViewMode.BROWSE;
     private boolean fileSelectionMode = false;
     private final Set<Path> selectedFilePaths = new HashSet<>();
@@ -1042,7 +1044,7 @@ public class MainView {
         if (oceanFooterStatus != null) {
             int count = lastWorkspaceScanSnapshot == null ? (scanRootPath == null ? 0 : 1)
                     : lastWorkspaceScanSnapshot.resultsByRoot().size();
-            oceanFooterStatus.setText(count == 0 ? tr("ui.ready_to_scan") :
+            oceanFooterStatus.setText(!activeAnalysisPaths.isEmpty() ? tr("analysis.scope_count", activeAnalysisPaths.size()) : count == 0 ? tr("ui.ready_to_scan") :
                     tr("ui.workspace_up_to_date") + count + (count == 1 ? tr("ui.folder_ba1a7") : tr("ui.folders_a61f8")));
         }
         if (oceanCancelScan != null) {
@@ -1241,13 +1243,94 @@ public class MainView {
         home.getChildren().add(recent);
         home.getChildren().add(OceanComponents.section(tr("ui.explore_your_workspace"), null, null));
         HBox explore = new HBox(12,
-                OceanComponents.tile(tr("ui.large_files"), tr("ui.see_what_is_taking_up_space"), "drive", () -> navigateOcean("Dashboard")),
-                OceanComponents.tile(tr("ui.find_duplicates"), tr("ui.review_copies_keep_what_matters"), "copy", () -> navigateOcean("Duplicates")),
-                OceanComponents.tile(tr("ui.recently_modified"), tr("ui.jump_back_into_your_latest_files"), "clock", () -> navigateOcean("Dashboard")),
+                OceanComponents.tile(tr("ui.large_files"), tr("ui.see_what_is_taking_up_space"), "drive", () -> chooseHomeAnalysis("Dashboard", "largest")),
+                OceanComponents.tile(tr("ui.find_duplicates"), tr("ui.review_copies_keep_what_matters"), "copy", () -> chooseHomeAnalysis("Duplicates", null)),
+                OceanComponents.tile(tr("ui.recently_modified"), tr("ui.jump_back_into_your_latest_files"), "clock", () -> chooseHomeAnalysis("Dashboard", "recent")),
                 OceanComponents.tile(tr("ui.your_favourites"), tr("ui.important_files_always_close"), "star", () -> navigateOcean("Favourites")));
         explore.setMaxHeight(Region.USE_PREF_SIZE);
         home.getChildren().add(explore);
         return home;
+    }
+
+    private void chooseHomeAnalysis(String destination, String focus) {
+        if (scanning) {
+            showStatusWarning(tr("ui.workspace_scan_is_still_running_refresh_after_it_completes"));
+            return;
+        }
+        var dialog = new com.austin.fileflow.ui.component.AnalysisScopeDialog();
+        dialog.initOwner(root.getScene().getWindow());
+        showOceanDialog(dialog).ifPresent(paths -> startSelectedAnalysis(paths, destination, focus, false));
+    }
+
+    private void startSelectedAnalysis(List<Path> paths, String destination, String focus, boolean refresh) {
+        if (scanning || paths.isEmpty()) return;
+        List<Path> selected = List.copyOf(paths);
+        Task<ScanResult> task = new Task<>() {
+            protected ScanResult call() {
+                return fileScanService.scanSelected(selected, this::isCancelled,
+                        count -> updateMessage(String.format(tr("ui.scanning_d_items"), count)));
+            }
+        };
+        scanStatusLabel.textProperty().bind(task.messageProperty());
+        task.setOnSucceeded(event -> {
+            scanStatusLabel.textProperty().unbind(); currentScanTask = null;
+            autoRefreshDelay.stop(); autoRefreshPending = false;
+            setScanningState(false);
+            ScanResult result = task.getValue();
+            if (!refresh && result.getItems().isEmpty() && !result.getIssues().isEmpty()) {
+                showStatusWarning(tr("analysis.unreadable")); return;
+            }
+            ScanResult previous = latestScanResult;
+            latestScanResult = result; lastWorkspaceScanSnapshot = null;
+            activeAnalysisPaths = selected; dashboardAnalysisFocus = focus;
+            scanRootPath = analysisCommonRoot(selected, result);
+            currentFolder = scanRootPath; filesViewMode = FilesViewMode.ALL_FILES;
+            autoRefreshDelay.stop(); autoRefreshPending = false;
+            try { folderWatcher.close(); } catch (IOException ignored) { }
+            if (refresh) {
+                reconcileSimilarResultsAfterRefresh(previous, result);
+                reconcileExactDuplicatesAfterRefresh(previous, result);
+            } else {
+                latestDuplicateGroups = List.of(); duplicateAnalysisCompleted = false;
+                latestSimilarPairs = List.of(); similarAnalysisCompleted = false;
+            }
+            rebuildScannedItemIndex(); updateOceanStatus();
+            // The exact selected scope remains temporary; no workspace folders are added.
+            if (refresh) refreshCurrentPage(); else navigateOcean(destination);
+            refreshButton.setDisable(false);
+            if (!result.getIssues().isEmpty()) showStatusWarning(tr("analysis.partial", result.getIssues().size()));
+        });
+        task.setOnFailed(event -> {
+            scanStatusLabel.textProperty().unbind(); currentScanTask = null; setScanningState(false);
+            showStatusWarning(tr("analysis.failed")); task.getException().printStackTrace();
+        });
+        task.setOnCancelled(event -> {
+            scanStatusLabel.textProperty().unbind(); currentScanTask = null; setScanningState(false);
+        });
+        setScanningState(true); currentScanTask = task;
+        Thread worker = new Thread(task, "fileflow-selected-analysis"); worker.setDaemon(true); worker.start();
+    }
+
+    private Path analysisCommonRoot(List<Path> selected, ScanResult result) {
+        Set<Path> directories = result.getItems().stream().filter(FileItem::isDirectory)
+                .map(item -> item.getPath().toAbsolutePath().normalize()).collect(java.util.stream.Collectors.toSet());
+        Path common = null;
+        for (int i = 0; i < selected.size(); i++) {
+            Path path = selected.get(i).toAbsolutePath().normalize();
+            Path folder = directories.contains(path) ? path : path.getParent();
+            if (i == 0) common = folder;
+            else while (common != null && (folder == null || !folder.startsWith(common))) common = common.getParent();
+        }
+        return common;
+    }
+
+    private Label analysisScopeLabel() {
+        String paths = activeAnalysisPaths.stream().limit(3).map(Path::toString).collect(java.util.stream.Collectors.joining("; "));
+        if (activeAnalysisPaths.size() > 3) paths += " · " + tr("analysis.more", activeAnalysisPaths.size() - 3);
+        Label scope = OceanComponents.label(tr("analysis.scope", paths), "ocean-muted");
+        scope.setWrapText(true); scope.setMaxWidth(Double.MAX_VALUE);
+        scope.setId("analysis-scope-label");
+        return scope;
     }
 
     private VBox createDashboardContent() {
@@ -1265,6 +1348,7 @@ public class MainView {
                     tr("ui.scan_a_folder_to_understand_your_files_and_the_space_they_use"), this::handleScanAction));
             return page;
         }
+        if (!activeAnalysisPaths.isEmpty()) body.getChildren().add(analysisScopeLabel());
         List<FileItem> scannedFiles = latestScanResult.getItems().stream().filter(item -> !item.isDirectory()).toList();
         long totalBytes = scannedFiles.stream().mapToLong(FileItem::getSizeBytes).sum();
         long folders = latestScanResult.getItems().stream().filter(FileItem::isDirectory).count();
@@ -1284,7 +1368,9 @@ public class MainView {
         int rootCount = lastWorkspaceScanSnapshot == null ? 1 : lastWorkspaceScanSnapshot.completedFolderCount();
         long workspaceFiles = lastWorkspaceScanSnapshot == null ? scannedFiles.size() : lastWorkspaceScanSnapshot.fileCount();
         long workspaceBytes = lastWorkspaceScanSnapshot == null ? totalBytes : lastWorkspaceScanSnapshot.totalFileBytes();
-        Label workspaceName = OceanComponents.label(rootCount + (rootCount == 1 ? tr("ui.scanned_folder") : tr("ui.scanned_folders")), "ocean-workspace-title");
+        Label workspaceName = OceanComponents.label(activeAnalysisPaths.isEmpty()
+                ? rootCount + (rootCount == 1 ? tr("ui.scanned_folder") : tr("ui.scanned_folders"))
+                : tr("analysis.scope_count", activeAnalysisPaths.size()), "ocean-workspace-title");
         Label workspaceDetail = OceanComponents.label(String.format(tr("ui.d_files_s"), workspaceFiles,
                 FileSizeFormatter.format(workspaceBytes)), "ocean-muted");
         if (lastWorkspaceScanSnapshot != null && !lastWorkspaceScanSnapshot.failures().isEmpty()) {
@@ -1336,6 +1422,7 @@ public class MainView {
         Map<Path, Long> folderCounts = new HashMap<>();
         if (scanRootPath != null) {
             for (FileItem item : scannedFiles) {
+                if (!item.getPath().startsWith(scanRootPath)) continue;
                 Path relative = scanRootPath.relativize(item.getPath());
                 Path top = relative.getNameCount() > 1 ? scanRootPath.resolve(relative.getName(0)) : scanRootPath;
                 folderBytes.merge(top, item.getSizeBytes(), Long::sum);
@@ -1389,9 +1476,17 @@ public class MainView {
         VBox recent = new VBox(3);
         scannedFiles.stream().sorted(Comparator.comparing(FileItem::getLastModified).reversed()).limit(10)
                 .forEach(item -> recent.getChildren().add(createOceanDashboardRow(item, true)));
-        body.getChildren().addAll(
-                createCollapsibleSection(tr("ui.largest_files"), largest.getChildren().size(), largest),
-                createCollapsibleSection(tr("ui.recently_modified_41bf4"), recent.getChildren().size(), recent));
+        Node largestSection = createCollapsibleSection(tr("ui.largest_files"), largest.getChildren().size(), largest, "largest".equals(dashboardAnalysisFocus));
+        largestSection.setId("dashboard-largest-files");
+        Node recentSection = createCollapsibleSection(tr("ui.recently_modified_41bf4"), recent.getChildren().size(), recent, "recent".equals(dashboardAnalysisFocus));
+        recentSection.setId("dashboard-recent-files");
+        if ("largest".equals(dashboardAnalysisFocus)) {
+            body.getChildren().add(Math.min(2, body.getChildren().size()), largestSection);
+            body.getChildren().add(recentSection);
+        } else if ("recent".equals(dashboardAnalysisFocus)) {
+            body.getChildren().add(Math.min(2, body.getChildren().size()), recentSection);
+            body.getChildren().add(largestSection);
+        } else body.getChildren().addAll(largestSection, recentSection);
         return page;
     }
 
@@ -1596,6 +1691,7 @@ public class MainView {
             return filesContent;
         }
 
+        if (!activeAnalysisPaths.isEmpty()) filesContent.getChildren().add(analysisScopeLabel());
         VBox categoriesContent = new VBox(10);
         categoriesContent.setVisible(false);
         categoriesContent.setManaged(false);
@@ -2905,6 +3001,7 @@ public class MainView {
     private VBox createDuplicatesContent() {
         VBox content = new VBox(18);
         content.getStyleClass().add("duplicates-content");
+        if (!activeAnalysisPaths.isEmpty()) content.getChildren().add(analysisScopeLabel());
 
         content.setMinHeight(0);
         content.setMaxHeight(Double.MAX_VALUE);
@@ -5610,6 +5707,7 @@ public class MainView {
                         WorkspaceScanSnapshot completed = scanTask.getValue();
                         latestScanResult = completed.resultsByRoot().get(selectedPath.toAbsolutePath().normalize());
                         lastWorkspaceScanSnapshot = completed.resultsByRoot().size() > 1 ? completed : null;
+                        activeAnalysisPaths = List.of(); dashboardAnalysisFocus = null;
                         // Scanning is temporary. Only Manage Folders changes the saved library.
 
                         rebuildScannedItemIndex();
@@ -5848,6 +5946,10 @@ public class MainView {
         }
 
         private void refreshCurrentScan() {
+                if (!activeAnalysisPaths.isEmpty()) {
+                        startSelectedAnalysis(activeAnalysisPaths, pageTitle.getText(), dashboardAnalysisFocus, true);
+                        return;
+                }
 
                 // Workspace mode refreshes all selected roots
                 if (lastWorkspaceScanSnapshot != null) {
@@ -6175,7 +6277,7 @@ public class MainView {
                 scanStatusLabel.setManaged(scanning);
 
                 refreshButton.setDisable(
-                        scanning || scanRootPath == null
+                        scanning || (scanRootPath == null && activeAnalysisPaths.isEmpty())
                 );
 
                 if (homeScanButton != null) {
@@ -6682,6 +6784,7 @@ public class MainView {
                 autoRefreshPending = false;
 
                 // Switch the active result and browsing location
+                activeAnalysisPaths = List.of(); dashboardAnalysisFocus = null;
                 latestScanResult = selectedResult;
                 scanRootPath = normalizedRoot;
                 currentFolder = normalizedRoot;
@@ -6853,6 +6956,7 @@ public class MainView {
                                 lastWorkspaceScanSnapshot = refreshed;
                         }
 
+                        activeAnalysisPaths = List.of(); dashboardAnalysisFocus = null;
                         WorkspaceScanSnapshot snapshot =
                                 lastWorkspaceScanSnapshot;
 
@@ -7410,6 +7514,10 @@ public class MainView {
         }
 
         private void refreshAfterDelete(boolean reanalyseDuplicates) {
+                if (!activeAnalysisPaths.isEmpty()) {
+                        startSelectedAnalysis(activeAnalysisPaths, pageTitle.getText(), dashboardAnalysisFocus, true);
+                        return;
+                }
 
                 if (lastWorkspaceScanSnapshot != null) {
 
@@ -7998,13 +8106,13 @@ public class MainView {
         return dateTime.format(formatter);
         }
 
-        private VBox createCollapsibleSection(
-                String title,
-                int itemCount,
-                VBox content
-        ) {
+        private VBox createCollapsibleSection(String title, int itemCount, VBox content) {
+                return createCollapsibleSection(title, itemCount, content, false);
+        }
+
+        private VBox createCollapsibleSection(String title, int itemCount, VBox content, boolean expandedInitially) {
         Label arrowLabel = new Label();
-        arrowLabel.setGraphic(createChevronRightIcon());
+        arrowLabel.setGraphic(expandedInitially ? createChevronDownIcon() : createChevronRightIcon());
 
         Label titleLabel = new Label(
                 title + " (" + itemCount + ")"
@@ -8033,8 +8141,8 @@ public class MainView {
                 "collapsible-section-title"
         );
 
-        content.setVisible(false);
-        content.setManaged(false);
+        content.setVisible(expandedInitially);
+        content.setManaged(expandedInitially);
 
         header.setOnMouseClicked(event -> {
                 boolean expanded = content.isVisible();
