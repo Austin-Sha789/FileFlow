@@ -101,6 +101,25 @@ public class FileScanService {
         return new ScanResult(items, issues);
     }
 
+    /** Scan only the chosen files/folders; never broaden a file selection to its parent. */
+    public ScanResult scanSelected(List<Path> selected, BooleanSupplier isCancelled,
+                                   IntConsumer onItemScanned) {
+        var items = new java.util.LinkedHashMap<Path, FileItem>();
+        List<ScanIssue> issues = new ArrayList<>();
+        for (Path path : ScanRootPlanner.plan(selected)) {
+            if (isCancelled.getAsBoolean()) break;
+            int previousCount = items.size();
+            try {
+                ScanResult result = scan(path, isCancelled, count -> onItemScanned.accept(previousCount + count));
+                for (FileItem item : result.getItems()) items.putIfAbsent(item.getPath().toAbsolutePath().normalize(), item);
+                issues.addAll(result.getIssues());
+            } catch (IOException failure) {
+                issues.add(new ScanIssue(path, failure.getMessage()));
+            }
+        }
+        return new ScanResult(new ArrayList<>(items.values()), issues);
+    }
+
     private FileItem createFileItem(Path path) throws IOException {
         BasicFileAttributes attributes = 
             Files.readAttributes(path, BasicFileAttributes.class);
