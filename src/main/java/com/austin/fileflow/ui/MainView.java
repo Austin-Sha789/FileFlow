@@ -231,6 +231,8 @@ public class MainView {
     private static final String CONFIRM_BEFORE_DELETE_KEY =
         "confirmBeforeRecycleBinMove";
     private final Preferences preferences = Preferences.userNodeForPackage(MainView.class);
+    private final com.austin.fileflow.ui.component.FilesViewOptions filesAppearance =
+            new com.austin.fileflow.ui.component.FilesViewOptions(preferences);
     private FilesViewMode filesViewMode = FilesViewMode.BROWSE;
     private boolean fileSelectionMode = false;
     private final Set<Path> selectedFilePaths = new HashSet<>();
@@ -2284,7 +2286,11 @@ public class MainView {
                 }
         });
 
-        fileList.setFixedCellSize(76);
+        fileList.setFixedCellSize(filesAppearance.rowHeight());
+        toolbar.getChildren().add(filesAppearance.controls(() -> {
+            fileList.setFixedCellSize(filesAppearance.rowHeight());
+            fileList.refresh();
+        }));
         fileColumn.setCellFactory(column -> new FileRowCell(new FileRowCell.Actions() {
             public Node preview(FileItem item) { return createUnifiedFilePreview(item); }
             public String location(FileItem item) { return getWorkspaceFileLocation(item.getPath()); }
@@ -2411,7 +2417,7 @@ public class MainView {
                                 });
 
             }
-        }));
+        }, filesAppearance));
 
         VBox.setVgrow(fileList, Priority.ALWAYS);
 

@@ -45,6 +45,10 @@ public final class FileRowCell extends TableCell<FileItem, FileItem> {
     }
 
     private final Actions actions;
+    private final FilesViewOptions options;
+    private boolean renderedDetails;
+    private double renderedScale = -1;
+    private final Label metadata = new Label();
     private final Label name = new Label();
     private final Label location = new Label();
     private final Tooltip locationHint = new Tooltip();
@@ -56,8 +60,10 @@ public final class FileRowCell extends TableCell<FileItem, FileItem> {
     private FileItem rendered;
     private List<String> renderedTags = List.of();
 
-    public FileRowCell(Actions actions) {
+    public FileRowCell(Actions actions) { this(actions, null); }
+    public FileRowCell(Actions actions, FilesViewOptions options) {
         this.actions = actions;
+        this.options = options;
         setText(null);
         name.getStyleClass().add("file-name");
         location.getStyleClass().add("file-relative-path");
@@ -67,7 +73,9 @@ public final class FileRowCell extends TableCell<FileItem, FileItem> {
             label.setMaxWidth(Double.MAX_VALUE);
             label.setTextOverrun(OverrunStyle.ELLIPSIS);
         }
-        VBox info = new VBox(3, name, location);
+        metadata.getStyleClass().add("file-relative-path");
+        metadata.setMinWidth(0);
+        VBox info = new VBox(3, name, location, metadata);
         info.setMinWidth(0);
         HBox.setHgrow(info, Priority.ALWAYS);
         preview.setMinSize(56, 42);
@@ -157,11 +165,33 @@ public final class FileRowCell extends TableCell<FileItem, FileItem> {
         boolean changed = rendered == null || !Objects.equals(rendered.getPath(), item.getPath())
                 || rendered.getSizeBytes() != item.getSizeBytes()
                 || !Objects.equals(rendered.getLastModified(), item.getLastModified());
-        if (changed) {
+        boolean details = options != null && options.detailsOnly();
+        double scale = options == null ? 1 : options.scale();
+        if (changed || details != renderedDetails || scale != renderedScale) {
+            preview.getChildren().clear();
+            if (!details) {
+                Node graphic = actions.preview(item);
+                graphic.setScaleX(scale); graphic.setScaleY(scale);
+                preview.getChildren().add(new javafx.scene.Group(graphic));
+            }
+            double height = options == null ? 68 : options.rowHeight() - 8;
+            row.setMinHeight(height); row.setPrefHeight(height); row.setMaxHeight(height);
+            preview.setMinSize(56 * scale, 42 * scale);
+            preview.setPrefSize(56 * scale, 42 * scale);
+            preview.setMaxSize(56 * scale, 42 * scale);
+            renderedDetails = details; renderedScale = scale;
             name.setText(item.getName());
             setAccessibleText(item.getName());
-            preview.getChildren().setAll(actions.preview(item));
+
         }
+        preview.setVisible(!details); preview.setManaged(!details);
+        metadata.setVisible(details); metadata.setManaged(details);
+        if (details) metadata.setText(tr("files.metadata",
+                com.austin.fileflow.i18n.I18n.choice(item.isDirectory() ? "Folder" : switch (item.getType()) {
+                    case IMAGE -> "Images"; case VIDEO -> "Videos"; case AUDIO -> "Audio";
+                    case DOCUMENT -> "Documents"; case ARCHIVE -> "Archives"; case CODE -> "Code"; case OTHER -> "Other";
+                }), item.isDirectory() ? "—" : com.austin.fileflow.util.FileSizeFormatter.format(item.getSizeBytes()),
+                item.getLastModified().format(com.austin.fileflow.i18n.I18n.dateTimeFormatter())));
         location.setVisible(actions.showLocation());
         location.setManaged(actions.showLocation());
         if (actions.showLocation()) {
